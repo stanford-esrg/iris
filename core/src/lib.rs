@@ -13,6 +13,7 @@ mod dpdk;
 pub mod filter;
 pub mod lcore;
 pub mod memory;
+pub mod multicore;
 mod port;
 pub mod protocols;
 mod runtime;

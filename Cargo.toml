@@ -3,6 +3,7 @@ members = [
     "core",
     "datatypes",
     "examples/basic",
+    "examples/basic_dispatching",
     "examples/enc_conns",
     "examples/measuring_sec",
     "examples/ml_qos",

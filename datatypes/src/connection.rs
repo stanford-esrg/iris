@@ -121,7 +121,7 @@ impl fmt::Display for ConnRecord {
 /// ## Note
 /// Internal connection state is an associated type of a `pub` trait, and therefore must also be
 /// public. Documentation is hidden by default to avoid confusing users.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[cfg_attr(not(feature = "skip_expand"), datatype)]
 pub struct ConnRecord {
     /// The connection 5-tuple.
