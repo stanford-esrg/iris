@@ -33,6 +33,7 @@ max_out_of_order = 500
 timeout_resolution = 100
 udp_inactivity_timeout = 60000
 tcp_inactivity_timeout = 300000
+tcp_reassembly_timeout = 10000
 tcp_establish_timeout = 5000
 
 [online.prometheus]

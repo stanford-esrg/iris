@@ -218,6 +218,7 @@ impl Default for RuntimeConfig {
                 timeout_resolution: 100,
                 udp_inactivity_timeout: 60_000,
                 tcp_inactivity_timeout: 300_000,
+                tcp_reassembly_timeout: 300_000,
                 tcp_establish_timeout: 5000,
                 init_synack: false,
                 init_fin: false,
@@ -670,6 +671,15 @@ pub struct ConnTrackConfig {
     /// is force expired. Defaults to `300_000` (5 minutes).
     #[serde(default = "default_tcp_inactivity_timeout")]
     pub tcp_inactivity_timeout: usize,
+
+    /// Override the default TCP connection inactivity timeout with this value (in milliseconds)
+    /// if there are unfilled sequence number gaps.
+    ///
+    /// Defaults to `tcp_inactivity_timeout`. This is used to prevent memory exhaustion
+    /// on networks where there may be loss between the ground truth TCP connection (guaranteed retransmissions)
+    /// and the monitoring vantage point (retransmissions not guaranteed).
+    #[serde(default = "default_tcp_inactivity_timeout")]
+    pub tcp_reassembly_timeout: usize,
 
     /// Inactivity time between the first and second packet of a TCP connection before it is force
     /// expired (in milliseconds).

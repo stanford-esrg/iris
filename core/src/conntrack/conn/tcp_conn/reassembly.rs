@@ -188,6 +188,11 @@ impl OutOfOrderBuffer {
         }
     }
 
+    /// Is empty
+    pub(crate) fn is_empty(&self) -> bool {
+        self.buf.is_empty()
+    }
+
     /// Returns the number of elements in the buffer
     pub(crate) fn len(&self) -> usize {
         self.buf.len()

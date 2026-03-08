@@ -65,6 +65,21 @@ impl TcpConn {
             || (self.ctos.consumed_flags & RST | self.stoc.consumed_flags & RST) != 0
     }
 
+    /// Returns the correct inactivity timeout
+    /// (reassembly timeout if there are out-of-order segments, default otherwise)
+    #[inline]
+    pub(crate) fn inactivity_timeout(
+        &self,
+        default_inactivity_timeout: usize,
+        reassembly_timeout: usize
+    ) -> usize {
+        match self.ctos.ooo_buf.is_empty() && self.stoc.ooo_buf.is_empty()
+        {
+            true => default_inactivity_timeout,
+            false => reassembly_timeout,
+        }
+    }
+
     /// Updates connection termination flags
     // Useful if desired to track TCP connections without reassembly
     #[inline]
