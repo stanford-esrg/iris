@@ -158,7 +158,7 @@ impl FlatPattern {
     // When building a filter from a string, only the name of the custom filter is available.
     // To populate needed data, we need to correlate these names with the information parsed
     // at compile-time from the defined custom filters.
-    pub(super) fn handle_custom_predicates(&mut self, valid_preds: &Vec<Predicate>) -> Result<()> {
+    pub(super) fn handle_custom_predicates(&mut self, valid_preds: &[Predicate]) -> Result<()> {
         // "Empty" custom predicate with just the name populated
         for p_empty in &mut self.predicates {
             if p_empty.is_custom() {
@@ -180,9 +180,7 @@ impl FlatPattern {
     pub(super) fn get_subpattern(&self, layer: SupportedLayer, state: LayerState) -> FlatPattern {
         let mut predicates: Vec<_> = self
             .predicates
-            .iter()
-            .cloned()
-            .filter(|x| x.is_compatible(layer, state))
+            .iter().filter(|&x| x.is_compatible(layer, state)).cloned()
             .collect();
         predicates.push(Predicate::LayerState {
             layer,
@@ -194,10 +192,10 @@ impl FlatPattern {
 
     // Inserts a Callback predicate
     // The callback predicate MUST be the last predicate in a pattern.
-    pub(super) fn with_streaming_cb(&self, name: &String) -> Self {
+    pub(super) fn with_streaming_cb(&self, name: &str) -> Self {
         let mut pat = self.clone();
         pat.predicates.push(Predicate::Callback {
-            name: filterfunc!(name.clone()),
+            name: filterfunc!(name),
         });
         pat
     }
@@ -297,7 +295,7 @@ impl FlatPattern {
     pub(super) fn get_datatypes(&self) -> Vec<DataLevelSpec> {
         self.predicates
             .iter()
-            .filter_map(|p| DataLevelSpec::from_pred(p))
+            .filter_map(DataLevelSpec::from_pred)
             .collect()
     }
 
@@ -369,15 +367,14 @@ impl FlatPattern {
             .collect();
         // For `matching` streaming filters that are applied at this state,
         // need to update at future iterations of this filter.
-        if curr.is_streaming() {
-            if self
+        if curr.is_streaming()
+            && self
                 .predicates
                 .iter()
                 .any(|p| p.is_custom() && p.is_matching() && p.levels().iter().any(|l| l == &curr))
             {
                 pat.push(curr);
             }
-        }
         pat
     }
 }

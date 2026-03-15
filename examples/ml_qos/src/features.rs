@@ -130,7 +130,7 @@ impl FeatureChunk {
 
         // Running counters (last 10 segments)
         self.last_10_min_seg_size = if self.last_10_min_seg_size > 0.0 {
-            min_cmp(self.last_10_min_seg_size, seg_size) as f64
+            min_cmp(self.last_10_min_seg_size, seg_size)
         } else {
             seg_size
         };
@@ -194,6 +194,12 @@ pub struct SegmentTracker {
     pub curr_seg_size: usize,
     /// Identified app-layer protocol
     pub proto: SessionProto,
+}
+
+impl Default for SegmentTracker {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl SegmentTracker {

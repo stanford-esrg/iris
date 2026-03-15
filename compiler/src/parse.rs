@@ -195,7 +195,7 @@ impl ParsedInput {
     pub(crate) fn parse(&mut self, input: &Item, args: Option<String>) -> Result<()> {
         match &input {
             syn::Item::Fn(itemfn) => {
-                let spec = FnSpec::from_item_fn(&itemfn);
+                let spec = FnSpec::from_item_fn(itemfn);
                 match self {
                     // Expecting: callback func annotated with #[callback] macro
                     // Requires filter. Can specify levels.
@@ -268,7 +268,7 @@ impl ParsedInput {
                             )));
                         }
                         func.group_name = group_name;
-                        if level.len() < 1 {
+                        if level.is_empty() {
                             bail!(ParserError::MissingParam("level".into(), spec.name.clone()));
                         }
                         func.level = level;
@@ -375,7 +375,7 @@ impl ParsedInput {
                         let struct_def = InputKeys::struct_def(args, &name)?;
                         *self = ParsedInput::FilterGroup(FilterGroupSpec {
                             level: struct_def.0,
-                            name: name,
+                            name,
                             expl_parsers: struct_def.1,
                         });
                     }
@@ -540,7 +540,7 @@ impl InputKeys {
                 }
             } else if k.contains("reassembled") {
                 reassembled =
-                    bool::from_str(&v).expect(&format!("{}", ParserError::InvalidValue(k, v)));
+                    bool::from_str(&v).unwrap_or_else(|_| panic!("{}", ParserError::InvalidValue(k, v)));
             } else if k.contains("name") {
                 assert!(
                     ret.first.is_none(),
@@ -601,7 +601,7 @@ impl InputKeys {
         let re = regex::Regex::new(r"file=([^\s]+)").unwrap();
         let env_re = regex::Regex::new(r"\$([A-Za-z0-9_]+)").unwrap();
         let expanded = re
-            .replace_all(&filter, |results: &regex::Captures| {
+            .replace_all(filter, |results: &regex::Captures| {
                 let mut filters = vec![];
                 // Raw file path
                 let fp = &results[1];
@@ -609,11 +609,11 @@ impl InputKeys {
                 let fp = env_re
                     .replace_all(fp, |env_results: &regex::Captures| {
                         std::env::var(&env_results[1])
-                            .expect(&format!("Failed to find env variable {}", &env_results[1]))
+                            .unwrap_or_else(|_| panic!("Failed to find env variable {}", &env_results[1]))
                     })
                     .to_string();
                 let file =
-                    std::fs::File::open(fp.clone()).expect(&format!("Failed to open file: {}", fp));
+                    std::fs::File::open(fp.clone()).unwrap_or_else(|_| panic!("Failed to open file: {}", fp));
                 let reader = std::io::BufReader::new(file);
                 for (idx, line) in reader.lines().enumerate() {
                     let line = line
@@ -651,14 +651,14 @@ impl InputKeys {
                     name
                 );
             }
-            None => bail!(ParserError::MissingParam("group".into(), name.clone())),
+            None => bail!(ParserError::MissingParam("group".into(), name.to_string())),
         }
         Ok(ret)
     }
 
     fn callback(
         args: Option<String>,
-        name: &String,
+        name: &str,
     ) -> Result<(String, Vec<DataLevel>, Vec<String>)> {
         let mut ret = (String::new(), Vec::new(), Vec::new());
         match args {
@@ -666,24 +666,24 @@ impl InputKeys {
                 let keys = InputKeys::from_string(args)?;
                 match keys.first {
                     Some(fil) => ret.0 = fil,
-                    None => bail!(ParserError::MissingParam("filter".into(), name.clone())),
+                    None => bail!(ParserError::MissingParam("filter".into(), name.to_string())),
                 }
                 ret.1 = keys.levels;
                 ret.2 = keys.parsers;
             }
-            None => bail!(ParserError::MissingParam("filter".into(), name.clone())),
+            None => bail!(ParserError::MissingParam("filter".into(), name.to_string())),
         }
         Ok(ret)
     }
 
-    fn struct_def(args: Option<String>, name: &String) -> Result<(Option<DataLevel>, Vec<String>)> {
+    fn struct_def(args: Option<String>, name: &str) -> Result<(Option<DataLevel>, Vec<String>)> {
         let mut ret = (None, Vec::new());
         if let Some(args) = args {
             let mut keys = InputKeys::from_string(args)?;
             if let Some(l) = keys.first {
                 let level = match DataLevel::from_str(&l) {
                     Ok(level) => level,
-                    Err(_) => bail!(ParserError::InvalidParam(l.clone(), name.clone())),
+                    Err(_) => bail!(ParserError::InvalidParam(l.clone(), name.to_string())),
                 };
                 keys.levels.push(level);
             }
@@ -692,7 +692,7 @@ impl InputKeys {
                 1 => Some(keys.levels.pop().unwrap()),
                 _ => bail!(ParserError::InvalidParam(
                     "[levels > 1]".into(),
-                    name.clone()
+                    name.to_string()
                 )),
             };
             ret.1 = keys.parsers;

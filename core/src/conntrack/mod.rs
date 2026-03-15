@@ -112,7 +112,7 @@ where
                     mbuf,
                     ctxt,
                     dir,
-                    conn.last_seen_ts.clone(),
+                    conn.last_seen_ts,
                     conn.flow_len(dir),
                     conn.total_len(),
                 );

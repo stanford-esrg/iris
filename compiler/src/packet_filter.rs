@@ -24,7 +24,7 @@ pub(crate) fn gen_packet_filter(ptree: &PredPTree) -> proc_macro2::TokenStream {
         update_body(&mut body, &ptree.root, ptree);
     }
 
-    gen_packet_filter_util(&mut body, &ptree.root, &ptree);
+    gen_packet_filter_util(&mut body, &ptree.root, ptree);
 
     // Return value
     body.push(match ptree.deliver.is_empty() {

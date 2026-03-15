@@ -37,26 +37,26 @@ struct Args {
 
 /* Utilities for exemptions */
 
-fn bit_length(data: &Vec<u8>) -> f64 {
+fn bit_length(data: &[u8]) -> f64 {
     (data.len() * 8) as f64
 }
 
-fn bit_entropy(data: &Vec<u8>) -> f64 {
+fn bit_entropy(data: &[u8]) -> f64 {
     data.iter().map(|&b| b.count_ones()).sum::<u32>() as f64 / bit_length(data)
 }
 
-fn pct_matching(data: &Vec<u8>, bytes: &[u8]) -> f64 {
+fn pct_matching(data: &[u8], bytes: &[u8]) -> f64 {
     data.iter().filter(|&b| bytes.contains(b)).count() as f64 / bit_length(data)
 }
 
-fn first_n(data: &Vec<u8>, bytes: &[u8], n: usize) -> bool {
+fn first_n(data: &[u8], bytes: &[u8], n: usize) -> bool {
     if data.len() < n {
         return false;
     }
     data[..n].iter().all(|&b| bytes.contains(&b))
 }
 
-fn count_contiguous(data: &Vec<u8>, bytes: &[u8]) -> usize {
+fn count_contiguous(data: &[u8], bytes: &[u8]) -> usize {
     data.iter()
         .fold(
             (0, 0), // Init counts at 0, 0

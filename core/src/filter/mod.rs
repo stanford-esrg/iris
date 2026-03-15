@@ -88,7 +88,7 @@ pub struct Filter {
 }
 
 impl Filter {
-    pub fn new(filter_raw: &str, valid_custom_preds: &Vec<Predicate>) -> Result<Filter> {
+    pub fn new(filter_raw: &str, valid_custom_preds: &[Predicate]) -> Result<Filter> {
         let raw_patterns = FilterParser::parse_filter(filter_raw)?;
 
         let flat_patterns = raw_patterns

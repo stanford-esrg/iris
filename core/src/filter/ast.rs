@@ -207,7 +207,7 @@ impl Predicate {
     // Inapplicable to static predicates and LayerState.
     pub fn levels(&self) -> Vec<DataLevel> {
         match self {
-            Predicate::Custom { levels, .. } => levels.into_iter().flatten().cloned().collect(),
+            Predicate::Custom { levels, .. } => levels.iter().flatten().cloned().collect(),
             Predicate::Callback { .. } => vec![],
             // can be checked anytime [TODO could refine this later]
             Predicate::LayerState { .. } => vec![DataLevel::L4FirstPacket],

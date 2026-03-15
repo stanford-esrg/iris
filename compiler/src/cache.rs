@@ -27,8 +27,9 @@ pub(crate) fn set_crate_outfile(fp: String) {
         OpenOptions::new()
             .create(true)
             .write(true)
+            .truncate(true)
             .open(&path)
-            .expect(&format!("Failed to create file {}", fp));
+            .unwrap_or_else(|_| panic!("Failed to create file {}", fp));
     } else if std::fs::metadata(&path).unwrap().len() != 0 {
         println!("Warning - clearing existing contents of file {}", fp);
     }
@@ -39,7 +40,7 @@ pub(crate) fn set_crate_outfile(fp: String) {
         .write(true)
         .truncate(true)
         .open(&path)
-        .expect(&format!("Failed to open file {}", fp));
+        .unwrap_or_else(|_| panic!("Failed to open file {}", fp));
 
     let v = CACHED_DATA.lock().unwrap();
     for elem in v.iter() {
@@ -56,9 +57,9 @@ pub(crate) fn push_input(input: ParsedInput) {
     match outfile.as_ref() {
         Some(fp) => {
             let mut file = OpenOptions::new()
-                .write(true)
+                
                 .append(true)
-                .open(&fp)
+                .open(fp)
                 .expect("Failed to open file to append");
             let json = serde_json::to_string(&input).expect("Failed to convert json to string");
             writeln!(file, "{}", json).expect("Failed to append to file");
@@ -75,11 +76,11 @@ pub(crate) fn push_input(input: ParsedInput) {
 pub(crate) fn set_input_files(fps: Vec<&str>) {
     let mut cached = CACHED_DATA.lock().unwrap();
     for fp in fps {
-        let fp = parse_filepath(&String::from(fp));
-        let file = File::open(fp.clone()).expect(&format!("Cannot find input file: {}", fp));
+        let fp = parse_filepath(fp);
+        let file = File::open(fp.clone()).unwrap_or_else(|_| panic!("Cannot find input file: {}", fp));
         let reader = BufReader::new(file);
         for line in reader.lines() {
-            let line = line.expect(&format!("Failed to read line from input file {}", fp));
+            let line = line.unwrap_or_else(|_| panic!("Failed to read line from input file {}", fp));
             if line.trim().is_empty() {
                 continue;
             }
@@ -90,17 +91,17 @@ pub(crate) fn set_input_files(fps: Vec<&str>) {
     }
 }
 
-fn parse_filepath(fp: &String) -> String {
+fn parse_filepath(fp: &str) -> String {
     if fp.starts_with("$") {
         let mut dirs = fp.split("/").collect::<Vec<_>>();
-        let home = std::env::var(&dirs[0].replace("$", ""))
-            .expect(&format!("Cannot find env variable {}", dirs[0]));
+        let home = std::env::var(dirs[0].replace("$", ""))
+            .unwrap_or_else(|_| panic!("Cannot find env variable {}", dirs[0]));
         dirs[0] = &home;
         dirs.join("/")
     } else if fp.starts_with("~") {
-        let home = std::env::var("HOME").expect(&format!("Cannot find home directory"));
+        let home = std::env::var("HOME").expect("Cannot find home directory");
         fp.replace("~", &home)
     } else {
-        fp.clone()
+        fp.to_string()
     }
 }

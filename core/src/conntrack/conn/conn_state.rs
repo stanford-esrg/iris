@@ -214,7 +214,7 @@ impl<'a> StateTxData<'a> {
     pub fn from_tx(state: &StateTransition, layer: &'a Layer) -> Self {
         match layer {
             Layer::L7(layer) => {
-                return match state {
+                match state {
                     DataLevel::L4EndHshk => Self::L4EndHshk,
                     DataLevel::L7OnDisc => Self::L7OnDisc(layer.get_protocol()),
                     DataLevel::L7EndHdrs => {
@@ -222,7 +222,7 @@ impl<'a> StateTxData<'a> {
                     }
                     DataLevel::L4Terminated => Self::L4Terminated,
                     _ => Self::Null,
-                };
+                }
             }
         }
     }

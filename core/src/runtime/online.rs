@@ -37,7 +37,7 @@ where
         subscription: Arc<Subscription<S>>,
     ) -> Self {
         let hw_filter =
-            Filter::new(&hw_filter_str, &vec![]).expect("Failed to parse collapsed filter");
+            Filter::new(&hw_filter_str, &[]).expect("Failed to parse collapsed filter");
         // Set up signal handler
         let is_running = Arc::new(AtomicBool::new(true));
         let r = Arc::clone(&is_running);

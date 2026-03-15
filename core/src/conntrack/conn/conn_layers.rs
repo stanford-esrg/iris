@@ -89,7 +89,7 @@ impl Layer {
 
     /// Push an action
     pub fn extend_actions(&mut self, action: &TrackedActions) {
-        self.layer_info_mut().actions.extend(&action)
+        self.layer_info_mut().actions.extend(action)
     }
 
     /// Accessors
@@ -179,6 +179,12 @@ impl TrackableLayer for Layer {
 pub struct LayerInfo {
     pub state: LayerState,
     pub actions: TrackedActions,
+}
+
+impl Default for LayerInfo {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl LayerInfo {

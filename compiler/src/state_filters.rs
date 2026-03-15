@@ -138,18 +138,7 @@ fn gen_state_filter_util(
                 op,
                 value,
             } => {
-                if child.pred.on_packet() {
-                    let pred_tokenstream = binary_to_tokens(protocol, field, op, value, statics);
-                    add_pred(
-                        code,
-                        child,
-                        tree,
-                        pred_tokenstream,
-                        statics,
-                        sub,
-                        extract_sessions,
-                    );
-                } else if child.pred.on_session() {
+                if child.pred.on_packet() || child.pred.on_session() {
                     let pred_tokenstream = binary_to_tokens(protocol, field, op, value, statics);
                     add_pred(
                         code,
@@ -271,7 +260,7 @@ fn add_service_pred(
 ) {
     let service_ident = Ident::new(&protocol.name().to_camel_case(), Span::call_site());
     let pred_tokenstream = if extract_sessions {
-        let proto_ident = Ident::new(&protocol.name(), Span::call_site());
+        let proto_ident = Ident::new(protocol.name(), Span::call_site());
         quote! {
             let iris_core::protocols::stream::SessionData::#service_ident(#proto_ident) = &conn.layers[0].last_session().data
         }

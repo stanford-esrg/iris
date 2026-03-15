@@ -67,7 +67,7 @@ impl StaticData for AnonFiveTuple {
         datatype("name=AnonFiveTuple,level=L4FirstPacket")
     )]
     fn new(first_pkt: &L4Pdu) -> Self {
-        let mut five_tuple = FiveTuple::from_ctxt(first_pkt.ctxt.clone());
+        let mut five_tuple = FiveTuple::from_ctxt(first_pkt.ctxt);
         five_tuple.orig.set_ip(Self::hash_ip(&five_tuple.orig.ip()));
         Self { data: five_tuple }
     }
@@ -104,7 +104,7 @@ impl StaticData for ClearedFiveTuple {
         datatype("name=ClearedFiveTuple,level=L4FirstPacket")
     )]
     fn new(first_pkt: &L4Pdu) -> Self {
-        let mut five_tuple = FiveTuple::from_ctxt(first_pkt.ctxt.clone());
+        let mut five_tuple = FiveTuple::from_ctxt(first_pkt.ctxt);
         five_tuple.orig.set_ip(Self::clear(five_tuple.orig.ip()));
         five_tuple.resp.set_ip(Self::clear(five_tuple.resp.ip()));
         Self { data: five_tuple }
@@ -119,7 +119,7 @@ impl StaticData for StartTime {
         datatype("name=StartTime,level=L4FirstPacket")
     )]
     fn new(first_pkt: &L4Pdu) -> Self {
-        first_pkt.ts.clone()
+        first_pkt.ts
     }
 }
 

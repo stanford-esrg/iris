@@ -74,7 +74,7 @@ where
             bail!("Not SYN")
         };
         Ok(Conn {
-            last_seen_ts: pdu.ts.clone(),
+            last_seen_ts: pdu.ts,
             inactivity_window: initial_timeout,
             l4conn: L4Conn::Tcp(tcp_conn),
             info: ConnInfo::new(pdu, core_id),
@@ -87,7 +87,7 @@ where
     pub(super) fn new_udp(initial_timeout: usize, pdu: &L4Pdu, core_id: CoreId) -> Result<Self> {
         let udp_conn = UdpConn;
         Ok(Conn {
-            last_seen_ts: pdu.ts.clone(),
+            last_seen_ts: pdu.ts,
             inactivity_window: initial_timeout,
             l4conn: L4Conn::Udp(udp_conn),
             info: ConnInfo::new(pdu, core_id),

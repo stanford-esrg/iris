@@ -53,11 +53,10 @@ impl Predictor {
         if start.elapsed().as_secs() < START_INF_AFTER_TS {
             return true; // Not enough historical data to start inference
         }
-        if let Some(last) = self.last_calc {
-            if last.elapsed().as_secs() < INTERVAL_TS {
+        if let Some(last) = self.last_calc
+            && last.elapsed().as_secs() < INTERVAL_TS {
                 return true; // Continue receiving data
             }
-        }
         let feature_vec = tracked.to_feature_vec();
         if let Ok(instance) = DenseMatrix::new(1, feature_vec.len(), feature_vec, false) {
             #[cfg(feature = "timing")]

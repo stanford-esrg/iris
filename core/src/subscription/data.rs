@@ -35,12 +35,12 @@ pub type FilterStr<'a> = &'a str;
 /// for foreign type.
 #[doc(hidden)]
 pub trait StringToTokens {
-    fn from_string(filter: &String) -> proc_macro2::TokenStream;
+    fn from_string(filter: &str) -> proc_macro2::TokenStream;
 }
 impl StringToTokens for FilterStr<'_> {
     /// Convert a filter string into a token representation at compile-time.
     #[doc(hidden)]
-    fn from_string(filter: &String) -> proc_macro2::TokenStream {
+    fn from_string(filter: &str) -> proc_macro2::TokenStream {
         let str = syn::LitStr::new(filter, proc_macro2::Span::call_site());
         quote::quote! { &#str }
     }

@@ -67,7 +67,6 @@ impl PNode {
     }
 
     /// -- Utilities for comparing predicates when inserting nodes -- //
-
     // Utility to check whether a descendant exists
     // Helper for `get_descendant`, which must be invoked in an `if` block
     // due to borrow checker
@@ -401,15 +400,15 @@ impl PTree {
         // Filter patterns
         patterns: &[FlatPattern],
         // Individual callbacks; each has datatypes
-        callbacks: &Vec<CallbackSpec>,
+        callbacks: &[CallbackSpec],
         // String identifier
-        id: &String,
+        id: &str,
     ) {
         if self.collapsed {
             panic!("Cannot add filter to tree after collapsing");
         }
         assert!(
-            patterns.len() > 0 || patterns.iter().all(|p| p.predicates.is_empty()),
+            !patterns.is_empty() || patterns.iter().all(|p| p.predicates.is_empty()),
             "Empty filter pattern must have default predicate."
         );
         log::trace!("{}: Adding subscription with id: {}", self.filter_layer, id);
@@ -446,8 +445,8 @@ impl PTree {
     fn add_pattern(
         &mut self,
         pattern_: &FlatPattern,
-        callbacks: &Vec<CallbackSpec>,
-        cb_id: &String,
+        callbacks: &[CallbackSpec],
+        cb_id: &str,
     ) {
         let mut pattern = pattern_;
 
@@ -701,7 +700,7 @@ impl PTree {
             {
                 return true;
             }
-            node.children.iter().any(|c| contains_term_filters(c))
+            node.children.iter().any(contains_term_filters)
         }
         contains_term_filters(&self.root)
     }
@@ -940,7 +939,7 @@ impl PTree {
             self.collapsed = true;
             // Shouldn't have another filter stage here unless there may
             // be something to deliver
-            assert!(self.deliver.len() >= 1);
+            assert!(!self.deliver.is_empty());
 
             // The delivery filter will only be invoked if a previous filter
             // determined that delivery is needed at the corresponding stage.
@@ -948,8 +947,8 @@ impl PTree {
             // outcome), then no filter condition is needed.
             // The exception is if there is a filter that we still need to apply.
             // --> TODO can we relax this requirement?
-            if self.deliver.len() == 1 {
-                if !self.contains_term_filters() {
+            if self.deliver.len() == 1
+                && !self.contains_term_filters() {
                     self.root
                         .deliver
                         .insert(self.deliver.iter().next().unwrap().clone());
@@ -957,7 +956,6 @@ impl PTree {
                     self.update_size();
                     return;
                 }
-            }
         }
         self.prune_redundant_branches();
         self.prune_packet_conditions();

@@ -79,7 +79,7 @@ fn load_dataset(dataset_file: &str) -> Result<Dataset<f64, usize>> {
     let mut skipped_rows = 0;
 
     // Iterate through CSV rows
-    for (_, record) in rdr.records().enumerate() {
+    for record in rdr.records() {
         if let Ok(val) = record // Fails if not utf-8
             .as_ref()
             .unwrap()

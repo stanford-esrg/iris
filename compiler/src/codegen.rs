@@ -18,9 +18,9 @@ use syn::LitStr;
 
 pub(crate) fn cb_to_tokens(
     sub: &SubscriptionDecoder,
-    datatypes: &Vec<String>,
-    cb_name: &String,
-    cb_group: Option<&String>,
+    datatypes: &[String],
+    cb_name: &str,
+    cb_group: Option<&str>,
     invoke_once: bool,
 ) -> proc_macro2::TokenStream {
     let mut conditions = vec![];
@@ -40,7 +40,7 @@ pub(crate) fn cb_to_tokens(
         true => cb_name.split("::").last().unwrap(),
         false => cb_name,
     };
-    let cb_name_ident = Ident::new(&cb_name, Span::call_site());
+    let cb_name_ident = Ident::new(cb_name, Span::call_site());
 
     let invoke = match cb_group {
         Some(grp) => {
@@ -193,11 +193,11 @@ pub(crate) fn datatype_func_to_tokens(dt: &DatatypeFnSpec) -> proc_macro2::Token
         .func
         .datatypes
         .last()
-        .expect(&format!("No parameters provided in function {:?}", dt));
+        .unwrap_or_else(|| panic!("No parameters provided in function {:?}", dt));
     let dt_name = Ident::new(&dt.group_name.to_lowercase(), Span::call_site());
     let fname = Ident::new(&dt.func.name, Span::call_site());
     if BUILTIN_TYPES.iter().any(|inp| inp.name() == param) {
-        let builtin = builtin_to_tokens(&param);
+        let builtin = builtin_to_tokens(param);
         return quote! { conn.tracked.#dt_name.#fname(#builtin); };
     }
     panic!("Unknown param for {}: {}", dt.func.name, param);
@@ -214,7 +214,7 @@ pub(crate) fn datatype_func_to_tokens(dt: &DatatypeFnSpec) -> proc_macro2::Token
 /// @params: actual variable names
 pub(crate) fn params_to_tokens(
     sub: &SubscriptionDecoder,
-    datatypes: &Vec<String>,
+    datatypes: &[String],
     conditions: &mut Vec<proc_macro2::TokenStream>,
     cond_match: &mut Vec<proc_macro2::TokenStream>,
     params: &mut Vec<proc_macro2::TokenStream>,
@@ -223,7 +223,7 @@ pub(crate) fn params_to_tokens(
         let dt_metadata = sub
             .datatypes_raw
             .get(dt)
-            .expect(&format!("Cannot find {} in known datatypes", dt));
+            .unwrap_or_else(|| panic!("Cannot find {} in known datatypes", dt));
         let dt_name_ident = Ident::new(&dt.to_lowercase(), Span::call_site());
 
         // Extract directly from tracked data
@@ -234,7 +234,7 @@ pub(crate) fn params_to_tokens(
 
         // Built-in datatype
         if BUILTIN_TYPES.iter().any(|inp| inp.name() == dt) {
-            let builtin = builtin_to_tokens(&dt);
+            let builtin = builtin_to_tokens(dt);
             params.push(quote! { #builtin });
             continue;
         }
@@ -246,11 +246,9 @@ pub(crate) fn params_to_tokens(
             }
             _ => false,
         });
-        if let Some(inp) = constructor {
-            if let ParsedInput::DatatypeFn(spec) = inp {
-                // TODO validate / what other restrictions needed here?
-                constr_to_tokens(spec, conditions, cond_match, params, &dt_name_ident);
-            }
+        if let Some(ParsedInput::DatatypeFn(spec)) = constructor {
+            // TODO validate / what other restrictions needed here?
+            constr_to_tokens(spec, conditions, cond_match, params, &dt_name_ident);
         }
     }
 }
@@ -341,7 +339,7 @@ pub(crate) fn tracked_actions_to_tokens(actions: &TrackedActions) -> proc_macro2
     let refr_at: Vec<proc_macro2::TokenStream> = actions
         .refresh_at
         .iter()
-        .map(|a| actions_to_tokens(a))
+        .map(actions_to_tokens)
         .collect();
     quote! {
         TrackedActions {
@@ -360,7 +358,7 @@ pub(crate) fn update_to_tokens(
     sub: &SubscriptionDecoder,
     curr: &StateTransition,
 ) -> proc_macro2::TokenStream {
-    let updates = match sub.updates.get(&curr) {
+    let updates = match sub.updates.get(curr) {
         Some(updates) => updates,
         None => return quote! {},
     };
@@ -514,13 +512,13 @@ pub(crate) fn fil_callback_to_tokens(
     sub: &SubscriptionDecoder,
     spec: &CallbackSpec,
 ) -> proc_macro2::TokenStream {
-    let dts = spec.datatypes.iter().map(|dt| dt.name.clone()).collect();
-    let name = &spec.as_str;
+    let dts: Vec<String> = spec.datatypes.iter().map(|dt| dt.name.clone()).collect();
+    let name = spec.as_str.as_str();
 
     // Will track CB state within a streaming wrapper, either because
     // this is a multi-function CB or because it's a streaming CB
-    let mut group = None;
-    if &spec.subscription_id != name {
+    let mut group: Option<&str> = None;
+    if spec.subscription_id != spec.as_str {
         group = Some(&spec.subscription_id);
     }
 
@@ -549,7 +547,7 @@ pub(crate) fn fil_callback_to_tokens(
 
 pub(crate) fn cb_set_active_to_tokens(spec: &CallbackSpec) -> proc_macro2::TokenStream {
     assert!(
-        spec.is_streaming() || &spec.subscription_id != &spec.as_str,
+        spec.is_streaming() || spec.subscription_id != spec.as_str,
         "Setting CB as matched should only happen for streaming or multi-function CBs"
     );
     let wrapper = Ident::new(&spec.subscription_id.to_lowercase(), Span::call_site());
@@ -567,26 +565,26 @@ pub(crate) fn custom_pred_to_tokens(
     let filter = decoder
         .filters_raw
         .get(name)
-        .expect(&format!("Can't find filter {}", name));
+        .unwrap_or_else(|| panic!("Can't find filter {}", name));
 
-    assert!(filter.len() > 0, "{} has no inputs", name);
+    assert!(!filter.is_empty(), "{} has no inputs", name);
 
     if filter.len() > 1 || filter[0].levels().iter().any(|l| l.is_streaming()) {
         let ident = Ident::new(&(name.to_lowercase()), Span::call_site());
         match matched {
-            true => return quote! { conn.tracked.#ident.matched() },
-            false => return quote! { conn.tracked.#ident.is_active() },
+            true => quote! { conn.tracked.#ident.matched() },
+            false => quote! { conn.tracked.#ident.is_active() },
         }
     } else {
         let tokens = filter_func_to_tokens(decoder, &filter[0], false);
-        return quote! { #tokens == FilterResult::Accept };
+        quote! { #tokens == FilterResult::Accept }
     }
 }
 
 /// Custom streaming (stateful or stateless) callback predicate to tokens
 /// in a filter PTree. This checks whether a callback is currently active,
 /// but it does not invoke the callback.
-pub(crate) fn callback_pred_to_tokens(name: &String) -> proc_macro2::TokenStream {
+pub(crate) fn callback_pred_to_tokens(name: &str) -> proc_macro2::TokenStream {
     let ident = Ident::new(&name.to_lowercase(), Span::call_site());
     quote! { conn.tracked.#ident.is_active() }
 }

@@ -56,10 +56,10 @@ pub(crate) struct SubscriptionSpec {
 }
 
 impl SubscriptionSpec {
-    fn add_patterns(&mut self, custom_preds: &Vec<Predicate>) {
+    fn add_patterns(&mut self, custom_preds: &[Predicate]) {
         if self.patterns.is_none() {
-            let filter = Filter::new(&self.filter, &custom_preds)
-                .expect(&format!("Invalid filter: {}", self.filter));
+            let filter = Filter::new(&self.filter, custom_preds)
+                .unwrap_or_else(|_| panic!("Invalid filter: {}", self.filter));
             self.patterns = Some(filter.get_patterns_flat());
         }
     }
@@ -279,7 +279,7 @@ impl SubscriptionDecoder {
             let inp_group = v
                 .iter()
                 .find(|i| matches!(i, ParsedInput::Callback(_) | ParsedInput::CallbackGroup(_)))
-                .expect(&format!("{} missing callback definition", cb_name));
+                .unwrap_or_else(|| panic!("{} missing callback definition", cb_name));
             let filter = match inp_group {
                 ParsedInput::Callback(cb) => cb.filter.clone(),
                 ParsedInput::CallbackGroup(cb) => cb.filter.clone(),
@@ -339,7 +339,7 @@ impl SubscriptionDecoder {
             .map(|dt_name| {
                 self.datatypes
                     .get(dt_name)
-                    .expect(&format!("Can't find datatype {}", dt_name))
+                    .unwrap_or_else(|| panic!("Can't find datatype {}", dt_name))
                     .clone()
             })
             .collect::<Vec<_>>();
@@ -372,11 +372,11 @@ impl SubscriptionDecoder {
             let dt_info = self
                 .datatypes_raw
                 .get(dt_name)
-                .expect(&format!("Cannot find datatype {}", dt_name));
+                .unwrap_or_else(|| panic!("Cannot find datatype {}", dt_name));
             let mut level = dt_info
                 .iter()
                 .find(|grp| matches!(grp, ParsedInput::Datatype(_)))
-                .expect(&format!("Cannot find datatype declaration {}", dt_name))
+                .unwrap_or_else(|| panic!("Cannot find datatype declaration {}", dt_name))
                 .levels();
             assert!(
                 level.len() == 1,
@@ -401,7 +401,7 @@ impl SubscriptionDecoder {
 
         // Only retain datatypes that are actually used by a datatype or filter
         let mut req_datatypes = HashSet::new();
-        for (_, v) in &self.filters_raw {
+        for v in self.filters_raw.values() {
             for inp in v {
                 match inp {
                     ParsedInput::FilterGroupFn(spec) => {
@@ -414,7 +414,7 @@ impl SubscriptionDecoder {
                 }
             }
         }
-        for (_, v) in &self.cbs_raw {
+        for v in self.cbs_raw.values() {
             for inp in v {
                 match inp {
                     ParsedInput::Callback(spec) => {
@@ -432,21 +432,21 @@ impl SubscriptionDecoder {
     }
 
     fn add_parsers(&mut self) {
-        for (_, v) in &self.filters_raw {
+        for v in self.filters_raw.values() {
             self.parsers.extend(
                 v.iter()
                     .flat_map(|i| i.expl_parsers())
                     .filter(|p| !p.is_empty()),
             );
         }
-        for (_, v) in &self.datatypes_raw {
+        for v in self.datatypes_raw.values() {
             self.parsers.extend(
                 v.iter()
                     .flat_map(|i| i.expl_parsers())
                     .filter(|p| !p.is_empty()),
             );
         }
-        for (_, v) in &self.cbs_raw {
+        for v in self.cbs_raw.values() {
             self.parsers.extend(
                 v.iter()
                     .flat_map(|i| i.expl_parsers())
@@ -457,19 +457,19 @@ impl SubscriptionDecoder {
 
     fn decode_updates(&mut self) {
         let mut updates = HashMap::new();
-        for (_, v) in &self.filters_raw {
+        for v in self.filters_raw.values() {
             Self::push_update(&mut updates, v);
             if let Some(tracked) = Self::is_tracked_type(v) {
                 self.tracked.insert(tracked);
             }
         }
-        for (_, v) in &self.datatypes_raw {
+        for v in self.datatypes_raw.values() {
             Self::push_update(&mut updates, v);
             if let Some(tracked) = Self::is_tracked_type(v) {
                 self.tracked.insert(tracked);
             }
         }
-        for (_, v) in &self.cbs_raw {
+        for v in self.cbs_raw.values() {
             Self::push_update(&mut updates, v);
             if let Some(tracked) = Self::is_tracked_type(v) {
                 self.tracked.insert(tracked);

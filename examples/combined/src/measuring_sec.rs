@@ -87,7 +87,7 @@ pub fn write_stats() -> std::io::Result<()> {
     for (k, v) in protos.iter().rev() {
         writeln!(writer, "{}:{}", k, v)?;
     }
-    writeln!(writer, "")?;
+    writeln!(writer)?;
 
     writeln!(
         writer,
@@ -123,19 +123,17 @@ pub fn drop_high_vol_conn(ft: &FiveTuple) -> FilterResult {
 pub fn drop_high_vol_sess(session: &Session) -> FilterResult {
     if let SessionData::Dns(dns) = &session.data {
         let domain = dns.query_domain();
-        if !domain.is_empty() {
-            if HIGH_VOL_DNS_SUBSTRINGS.iter().any(|d| domain.contains(d)) {
+        if !domain.is_empty()
+            && HIGH_VOL_DNS_SUBSTRINGS.iter().any(|d| domain.contains(d)) {
                 return FilterResult::Drop;
             }
-        }
     }
     if let SessionData::Http(http) = &session.data {
         let ua = http.user_agent();
-        if !ua.is_empty() {
-            if IOT_UAS.iter().any(|u| ua.contains(u)) {
+        if !ua.is_empty()
+            && IOT_UAS.iter().any(|u| ua.contains(u)) {
                 return FilterResult::Drop;
             }
-        }
     }
     if !matches!(
         session.data,
@@ -294,7 +292,7 @@ pub fn get_http(http: &HttpTransaction, five_tuple: &FiveTuple, core: &CoreId) {
     if let IpAddr::V4(v4) = five_tuple.orig.ip() {
         let user_agent = http.user_agent();
         let mut ua_map = user_agents().lock();
-        let entry = ua_map.entry(v4.into()).or_insert_with(Vec::new);
+        let entry = ua_map.entry(v4.into()).or_default();
         if !user_agent.is_empty() && !entry.contains(&user_agent.into()) {
             entry.push(user_agent.into());
         }

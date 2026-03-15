@@ -60,7 +60,7 @@ impl Tracked for ConnDuration {
         datatype_group("ConnDuration,level=L4InPayload")
     )]
     fn update(&mut self, pdu: &L4Pdu) {
-        self.last_ts = pdu.ts.clone();
+        self.last_ts = pdu.ts;
     }
 
     #[inline]

@@ -107,7 +107,7 @@ impl TcpFlow {
                     next_seq
                 );
                 segment.mark_no_payload();
-                info.new_packet(&mut segment, subscription);
+                info.new_packet(&segment, subscription);
                 drop(segment);
             }
         } else {
@@ -208,6 +208,7 @@ impl OutOfOrderBuffer {
     /// Consumes segments with expected data, retains segments with future data,
     /// and drops segments with old data.
     /// Returns the next expected sequence number and control flags of consumed segments.
+    #[allow(clippy::too_many_arguments)]
     #[inline]
     fn flush_ordered<T: Trackable>(
         &mut self,
@@ -263,7 +264,7 @@ impl OutOfOrderBuffer {
                 } else {
                     log::debug!("Dropping old segment during flush.");
                     segment.mark_no_payload();
-                    info.new_packet(&mut segment, subscription);
+                    info.new_packet(&segment, subscription);
                     drop(segment);
                     index += 1;
                 }

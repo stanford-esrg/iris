@@ -96,7 +96,7 @@ impl PredPTree {
     // Creates a new predicate tree from a slice of FlatPatterns
     pub fn new(patterns: &[FlatPattern], packet_only: bool) -> Self {
         let mut ptree = Self::new_empty(packet_only);
-        ptree.build_tree(patterns, &vec![]);
+        ptree.build_tree(patterns, &[]);
         ptree
     }
 
@@ -160,7 +160,7 @@ impl PredPTree {
         layered
     }
 
-    pub fn build_tree(&mut self, patterns: &[FlatPattern], callbacks: &Vec<CallbackSpec>) {
+    pub fn build_tree(&mut self, patterns: &[FlatPattern], callbacks: &[CallbackSpec]) {
         // Check for packet-level subscription
         let callback = if callbacks.len() == 1
             && callbacks[0].datatypes.iter().all(|dt| {
@@ -285,7 +285,7 @@ impl PredPTree {
                 for d in &node.deliver {
                     s.push_str(format!("{}, ", d.as_str).as_str());
                 }
-                s.push_str(")");
+                s.push(')');
             }
 
             let prefix_child = if last { "   " } else { "|  " };

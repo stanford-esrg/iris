@@ -88,7 +88,7 @@ impl DataActions {
         {
             assert!(!*matched);
             let spec = DataLevelSpec {
-                updates: levels.into_iter().cloned().flatten().collect(),
+                updates: levels.iter().flatten().cloned().collect(),
                 name: name.clone().0,
             };
             let actions = spec.to_actions(filter_layer);
@@ -199,7 +199,7 @@ impl NodeActions {
         let curr = self
             .actions
             .iter_mut()
-            .find(|a| (**a).if_matches == new.if_matches);
+            .find(|a| a.if_matches == new.if_matches);
         match curr {
             Some(curr) => {
                 curr.transport.extend(&new.transport);
@@ -253,7 +253,7 @@ impl NodeActions {
     #[allow(dead_code)]
     pub(crate) fn merge(&mut self, peer: &NodeActions) {
         assert!(
-            self.end_datatypes && peer.end_datatypes || self.actions.len() == 0,
+            self.end_datatypes && peer.end_datatypes || self.actions.is_empty(),
             "SELF: {}\nPEER: {}",
             self,
             peer
@@ -268,7 +268,7 @@ impl NodeActions {
     /// Returns `true` if no actions
     #[allow(dead_code)]
     pub(crate) fn drop(&self) -> bool {
-        self.actions.len() == 0 || self.actions.iter().all(|a| a.transport.drop())
+        self.actions.is_empty() || self.actions.iter().all(|a| a.transport.drop())
     }
 }
 
@@ -518,7 +518,7 @@ impl Hash for CallbackSpec {
 
 impl CallbackSpec {
     pub(super) fn get_datatypes(&self) -> Vec<DataLevelSpec> {
-        let mut datatypes: Vec<_> = self.datatypes.iter().cloned().collect();
+        let mut datatypes: Vec<_> = self.datatypes.to_vec();
         if let Some(expl_level) = self.expl_level {
             // Requires streaming `updates` or the level cannot be
             // inferred from the datatype alone

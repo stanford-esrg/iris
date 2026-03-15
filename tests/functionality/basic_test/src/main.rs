@@ -49,7 +49,7 @@ fn tls_cb(tls: &TlsHandshake, bytecount: &ByteCount, five_tuple: &FiveTuple) {
 
     let result = TlsResult {
         sni: Some(tls.sni().to_string()),
-        five_tuple: five_tuple.clone(),
+        five_tuple: *five_tuple,
         byte_count: bytecount.total(),
     };
 

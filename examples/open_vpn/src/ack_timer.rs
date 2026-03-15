@@ -76,20 +76,19 @@ impl OpenVPNAcks {
         }
 
         // If packet has same len as ACK, add to bin count
-        if let Some(ack_len) = self.ack_len {
-            if pdu.length() == ack_len {
+        if let Some(ack_len) = self.ack_len
+            && pdu.length() == ack_len {
                 let curr_bin = (self.n_payload_pkts() - 1) / 10;
                 if curr_bin < self.bins.len() {
                     self.bins[curr_bin] += 1;
                 }
             }
-        }
     }
 
     // Table 2
     pub fn apply_ack_fingerprint(&self) -> bool {
         // 1st bin >= 1, <= 3
-        self.bins[0] >= 1 && self.bins[0] > 3 &&
+        self.bins[0] >= 1 && self.bins[0] <= 3 &&
             // 2nd bin >= 2, <= 5
             self.bins[1] >= 2 && self.bins[1] <= 5 &&
             // Bins 3-5: <= 5

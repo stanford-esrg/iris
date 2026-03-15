@@ -44,7 +44,7 @@ fn callback(opcodes: &OpenVPNOpcode, acks: &OpenVPNAcks) -> bool {
     }
     if op_id {
         FLAGGED_OPS.fetch_add(1, Ordering::Relaxed);
-        if opcodes.opcodes_tot.iter().all(|o| OPCODES.contains(&o))
+        if opcodes.opcodes_tot.iter().all(|o| OPCODES.contains(o))
             && opcodes.crst.unwrap() == CRST_OPCODE
             && opcodes.srst.unwrap() == SRST_OPCODE
         {

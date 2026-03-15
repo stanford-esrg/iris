@@ -88,7 +88,7 @@ pub fn write_stats() -> std::io::Result<()> {
     for (k, v) in protos.iter().rev() {
         writeln!(writer, "{}:{}", k, v)?;
     }
-    writeln!(writer, "")?;
+    writeln!(writer)?;
 
     writeln!(
         writer,

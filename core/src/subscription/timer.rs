@@ -71,11 +71,7 @@ impl CallbackTimer for Bytes {
         let len = pdu.length() as u64;
         if len >= self.count_remaining {
             let over = len - self.count_remaining;
-            self.count_remaining = if over >= self.count {
-                0
-            } else {
-                self.count - over
-            };
+            self.count_remaining = self.count.saturating_sub(over);
             return true;
         }
         self.count_remaining -= len;

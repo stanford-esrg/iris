@@ -54,7 +54,7 @@ pub fn get_http(http: &HttpTransaction, five_tuple: &FiveTuple, core: &CoreId) {
     if let IpAddr::V4(v4) = five_tuple.orig.ip() {
         let user_agent = http.user_agent();
         let mut ua_map = user_agents().lock();
-        let entry = ua_map.entry(v4.into()).or_insert_with(Vec::new);
+        let entry = ua_map.entry(v4.into()).or_default();
         if !user_agent.is_empty() && !entry.contains(&user_agent.into()) {
             entry.push(user_agent.into());
         }

@@ -47,11 +47,10 @@ impl Predictor {
         if start.elapsed().as_secs() < START_INF_AFTER_TS {
             return true; // Not enough historical data to start inference
         }
-        if let Some(last) = self.last_calc {
-            if last.elapsed().as_secs() < INTERVAL_TS {
+        if let Some(last) = self.last_calc
+            && last.elapsed().as_secs() < INTERVAL_TS {
                 return true; // Continue receiving data
             }
-        }
         let feature_vec = tracked.to_feature_vec();
         if let Ok(instance) = DenseMatrix::new(1, feature_vec.len(), feature_vec, false) {
             let mut pred = CLF.predict(&instance).unwrap();
@@ -222,7 +221,7 @@ impl FeatureChunk {
 
         // Running counters (last 10 segments)
         self.last_10_min_seg_size = if self.last_10_min_seg_size > 0.0 {
-            min_cmp(self.last_10_min_seg_size, seg_size) as f64
+            min_cmp(self.last_10_min_seg_size, seg_size)
         } else {
             seg_size
         };
