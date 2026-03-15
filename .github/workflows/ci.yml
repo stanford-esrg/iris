@@ -71,13 +71,13 @@ jobs:
                 cd .. &&
                 cd .. ;
             fi
-    - name: Clippy retina-core (no mlx5)
+    - name: Clippy iris-core (no mlx5)
       run: cargo clippy --manifest-path core/Cargo.toml --no-default-features -- --deny warnings
-    - name: Unit test retina-core (no mlx5)
+    - name: Unit test iris-core (no mlx5)
       run: cargo test core --manifest-path core/Cargo.toml --no-default-features
-    - name: Clippy retina-core (with timing)
+    - name: Clippy iris-core (with timing)
       run: cargo clippy --manifest-path core/Cargo.toml --no-default-features --features timing
-    - name: Clippy retina-filtergen (no mlx5)
+    - name: Clippy iris-filtergen (no mlx5)
       run: cargo clippy --manifest-path filtergen/Cargo.toml --no-default-features -- --deny warnings
 
   format:
