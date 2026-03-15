@@ -1,6 +1,6 @@
 //! Per-core connection state management.
 //!
-//! Most of this module's functionality is maintained internally by Retina and is not meant to be
+//! Most of this module's functionality is maintained internally by Iris and is not meant to be
 //! directly managed by users. However, it publicly exposes some useful connection identifiers for
 //! convenience.
 
@@ -8,6 +8,14 @@ pub mod conn;
 pub mod conn_id;
 pub mod pdu;
 mod timerwheel;
+
+#[cfg(test)]
+mod tests;
+
+pub use conn::conn_actions::{Actions, TrackedActions};
+pub use conn::conn_layers::Layer;
+pub use conn::conn_state::{DataLevel, LayerState, StateTransition, StateTxData};
+pub use conn::ConnInfo;
 
 use self::conn::{Conn, L4Conn};
 use self::conn_id::ConnId;
@@ -88,27 +96,28 @@ where
             RawEntryMut::Occupied(mut occupied) => {
                 let conn = occupied.get_mut();
                 conn.last_seen_ts = Instant::now();
-                let dir = conn.packet_dir(&ctxt);
+                if conn.remove_from_table() {
+                    log::error!("Conn in Drop state when occupied in table");
+                    return;
+                }
+                if conn.drop_pdu() {
+                    return;
+                }
                 conn.inactivity_window = match &conn.l4conn {
                     L4Conn::Tcp(_) => self.config.tcp_inactivity_timeout,
                     L4Conn::Udp(_) => self.config.udp_inactivity_timeout,
                 };
-                if conn.remove_from_table() {
-                    log::error!("Conn in Drop state when occupied in table");
-                }
-                if conn.drop_pdu() {
-                    drop(mbuf);
-                    return;
-                }
-                let pdu = L4Pdu::new(mbuf, ctxt, dir);
-                conn.info.update_sdata(&pdu, subscription, false);
-                // Consume PDU for reassembly or parsing
-                if conn.info.actions.reassemble() {
-                    conn.update(pdu, subscription, &self.registry);
-                } else {
-                    // Ensure FIN is handled, if appl.
-                    conn.update_tcp_flags(pdu.flags(), pdu.dir);
-                }
+                let dir = conn.packet_dir(&ctxt);
+                let pdu = L4Pdu::new(
+                    mbuf,
+                    ctxt,
+                    dir,
+                    conn.last_seen_ts.clone(),
+                    conn.flow_len(dir),
+                    conn.total_len(),
+                );
+                // Consume PDU for update, reassembly, and/or parsing
+                conn.update(pdu, subscription, &self.registry);
 
                 // Delete stale data for connections no longer matching
                 if conn.remove_from_table() {
@@ -122,7 +131,7 @@ where
             }
             RawEntryMut::Vacant(_) => {
                 if self.size() < self.config.max_connections {
-                    let pdu = L4Pdu::new(mbuf, ctxt, true);
+                    let mut pdu = L4Pdu::new(mbuf, ctxt, true, Instant::now(), Some(0), Some(0));
                     let conn = match ctxt.proto {
                         TCP_PROTOCOL => Conn::<T>::new_tcp(
                             self.config.tcp_establish_timeout,
@@ -130,18 +139,24 @@ where
                             &pdu,
                             self.core_id,
                         ),
-                        UDP_PROTOCOL => Conn::<T>::new_udp(
-                            self.config.udp_inactivity_timeout,
-                            &pdu,
-                            self.core_id,
-                        ),
+                        UDP_PROTOCOL => {
+                            pdu.flow_ord = None;
+                            pdu.conn_ord = None;
+                            Conn::<T>::new_udp(
+                                self.config.udp_inactivity_timeout,
+                                &pdu,
+                                self.core_id,
+                            )
+                        }
                         _ => Err(anyhow!("Invalid L4 Protocol")),
                     };
                     if let Ok(mut conn) = conn {
-                        conn.info.filter_first_packet(&pdu, subscription);
-                        conn.info.update_sdata(&pdu, subscription, false);
-                        if conn.info.actions.reassemble() {
-                            conn.info.consume_pdu(pdu, subscription, &self.registry);
+                        conn.info.filter_first_packet(subscription);
+                        if conn.info.needs_reassembly() {
+                            conn.info
+                                .consume_stream(&mut pdu, subscription, &self.registry);
+                        } else {
+                            conn.info.new_packet(&pdu, subscription);
                         }
                         if !conn.remove_from_table() {
                             self.timerwheel.insert(
@@ -149,6 +164,7 @@ where
                                 conn.last_seen_ts,
                                 conn.inactivity_window,
                             );
+                            self.table.insert(conn_id, conn);
                             match ctxt.proto {
                                 TCP_PROTOCOL => {
                                     TCP_NEW_CONNECTIONS.inc();
@@ -158,7 +174,6 @@ where
                                 }
                                 _ => {}
                             }
-                            self.table.insert(conn_id, conn);
                         }
                     }
                 } else {
@@ -184,6 +199,12 @@ where
     ) {
         self.timerwheel
             .check_inactive(&mut self.table, subscription, now);
+    }
+
+    /// Clears the parser registry. Used in testing.
+    #[allow(dead_code)]
+    pub(crate) fn clear_registry(&mut self) {
+        self.registry = ParserRegistry::from_strings(vec![]);
     }
 }
 

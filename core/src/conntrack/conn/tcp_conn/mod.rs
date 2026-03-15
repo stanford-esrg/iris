@@ -18,7 +18,7 @@ impl TcpConn {
         let next_seq = ctxt.seq_no.wrapping_add(1 + ctxt.length as u32);
         let ack = ctxt.ack_no;
         TcpConn {
-            ctos: TcpFlow::new(max_ooo, next_seq, flags, ack),
+            ctos: TcpFlow::new(max_ooo, next_seq, flags, ack, true),
             stoc: TcpFlow::default(max_ooo),
         }
     }
@@ -39,6 +39,20 @@ impl TcpConn {
             self.stoc
                 .insert_segment::<T>(segment, info, subscription, registry);
         }
+    }
+
+    #[inline]
+    pub(crate) fn flow_len(&self, dir: bool) -> usize {
+        if dir {
+            self.ctos.observed
+        } else {
+            self.stoc.observed
+        }
+    }
+
+    #[inline]
+    pub(crate) fn total_len(&self) -> usize {
+        self.ctos.observed + self.stoc.observed
     }
 
     /// Returns `true` if the connection should be terminated

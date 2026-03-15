@@ -22,6 +22,8 @@ pub struct HttpParser {
     current_trans: usize,
     /// The current deepest transaction (total transactions ever seen).
     cnt: usize,
+    /// Offset into last PDU where HTTP response body starts, if applicable
+    last_body_offset: Option<usize>,
 }
 
 impl HttpParser {
@@ -46,12 +48,16 @@ impl HttpParser {
 
     /// Process data segments from server to client
     pub(crate) fn process_stoc(&mut self, data: &[u8], pdu: &L4Pdu) -> ParseResult {
-        if let Ok(response) = HttpResponse::parse_from(data) {
+        if let Ok((response, consumed)) = HttpResponse::parse_from(data) {
             if let Some(http) = self.pending.get_mut(&self.current_trans) {
                 http.response = response;
-                // TODO: Handle response continuation data instead of returning
-                // ParseResult::Done immediately on Response start-line
-                ParseResult::Done(self.current_trans)
+                // Calculate end of headers, if present
+                if consumed < data.len() && consumed > 0 {
+                    self.last_body_offset = Some(consumed);
+                }
+                // TODO: Handle response continuation data
+                // Parse result for full session
+                ParseResult::HeadersDone(self.current_trans)
             } else {
                 log::warn!("HTTP response without oustanding request: {:?}", pdu.ctxt);
                 ParseResult::Skipped
@@ -143,5 +149,9 @@ impl ConnParsable for HttpParser {
 
     fn session_parsed_state(&self) -> ParsingState {
         ParsingState::Parsing
+    }
+
+    fn body_offset(&mut self) -> Option<usize> {
+        std::mem::take(&mut self.last_body_offset)
     }
 }

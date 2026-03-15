@@ -1,30 +1,23 @@
 //! A DNS transaction.
-//! Subscribable alias for [`retina_core::protocols::stream::dns::Dns`]
+//! Subscribable alias for [`iris_core::protocols::stream::dns::Dns`]
 
-use retina_core::protocols::stream::dns::Dns;
-use retina_core::protocols::stream::{Session, SessionData};
+use crate::FromSession;
+#[allow(unused_imports)]
+use iris_compiler::{datatype, datatype_group};
+use iris_core::protocols::stream::dns::Dns;
+use iris_core::protocols::stream::{Session, SessionData};
 
-use super::{FromSession, SessionList};
-
+#[cfg_attr(not(feature = "skip_expand"), datatype("L7EndHdrs,parsers=dns"))]
 pub type DnsTransaction = Box<Dns>;
 
 impl FromSession for DnsTransaction {
-    fn stream_protocols() -> Vec<&'static str> {
-        vec!["dns"]
-    }
-
+    #[cfg_attr(
+        not(feature = "skip_expand"),
+        datatype_group("DnsTransaction,level=L7EndHdrs")
+    )]
     fn from_session(session: &Session) -> Option<&Self> {
         if let SessionData::Dns(dns) = &session.data {
             return Some(dns);
-        }
-        None
-    }
-
-    fn from_sessionlist(session_list: &SessionList) -> Option<&Self> {
-        for session in session_list {
-            if let SessionData::Dns(dns) = &session.data {
-                return Some(dns);
-            }
         }
         None
     }

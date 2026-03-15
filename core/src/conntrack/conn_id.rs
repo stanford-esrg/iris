@@ -1,7 +1,7 @@
 //! Bidirectional connection identifiers.
 //!
 //! Provides endpoint-specific (distinguishes originator and responder) and generic identifiers for bi-directional connections.
-//! Retina defines a "connection" by five tuple (source/destination addresses, ports, and transport protocol).
+//! Iris defines a "connection" by five tuple (source/destination addresses, ports, and transport protocol).
 
 use crate::conntrack::L4Context;
 
@@ -65,14 +65,20 @@ impl FiveTuple {
 
     /// Utility for returning a string representation of the dst. IP
     pub fn dst_ip_str(&self) -> String {
-        if let V4(_) = self.orig {
-            if let V4(dst) = self.resp {
-                return dst.ip().to_string();
-            }
-        } else if let V6(_) = self.orig {
-            if let V6(dst) = self.resp {
-                return dst.ip().to_string();
-            }
+        if let V4(dst) = self.resp {
+            return dst.ip().to_string();
+        }
+        if let V6(dst) = self.resp {
+            return dst.ip().to_string();
+        }
+        String::new()
+    }
+
+    pub fn src_ip_str(&self) -> String {
+        if let V4(src) = self.orig {
+            return src.ip().to_string();
+        } else if let V6(src) = self.orig {
+            return src.ip().to_string();
         }
         String::new()
     }

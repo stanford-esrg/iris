@@ -1,15 +1,33 @@
 use crate::conntrack::pdu::{L4Context, L4Pdu};
-use crate::conntrack::ConnTracker;
+use crate::conntrack::{ConnInfo, ConnTracker, DataLevel, StateTransition};
 use crate::filter::*;
 use crate::lcore::CoreId;
 use crate::memory::mbuf::Mbuf;
 use crate::protocols::packet::tcp::TCP_PROTOCOL;
 use crate::protocols::packet::udp::UDP_PROTOCOL;
-use crate::protocols::stream::{ConnData, ParserRegistry, Session};
+use crate::protocols::stream::ParserRegistry;
 use crate::stats::{StatExt, TCP_BYTE, TCP_PKT, UDP_BYTE, UDP_PKT};
+
+pub mod data;
+#[doc(hidden)]
+pub mod filter;
+pub use data::Tracked;
+pub use filter::StreamingFilter;
+#[doc(hidden)]
+pub mod callback;
+pub use callback::StreamingCallback;
+
+pub mod timer;
 
 #[cfg(feature = "timing")]
 use crate::timing::timer::Timers;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum FilterResult {
+    Continue,
+    Drop,
+    Accept,
+}
 
 pub trait Subscribable {
     type Tracked: Trackable<Subscribed = Self>;
@@ -21,33 +39,8 @@ pub trait Trackable {
     /// Create a new struct for tracking connection data for user delivery
     fn new(first_pkt: &L4Pdu, core_id: CoreId) -> Self;
 
-    /// When tracking, parsing, or buffering frames,
-    /// update tracked data with new PDU
-    fn update(&mut self, pdu: &L4Pdu, reassembled: bool);
-
-    /// Get a reference to all sessions that matched filter(s) in connection
-    fn sessions(&self) -> &Vec<Session>;
-
-    /// Store a session that matched
-    fn track_session(&mut self, session: Session);
-
-    /// Store packets for (possible) future delivery
-    fn buffer_packet(&mut self, pdu: &L4Pdu, actions: &Actions, reassembled: bool);
-
     /// Get reference to stored packets (those buffered for delivery)
     fn packets(&self) -> &Vec<Mbuf>;
-
-    /// Drain data from all types that require storing packets
-    /// Can help free mbufs for future use
-    fn drain_tracked_packets(&mut self);
-
-    /// Check and potentially deliver to streaming callbacks
-    fn stream_deliver(&mut self, actions: &mut Actions, pdu: &L4Pdu);
-
-    /// Drain data from packets cached for future potential delivery
-    /// Used after these packets have been delivered or when associated
-    /// subscription fails to match
-    fn drain_cached_packets(&mut self);
 
     /// Return the core ID that this tracked conn. is on
     fn core_id(&self) -> &CoreId;
@@ -60,58 +53,47 @@ pub trait Trackable {
     fn clear(&mut self);
 }
 
+#[allow(dead_code)]
 pub struct Subscription<S>
 where
     S: Subscribable,
 {
-    packet_continue: PacketContFn,
-    packet_filter: PacketFilterFn<S::Tracked>,
-    proto_filter: ProtoFilterFn<S::Tracked>,
-    session_filter: SessionFilterFn<S::Tracked>,
-    packet_deliver: PacketDeliverFn<S::Tracked>,
-    conn_deliver: ConnDeliverFn<S::Tracked>,
+    packet_filter: PacketFilterFn,
+    state_tx_filter: StateTxFn<S::Tracked>,
+    update_fn: UpdateFn<S::Tracked>,
     #[cfg(feature = "timing")]
     pub(crate) timers: Timers,
 }
 
+#[allow(dead_code)]
 impl<S> Subscription<S>
 where
     S: Subscribable,
 {
     pub fn new(factory: FilterFactory<S::Tracked>) -> Self {
         Subscription {
-            packet_continue: factory.packet_continue,
             packet_filter: factory.packet_filter,
-            proto_filter: factory.proto_filter,
-            session_filter: factory.session_filter,
-            packet_deliver: factory.packet_deliver,
-            conn_deliver: factory.conn_deliver,
+            state_tx_filter: factory.state_tx,
+            update_fn: factory.update_fn,
             #[cfg(feature = "timing")]
             timers: Timers::new(),
         }
     }
 
-    pub fn process_packet(
-        &self,
-        mbuf: Mbuf,
-        conn_tracker: &mut ConnTracker<S::Tracked>,
-        actions: Actions,
-    ) {
-        if actions.data.intersects(ActionData::PacketContinue) {
-            if let Ok(ctxt) = L4Context::new(&mbuf) {
-                match ctxt.proto {
-                    TCP_PROTOCOL => {
-                        TCP_PKT.inc();
-                        TCP_BYTE.inc_by(mbuf.data_len() as u64);
-                    }
-                    UDP_PROTOCOL => {
-                        UDP_PKT.inc();
-                        UDP_BYTE.inc_by(mbuf.data_len() as u64);
-                    }
-                    _ => {}
+    pub fn process_packet(&self, mbuf: Mbuf, conn_tracker: &mut ConnTracker<S::Tracked>) {
+        if let Ok(ctxt) = L4Context::new(&mbuf) {
+            match ctxt.proto {
+                TCP_PROTOCOL => {
+                    TCP_PKT.inc();
+                    TCP_BYTE.inc_by(mbuf.data_len() as u64);
                 }
-                conn_tracker.process(mbuf, ctxt, self);
+                UDP_PROTOCOL => {
+                    UDP_PKT.inc();
+                    UDP_BYTE.inc_by(mbuf.data_len() as u64);
+                }
+                _ => {}
             }
+            conn_tracker.process(mbuf, ctxt, self);
         }
     }
 
@@ -121,40 +103,20 @@ where
     // Ideally, NIC would `mark` mbufs as `deliver` and/or `continue`.
     /// Invokes the software packet filter.
     /// Used for each packet to determine
-    /// forwarding to conn. tracker.
-    pub fn continue_packet(&self, mbuf: &Mbuf, core_id: &CoreId) -> Actions {
-        (self.packet_continue)(mbuf, core_id)
+    /// forwarding to conn. tracker. /// TMP - todo return bool
+    pub fn filter_packet(&self, mbuf: &Mbuf, core_id: &CoreId) -> bool {
+        (self.packet_filter)(mbuf, core_id)
     }
 
-    /// Invokes the five-tuple filter.
-    /// Applied to the first packet in the connection.
-    pub fn filter_packet(&self, mbuf: &Mbuf, tracked: &mut S::Tracked) -> Actions {
-        (self.packet_filter)(mbuf, tracked)
+    /// Called on any StateTransition.
+    /// Updates actions and invokes filters.
+    pub fn state_tx<T: Trackable>(&self, conn: &mut ConnInfo<S::Tracked>, tx: &StateTransition) {
+        (self.state_tx_filter)(conn, tx)
     }
 
-    /// Invokes the end-to-end protocol filter.
-    /// Applied once a parser identifies the application-layer protocol.
-    pub fn filter_protocol(&self, conn: &ConnData, tracked: &mut S::Tracked) -> Actions {
-        (self.proto_filter)(conn, tracked)
-    }
-
-    /// Invokes the application-layer session filter.
-    /// Delivers sessions to callbacks if applicable.
-    pub fn filter_session(
-        &self,
-        session: &Session,
-        conn: &ConnData,
-        tracked: &mut S::Tracked,
-    ) -> Actions {
-        (self.session_filter)(session, conn, tracked)
-    }
-
-    /// Delivery functions, including delivery to the correct callback
-    pub fn deliver_packet(&self, mbuf: &Mbuf, conn_data: &ConnData, tracked: &S::Tracked) {
-        (self.packet_deliver)(mbuf, conn_data, tracked)
-    }
-
-    pub fn deliver_conn(&self, conn_data: &ConnData, tracked: &S::Tracked) {
-        (self.conn_deliver)(conn_data, tracked)
+    /// Invoke "update" API, returning `true` if Actions may need
+    /// to be refreshed (i.e., a subscription has gone out of scope).
+    pub fn update(&self, conn: &mut ConnInfo<S::Tracked>, pdu: &L4Pdu, state: DataLevel) -> bool {
+        (self.update_fn)(conn, pdu, state)
     }
 }

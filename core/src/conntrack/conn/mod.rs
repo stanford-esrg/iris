@@ -3,14 +3,17 @@
 //! Tracks a TCP or UDP connection, performs stream reassembly, and (via ConnInfo)
 //! manages protocol parser state throughout the duration of the connection.
 
+pub mod conn_actions;
 pub mod conn_info;
+pub mod conn_layers;
+pub mod conn_state;
 pub mod tcp_conn;
 pub mod udp_conn;
 
-use self::conn_info::ConnInfo;
+pub use conn_info::ConnInfo;
+
 use self::tcp_conn::TcpConn;
-use self::udp_conn::UdpConn;
-use crate::conntrack::conn_id::FiveTuple;
+use crate::conntrack::conn::udp_conn::UdpConn;
 use crate::conntrack::pdu::{L4Context, L4Pdu};
 use crate::lcore::CoreId;
 use crate::protocols::packet::tcp::{ACK, RST, SYN};
@@ -52,7 +55,7 @@ where
 {
     /// Creates a new TCP connection from `ctxt` with an initial inactivity window of
     /// `initial_timeout` and a maximum out-or-order tolerance of `max_ooo`. This means that there
-    /// can be at most `max_ooo` packets buffered out of sequence before Retina chooses to discard
+    /// can be at most `max_ooo` packets buffered out of sequence before Iris chooses to discard
     /// the connection.
     pub(super) fn new_tcp(
         initial_timeout: usize,
@@ -71,7 +74,7 @@ where
             bail!("Not SYN")
         };
         Ok(Conn {
-            last_seen_ts: Instant::now(),
+            last_seen_ts: pdu.ts.clone(),
             inactivity_window: initial_timeout,
             l4conn: L4Conn::Tcp(tcp_conn),
             info: ConnInfo::new(pdu, core_id),
@@ -84,26 +87,52 @@ where
     pub(super) fn new_udp(initial_timeout: usize, pdu: &L4Pdu, core_id: CoreId) -> Result<Self> {
         let udp_conn = UdpConn;
         Ok(Conn {
-            last_seen_ts: Instant::now(),
+            last_seen_ts: pdu.ts.clone(),
             inactivity_window: initial_timeout,
             l4conn: L4Conn::Udp(udp_conn),
             info: ConnInfo::new(pdu, core_id),
         })
     }
 
+    pub(super) fn flow_len(&self, dir: bool) -> Option<usize> {
+        match &self.l4conn {
+            L4Conn::Tcp(tcp_conn) => Some(tcp_conn.flow_len(dir)),
+            L4Conn::Udp(_) => None,
+        }
+    }
+
+    pub(super) fn total_len(&self) -> Option<usize> {
+        match &self.l4conn {
+            L4Conn::Tcp(tcp_conn) => Some(tcp_conn.total_len()),
+            L4Conn::Udp(_) => None,
+        }
+    }
+
     /// Updates a connection on the arrival of a new packet.
     pub(super) fn update(
         &mut self,
-        pdu: L4Pdu,
+        mut pdu: L4Pdu,
         subscription: &Subscription<T::Subscribed>,
         registry: &ParserRegistry,
     ) {
+        // Case 1: no need to pass through parsing/reassembly infrastructure,
+        // but still may need update and still need to track for termination.
+        if !self.info.needs_reassembly() {
+            // Update without reassembly
+            if self.info.linfo.actions.needs_update() {
+                self.info.new_packet(&pdu, subscription);
+            }
+            self.update_tcp_flags(pdu.flags(), pdu.dir);
+            return;
+        }
+
+        // Case 2: reassembly/parsing needed
         match &mut self.l4conn {
             L4Conn::Tcp(tcp_conn) => {
                 tcp_conn.reassemble(pdu, &mut self.info, subscription, registry);
-                // Check if, after actions update, the framework/subscriptions no longer require
-                // receiving reassembled traffic
-                if !self.info.actions.reassemble() {
+                // Check if, after actions update, the framework/subscriptions
+                // no longer require receiving reassembled traffic.
+                if !self.info.needs_reassembly() {
                     // Safe to discard out-of-order buffers
                     if tcp_conn.ctos.ooo_buf.len() != 0 {
                         tcp_conn.ctos.ooo_buf.buf.clear();
@@ -113,7 +142,7 @@ where
                     }
                 }
             }
-            L4Conn::Udp(_udp_conn) => self.info.consume_pdu(pdu, subscription, registry),
+            L4Conn::Udp(_) => self.info.consume_stream(&mut pdu, subscription, registry),
         }
     }
 
@@ -125,11 +154,6 @@ where
         }
     }
 
-    /// Returns the connection 5-tuple.
-    pub(super) fn five_tuple(&self) -> FiveTuple {
-        self.info.cdata.five_tuple
-    }
-
     /// Returns `true` if the connection should be removed from the conn. table.
     /// Note UDP connections are kept for a buffer period. UDP packets
     /// that pass the packet filter stage are assumed to represent an
@@ -139,13 +163,17 @@ where
     pub(super) fn remove_from_table(&self) -> bool {
         match &self.l4conn {
             L4Conn::Udp(_) => false,
-            _ => self.info.actions.drop(),
+            _ => self.info.drop(),
         }
     }
 
     /// Returns `true` if PDUs for this connection should be dropped.
+    /// This happens for UDP connections that no longer require tracking,
+    /// but we keep it around (with no assoc. data) to avoid re-insertion.
+    /// Note - consider in future ways to track removed UDP connections
+    /// in more efficient way.
     pub(super) fn drop_pdu(&self) -> bool {
-        self.info.actions.drop()
+        self.info.drop()
     }
 
     /// Returns `true` if the connection has been naturally terminated.
@@ -159,7 +187,7 @@ where
     /// Returns the `true` if the packet represented by `ctxt` is in the direction of originator ->
     /// responder.
     pub(super) fn packet_dir(&self, ctxt: &L4Context) -> bool {
-        self.five_tuple().orig == ctxt.src
+        self.info.cdata.five_tuple.orig == ctxt.src
     }
 
     /// Invokes connection termination tasks that are triggered when any of the following conditions

@@ -1,6 +1,6 @@
 # Installation
 
-These installation instructions are for running Retina on a bare metal Ubuntu server with a Mellanox server NIC, and have been tested on the following platforms:
+These installation instructions are for running Iris on a bare metal Ubuntu server with a Mellanox server NIC, and have been tested on the following platforms:
 
 | CPU                   | OS            | NIC                                      |
 | --------------------- | ------------- | ---------------------------------------- |
@@ -9,12 +9,10 @@ These installation instructions are for running Retina on a bare metal Ubuntu se
 | Intel Xeon Silver 4314| Ubuntu 20.04  | Mellanox ConnectX-5 100G MCX516A-CCA_Ax  |
 | AMD EPYC 7452 32-Core | Ubuntu 20.04  | Mellanox ConnectX-5 Ex Dual Port 100 GbE |
 
-We have also tested Retina in offline mode on both x86 and ARM-based [Ubuntu VMs](#testing-retina-offline-on-a-vm).
-
-Retina can run on other platforms as well, detail to come.
+We have also tested Iris in offline mode on both x86 and ARM-based [Ubuntu VMs](#testing-iris-offline-on-a-vm).
 
 ## Hardware Recommendations
-Retina should work on any commodity x86 server, but the more cores and memory the better. For real-time operation in 100G network environments, we recommend at least 64GB of memory and a 100G Mellanox ConnectX-5 or similar, but any DPDK-compatible NIC should work.
+Iris should work on any commodity x86 server, but the more cores and memory the better. For real-time operation in 100G network environments, we recommend at least 64GB of memory and a 100G Mellanox ConnectX-5 or similar, but any DPDK-compatible NIC should work.
 
 ## Installing Dependencies
 
@@ -24,18 +22,18 @@ sudo apt install build-essential meson pkg-config libnuma-dev python3-pyelftools
 ```
 
 ## Building and Installing DPDK
-Retina currently requires [**DPDK 20.11 or 21.08 or 23.11 or 24.11**](https://core.dpdk.org/download/). Note that 20.11 LTS has a bug that causes inaccurate packet drop metrics on some NICs.
+Iris currently requires [**DPDK 20.11 or 21.08 or 23.11 or 24.11**](https://core.dpdk.org/download/). Note that 20.11 LTS has a bug that causes inaccurate packet drop metrics on some NICs.
 
 ### System Configuration
 To get high performance from DPDK applications, we recommend the following system configuration steps. More details from the DPDK docs can be found [here](https://doc.dpdk.org/guides/linux_gsg/nic_perf_intel_platform.html).
 
 
 #### Allocate 1GB hugepages (if system resources allow)
-Edit the GRUB boot settings `/etc/default/grub` to reserve 1GB hugepages and isolate CPU cores that will be used for Retina. For example, to reserve 64 1GB hugepages and isolate cores 1-32:
+Edit the GRUB boot settings `/etc/default/grub` to reserve 1GB hugepages and isolate CPU cores that will be used for Iris. For example, to reserve 64 1GB hugepages and isolate cores 1-32:
 ```
 GRUB_CMDLINE_LINUX="default_hugepagesz=1G hugepagesz=1G hugepages=64 iommu=pt intel_iommu=on isolcpus=1-32"
 ```
-If your computer has less memory allocated (i.e., if testing retina in an offline VM) then change the default_hugepagesz and hugepagesz values to fit your resources. Allocating more memory to hugepages than achievable will result in an unsuccessful startup of your VM.
+If your computer has less memory allocated (i.e., if testing iris in an offline VM) then change the default_hugepagesz and hugepagesz values to fit your resources. Allocating more memory to hugepages than achievable will result in an unsuccessful startup of your VM.
 
 
 Update the GRUB settings and reboot:
@@ -98,7 +96,7 @@ More information on compiling DPDK can be found [here](https://doc.dpdk.org/guid
 
 #### Troubleshooting: Building DPDK 21.08 with Meson
 
-Meson >= 0.60 [may fail to build](https://github.com/spdk/spdk/issues/2214) DPDK 21.08. You can insert [the fix](https://review.spdk.io/gerrit/c/spdk/dpdk/+/10044) into DPDK or build Meson < 0.60 from [source](https://github.com/mesonbuild/meson/releases). (After downloading and extracting, run `python3 setup.py build && sudo python3 setup.py install`.) 
+Meson >= 0.60 [may fail to build](https://github.com/spdk/spdk/issues/2214) DPDK 21.08. You can insert [the fix](https://review.spdk.io/gerrit/c/spdk/dpdk/+/10044) into DPDK or build Meson < 0.60 from [source](https://github.com/mesonbuild/meson/releases). (After downloading and extracting, run `python3 setup.py build && sudo python3 setup.py install`.)
 
 #### (Optional) Binding network interfaces to DPDK-compatible driver
 Depending on your NIC and the associated DPDK poll mode driver (PMD), you may need to bind the device/interface to a DPDK-compatible driver in order to make it work properly. **Note**: this step does *not* need to be done for the Mellanox PMD (mlx5). Details on binding and unbinding to drivers can be found [here](https://doc.dpdk.org/guides/linux_gsg/linux_drivers.html).
@@ -118,13 +116,8 @@ source $HOME/.cargo/env
 ```
 More information on Rust installation can be found [here](https://www.rust-lang.org/tools/install).
 
-## Building and Running Retina
-Retina should be built and run from source. 
-Clone the main git repository:
-
-```sh
-git clone git@github.com:stanford-esrg/retina.git
-```
+## Building and Running Iris
+Iris should be built and run from source.
 
 Build all applications:
 ```sh
@@ -138,19 +131,17 @@ sudo env LD_LIBRARY_PATH=$LD_LIBRARY_PATH RUST_LOG=error ./target/release/my_app
 
 #### Troubleshooting: Bindgen
 
-Retina uses [bindgen](https://docs.rs/bindgen/latest/bindgen/) to generate bindings to DPDK functions implemented in C.
+Iris uses [bindgen](https://docs.rs/bindgen/latest/bindgen/) to generate bindings to DPDK functions implemented in C.
 
 For newer versions of DPDK, bindgen requires us to use `.clang_macro_fallback()` to access certain RSS constants. This requires clang/llvm >=13.
 
-## Testing Retina (Offline) on a VM
+## Testing Iris (Offline) on a VM
 
-We have deployed Retina in offline mode (streaming pcaps) on both ARM- and x86-based Ubuntu VMs. This can be useful for getting started, development, and functional testing. 
+We have deployed Iris in offline mode (streaming pcaps) on both ARM- and x86-based Ubuntu VMs. This can be useful for getting started, development, and functional testing.
 
-The main branch of Retina may specify "mlx5" as a default feature, as this is the recommended setup. Remove this in `core/Cargo.toml` if not present on the VM.  
+For an x86 architecture, no changes are needed.
 
-For an x86 architecture, no other changes are needed. 
-
-For ARM vCPU: 
+For ARM vCPU:
 
 - When building DPDK, add a meson [build option](https://doc.dpdk.org/guides-22.03/linux_gsg/build_dpdk.html) to configure for generic or native [SoC](https://github.com/DPDK/dpdk/blob/6f716880ee53ac1e50c9c75dc749886e3257bb8f/config/arm/meson.build#L373-L414):
 
@@ -164,6 +155,7 @@ export LD_LIBRARY_PATH=$DPDK_PATH/lib/aarch64-linux-gnu
 ```
 
 #### Troubleshooting: Mempool Capacity
+
 When running applications using the provided offline config file, a mempool creation error may occur:
 ```sh
 Error: Mempool mempool_0 creation failed

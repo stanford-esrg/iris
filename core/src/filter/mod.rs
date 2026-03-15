@@ -2,11 +2,8 @@
 //!
 //! This module's exports will be most relevant for those adding new filter utilities
 //! and/or datatypes. Nothing in this module is needed for writing an ordinary
-//! Retina application.
+//! Iris application.
 //!
-
-pub mod actions;
-pub use actions::{ActionData, Actions};
 
 #[doc(hidden)]
 #[macro_use]
@@ -16,28 +13,30 @@ pub mod ast;
 mod hardware;
 #[allow(clippy::upper_case_acronyms)]
 mod parser;
-mod pattern;
+pub mod pattern;
+#[doc(hidden)]
+pub mod pred_ptree;
 #[doc(hidden)]
 pub mod ptree;
 #[doc(hidden)]
-pub mod ptree_flat;
+pub mod subscription;
 
-pub mod datatypes;
-pub use datatypes::{DataType, Level, SubscriptionSpec};
-
+use crate::conntrack::{ConnInfo, DataLevel, StateTransition};
+use crate::filter::ast::Predicate;
 use crate::filter::hardware::{flush_rules, HardwareFilter};
 use crate::filter::parser::FilterParser;
 use crate::filter::pattern::{FlatPattern, LayeredPattern};
-use crate::filter::ptree_flat::FlatPTree;
+use crate::filter::pred_ptree::PredPTree;
 use crate::lcore::CoreId;
 use crate::memory::mbuf::Mbuf;
 use crate::port::Port;
-use crate::protocols::stream::{ConnData, Session};
 use crate::subscription::Trackable;
+use crate::L4Pdu;
 
 use std::fmt;
 
 use anyhow::{bail, Result};
+use ast::FuncIdent;
 use thiserror::Error;
 
 // Filter functions
@@ -46,37 +45,22 @@ use thiserror::Error;
 /// Software filter applied to each packet. Will drop, deliver, and/or
 /// forward packets to the connection manager. If hardware assist is enabled,
 /// the framework will additionally attempt to install the filter in the NICs.
-pub type PacketContFn = fn(&Mbuf, &CoreId) -> Actions;
-/// Filter applied to the first packet of a connection to initialize actions.
-pub type PacketFilterFn<T> = fn(&Mbuf, &mut T) -> Actions;
-/// Filter applied when the application-layer protocol is identified.
-/// This may drop connections or update actions.
-/// It may also drain buffered packets to packet-level subscriptions that match
-/// at the protocol stage.
-pub type ProtoFilterFn<T> = fn(&ConnData, &mut T) -> Actions;
-/// Filter applied when the application-layer session is parsed.
-/// This may drop connections, drop sessions, or update actions.
-/// It may also deliver session-level subscriptions.
-pub type SessionFilterFn<T> = fn(&Session, &ConnData, &mut T) -> Actions;
-/// Filter applied to disambiguate and deliver matched packet-level subscriptions
-/// that required stateful filtering (i.e., could not be delivered at the packet stage).
-pub type PacketDeliverFn<T> = fn(&Mbuf, &ConnData, &T);
-/// Filter applied to disambiguate and deliver matched connection-level subscriptions
-/// (those delivered at connection termination).
-pub type ConnDeliverFn<T> = fn(&ConnData, &T);
+pub type PacketFilterFn = fn(&Mbuf, &CoreId) -> bool;
+/// Filter applied on a state transition.
+pub type StateTxFn<T> = fn(&mut ConnInfo<T>, &StateTransition);
+/// Invoked to update internal data on each new packet
+/// Returns `true` if something changed (CB unsubscribed, streaming filter matched/didn't match)
+pub type UpdateFn<T> = fn(&mut ConnInfo<T>, &L4Pdu, DataLevel) -> bool;
 
 #[doc(hidden)]
 pub struct FilterFactory<T>
 where
     T: Trackable,
 {
-    pub filter_str: String,
-    pub packet_continue: PacketContFn,
-    pub packet_filter: PacketFilterFn<T>,
-    pub proto_filter: ProtoFilterFn<T>,
-    pub session_filter: SessionFilterFn<T>,
-    pub packet_deliver: PacketDeliverFn<T>,
-    pub conn_deliver: ConnDeliverFn<T>,
+    pub hw_filter_str: String,
+    pub packet_filter: PacketFilterFn,
+    pub state_tx: StateTxFn<T>,
+    pub update_fn: UpdateFn<T>,
 }
 
 impl<T> FilterFactory<T>
@@ -84,22 +68,16 @@ where
     T: Trackable,
 {
     pub fn new(
-        filter_str: &str,
-        packet_continue: PacketContFn,
-        packet_filter: PacketFilterFn<T>,
-        proto_filter: ProtoFilterFn<T>,
-        session_filter: SessionFilterFn<T>,
-        packet_deliver: PacketDeliverFn<T>,
-        conn_deliver: ConnDeliverFn<T>,
+        hw_filter_str: &str,
+        packet_filter: PacketFilterFn,
+        state_tx: StateTxFn<T>,
+        update_fn: UpdateFn<T>,
     ) -> Self {
         FilterFactory {
-            filter_str: filter_str.to_string(),
-            packet_continue,
+            hw_filter_str: hw_filter_str.to_string(),
             packet_filter,
-            proto_filter,
-            session_filter,
-            packet_deliver,
-            conn_deliver,
+            state_tx,
+            update_fn,
         }
     }
 }
@@ -110,12 +88,16 @@ pub struct Filter {
 }
 
 impl Filter {
-    pub fn new(filter_raw: &str) -> Result<Filter> {
+    pub fn new(filter_raw: &str, valid_custom_preds: &Vec<Predicate>) -> Result<Filter> {
         let raw_patterns = FilterParser::parse_filter(filter_raw)?;
 
         let flat_patterns = raw_patterns
             .into_iter()
-            .map(|p| FlatPattern { predicates: p })
+            .map(|p| {
+                let mut patt = FlatPattern { predicates: p };
+                patt.handle_custom_predicates(valid_custom_preds).unwrap();
+                patt
+            })
             .collect::<Vec<_>>();
 
         let mut fq_patterns = vec![];
@@ -130,7 +112,7 @@ impl Filter {
         // prune redundant branches
         let flat_patterns: Vec<_> = fq_patterns.iter().map(|p| p.to_flat_pattern()).collect();
 
-        let mut ptree = FlatPTree::new(&flat_patterns);
+        let mut ptree = PredPTree::new(&flat_patterns, false);
         ptree.prune_branches();
 
         Ok(Filter {
@@ -152,8 +134,8 @@ impl Filter {
     }
 
     // Returns predicate tree
-    pub fn to_ptree(&self) -> FlatPTree {
-        FlatPTree::new(&self.get_patterns_flat())
+    pub fn to_ptree(&self) -> PredPTree {
+        PredPTree::new(&self.get_patterns_flat(), false)
     }
 
     // Returns `true` if filter can be completely realized in hardware
@@ -233,6 +215,9 @@ pub enum FilterError {
         #[from]
         source: ipnet::PrefixLenError,
     },
+
+    #[error("Invalid Custom Filter: {0}")]
+    InvalidCustomFilter(FuncIdent),
 }
 
 // Nice-to-have: tests for filter string parsing

@@ -156,9 +156,19 @@ impl FilterParser {
                     _ => bail!(FilterError::InvalidFormat),
                 }
             }
-            None => Ok(vec![Node::Predicate(Predicate::Unary {
-                protocol: FilterParser::parse_protocol(protocol),
-            })]),
+            None => {
+                let predicate = FilterParser::parse_protocol(protocol);
+                match predicate.is_supported() {
+                    true => Ok(vec![Node::Predicate(Predicate::Unary {
+                        protocol: predicate,
+                    })]),
+                    false => Ok(vec![Node::Predicate(Predicate::Custom {
+                        name: filterfunc!(predicate.name()),
+                        levels: vec![], // Temp value; will be filled in later.
+                        matched: true,  // Temp
+                    })]),
+                }
+            }
         }
     }
 

@@ -85,6 +85,13 @@ impl ConnParsable for SshParser {
     fn session_parsed_state(&self) -> ParsingState {
         ParsingState::Stop
     }
+
+    fn body_offset(&mut self) -> Option<usize> {
+        match self.sessions.last_mut() {
+            Some(session) => std::mem::take(&mut session.last_body_offset),
+            None => None,
+        }
+    }
 }
 
 impl Ssh {
@@ -98,6 +105,7 @@ impl Ssh {
             server_dh_key_exchange: None,
             client_new_keys: None,
             server_new_keys: None,
+            last_body_offset: None,
         }
     }
 
@@ -214,11 +222,14 @@ impl Ssh {
         }
     }
 
-    pub(crate) fn parse_new_keys(&mut self, data: &[u8], dir: bool) {
+    /// Parse a new keys packet. Return length of remaining data.
+    pub(crate) fn parse_new_keys(&mut self, data: &[u8], dir: bool) -> usize {
+        let mut remaining = 0;
         match ssh_parser::parse_ssh_packet(data) {
-            Ok((_, (pkt, _))) => match pkt {
+            Ok((rem, (pkt, _))) => match pkt {
                 SshPacket::NewKeys => {
                     let new_keys = SshNewKeys;
+                    remaining = rem.len();
                     if dir {
                         self.client_new_keys = Some(new_keys);
                     } else {
@@ -229,6 +240,7 @@ impl Ssh {
             },
             e => log::debug!("Could not parse data as a SSH packet: {:?}", e),
         }
+        remaining
     }
 
     pub(crate) fn process(&mut self, data: &[u8], dir: bool) -> ParseResult {
@@ -261,11 +273,14 @@ impl Ssh {
                             status = ParseResult::Continue(0);
                         }
                         SshPacket::NewKeys => {
-                            self.parse_new_keys(data, dir);
+                            let remaining = self.parse_new_keys(data, dir);
 
                             // finish parsing when client and server have both sent a NewKeys packet
                             if self.client_new_keys.is_some() && self.server_new_keys.is_some() {
-                                return ParseResult::Done(0);
+                                if remaining > 0 && remaining < data.len() {
+                                    self.last_body_offset = Some(data.len() - remaining - 1);
+                                }
+                                return ParseResult::HeadersDone(0);
                             }
                             status = ParseResult::Continue(0);
                         }

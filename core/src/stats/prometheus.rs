@@ -1,7 +1,7 @@
 //! Prometheus statistics.
 //!
-//! Retina uses the Prometheus time series database to record and report metrics useful for monitoring and
-//! analysing retina usage over time. You can use Prometheus with other services like Grafana to use the
+//! Iris uses the Prometheus time series database to record and report metrics useful for monitoring and
+//! analysing iris usage over time. You can use Prometheus with other services like Grafana to use the
 //! reported data.
 //!
 //! You can enable a exporter http server from `online.prometheus` config:
@@ -11,14 +11,14 @@
 //! ```
 //! Then you
 //! can [install Prometheus](https://prometheus.io/docs/prometheus/latest/installation/) and
-//! use this config to scrape metrics from Retina:
+//! use this config to scrape metrics from Iris:
 //!
 //! ```yaml
 //! global:
 //!     scrape_interval: 1s
 //!     evaluation_interval: 1s
 //! scrape_configs:
-//!     - job_name: retina
+//!     - job_name: iris
 //!       static_configs:
 //!           - targets: ['127.0.0.1:9898']
 //! ```
@@ -26,7 +26,7 @@
 //! After running prometheus, you can see simple graph of a prometheus query using its
 //! web gui, for example:
 //! ```txt
-//! rate(retina_worker_received_pkts[10s])
+//! rate(iris_worker_received_pkts[10s])
 //! ```
 //! shows the number of received packets per second. For more complex usages, see
 //! [Prometheus docs](https://prometheus.io/docs/introduction/overview/).
@@ -100,7 +100,7 @@ pub(crate) struct DpdkPrometheusStats {
 
 pub(crate) static BASE_STAT_REGISTRY: OnceLock<Mutex<Option<Registry>>> = OnceLock::new();
 
-/// Retina uses prometheus to report metrics. You can use this function to
+/// Iris uses prometheus to report metrics. You can use this function to
 /// add your own metrics to the prometheus registry.
 pub fn register_base_prometheus_registry(r: Registry) {
     if BASE_STAT_REGISTRY.set(Mutex::new(Some(r))).is_err() {
@@ -168,82 +168,82 @@ pub(crate) static STAT_REGISTRY: LazyLock<Registry> = LazyLock::new(|| {
     );
 
     r.register_with_unit(
-        "retina_ignored_by_packet_filter",
+        "iris_ignored_by_packet_filter",
         "Number of packets ignored by packet filter.",
         Unit::Other("pkts".to_string()),
         FAMILIES.ignored_by_packet_filter_pkt.clone(),
     );
     r.register_with_unit(
-        "retina_ignored_by_packet_filter",
+        "iris_ignored_by_packet_filter",
         "Number of bytes ignored by packet filter.",
         Unit::Bytes,
         FAMILIES.ignored_by_packet_filter_byte.clone(),
     );
     r.register_with_unit(
-        "retina_dropped_middle_of_connection_tcp",
+        "iris_dropped_middle_of_connection_tcp",
         "Number of packets dropped due missing SYN packet.",
         Unit::Other("pkts".to_string()),
         FAMILIES.dropped_middle_of_connection_tcp_pkt.clone(),
     );
     r.register_with_unit(
-        "retina_dropped_middle_of_connection_tcp",
+        "iris_dropped_middle_of_connection_tcp",
         "Number of bytes dropped due missing SYN packet.",
         Unit::Bytes,
         FAMILIES.dropped_middle_of_connection_tcp_byte.clone(),
     );
     r.register_with_unit(
-        "retina_worker_received",
+        "iris_worker_received",
         "Number of total packets received from dpdk.",
         Unit::Other("pkts".to_string()),
         FAMILIES.total_pkt.clone(),
     );
     r.register_with_unit(
-        "retina_worker_received",
+        "iris_worker_received",
         "Number of total bytes received from dpdk.",
         Unit::Bytes,
         FAMILIES.total_byte.clone(),
     );
     r.register_with_unit(
-        "retina_tcp_received",
+        "iris_tcp_received",
         "Number of tcp packets received from dpdk.",
         Unit::Other("pkts".to_string()),
         FAMILIES.tcp_pkt.clone(),
     );
     r.register_with_unit(
-        "retina_tcp_received",
+        "iris_tcp_received",
         "Number of tcp bytes received from dpdk.",
         Unit::Bytes,
         FAMILIES.tcp_byte.clone(),
     );
     r.register_with_unit(
-        "retina_udp_received",
+        "iris_udp_received",
         "Number of udp packets received from dpdk.",
         Unit::Other("pkts".to_string()),
         FAMILIES.udp_pkt.clone(),
     );
     r.register_with_unit(
-        "retina_udp_received",
+        "iris_udp_received",
         "Number of udp bytes received from dpdk.",
         Unit::Bytes,
         FAMILIES.udp_byte.clone(),
     );
     r.register(
-        "retina_tcp_new_connections",
+        "iris_tcp_new_connections",
         "Number of inserts into the tcp session table.",
         FAMILIES.tcp_new_connections.clone(),
     );
     r.register(
-        "retina_udp_new_connections",
+        "iris_udp_new_connections",
         "Number of inserts into the udp session table.",
         FAMILIES.udp_new_connections.clone(),
     );
     r.register(
-        "retina_idle_cycles",
+        "iris_idle_cycles",
         "Number of polling loop iterations that had no packet.",
         FAMILIES.idle_cycles.clone(),
     );
     r.register(
-        "retina_all_cycles",
+        "iris_all_cycles",
         "Number of total polling loop iterations.",
         FAMILIES.total_cycles.clone(),
     );

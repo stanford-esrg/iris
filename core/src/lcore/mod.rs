@@ -1,4 +1,4 @@
-//! Utilities for managing and monitoring Retina cores.
+//! Utilities for managing and monitoring Iris cores.
 
 pub(crate) mod monitor;
 // pub(crate) mod ring;
@@ -28,7 +28,7 @@ impl fmt::Display for SocketId {
 
 /* --------------------------------------------------------------------------------- */
 
-/// An identifier for a core running Retina (sink, monitoring, or RX).
+/// An identifier for a core running Iris (sink, monitoring, or RX).
 #[derive(Debug, Copy, Clone, Hash, Ord, Eq, PartialEq, PartialOrd, Deserialize, Serialize)]
 pub struct CoreId(pub u32);
 

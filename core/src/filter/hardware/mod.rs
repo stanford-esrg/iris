@@ -8,7 +8,7 @@ use self::flow_item::*;
 
 use super::ast::*;
 use super::pattern::*;
-use super::ptree_flat::FlatPTree;
+use super::pred_ptree::PredPTree;
 use super::Filter;
 
 use crate::dpdk;
@@ -44,9 +44,9 @@ impl<'a> HardwareFilter<'a> {
 
         // Prune some redundant patterns.
         // \note This does not do the parent-child sorting of the SW filter;
-        // this seems to be ok for Retina's current scale
+        // this seems to be ok for Iris's current scale
         // (applying NIC rules is fast and we're not hitting NIC limits)
-        let mut hw_ptree = FlatPTree::new(&hw_patterns);
+        let mut hw_ptree = PredPTree::new(&hw_patterns, true);
         hw_ptree.prune_branches();
         let mut hw_patterns = hw_ptree.to_flat_patterns();
 
@@ -149,6 +149,7 @@ pub(crate) fn device_supported(pred: &Predicate, port: &Port) -> bool {
                 || protocol == &protocol!("ipv4") && matches!(op, BinOp::In)
                 || protocol == &protocol!("ipv6") && matches!(op, BinOp::In)
         }
+        _ => false,
     };
     if !op_supported {
         info!(

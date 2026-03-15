@@ -94,6 +94,11 @@ impl ConnParsable for DnsParser {
     fn session_parsed_state(&self) -> ParsingState {
         ParsingState::Parsing
     }
+
+    /// We consider DNS to not have a "body"
+    fn body_offset(&mut self) -> Option<usize> {
+        None
+    }
 }
 
 impl DnsParser {

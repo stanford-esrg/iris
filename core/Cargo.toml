@@ -1,11 +1,11 @@
 [package]
-name = "retina-core"
+name = "iris-core"
 version = "1.0.0"
 edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [build-dependencies]
-bindgen = "0.70.1"
+bindgen = "0.71.1"
 cc = "1.0.79"
 
 [dependencies]
@@ -54,8 +54,6 @@ regex = "1.7.3"
 ring = "0.17.8"
 aes-gcm = "0.10.3"
 memchr = "2.7.4"
-crossbeam = "0.8"
-nix = { version = "0.27", features = ["sched", "process"] }
 
 # Statistics
 tokio = { version = "1.42.0", features = ["full"] }
@@ -64,11 +62,15 @@ hyper = { version = "1", features = ["full"], optional = true }
 hyper-util = { version = "0.1", features = ["full"], optional = true }
 prometheus-client = { version = "0.22.3", optional = true }
 http-body-util = { version = "0.1.2", optional = true }
+env_logger = "0.8.4"
+
+[dev-dependencies]
+nix = { version = "0.30", features = ["user"] }
 
 [features]
 timing = []
 prometheus = [
-    "dep:hyper", 
+    "dep:hyper",
     "dep:hyper-util",
     "dep:prometheus-client",
     "dep:http-body-util",

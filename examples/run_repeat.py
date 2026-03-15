@@ -1,7 +1,12 @@
+'''
+Repeatedly run an application to estimate zero-loss throughput.
+'''
+
 import subprocess, re, os, toml, argparse
 
-TERMINATE = 10 # Stop if drops > 10%
-GRACE_PD = 5   # Grace period to allow for small/temporary spikes
+TERMINATE = 1  # Stop if drops > TERMINATE%
+GRACE_PD = 1   # Grace period to allow for small/temporary spikes
+IRIS_HOME = "~/iris-artifact-eval/"
 
 def execute(cmd, executable):
     print(f"Starting {executable}")
@@ -35,11 +40,11 @@ def main(args):
     f.close()
 
     # Cmd
-    executable = f'/home/tcr6/retina/target/release/{args.binary}'
+    executable = f'{IRIS_HOME}/target/release/{args.binary}'
     cmd = f'sudo env LD_LIBRARY_PATH=$LD_LIBRARY_PATH RUST_LOG=error {executable} --config {config_file}'
     print(cmd)
 
-    outfiles = [f'{outdir}/{i}_{args.duration}s_{args.outfile}' for i in range(int(args.iterations))]
+    outfiles = [f'{args.outdir}/{i}_{args.duration}s_{args.outfile}' for i in range(int(args.iterations))]
 
     iters = 0
     for outfile in outfiles:
@@ -49,8 +54,6 @@ def main(args):
         if stop:
             print(f"Terminated at {iters} iterations")
             break
-
-
 
 def parse_args():
     parser = argparse.ArgumentParser()

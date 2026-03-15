@@ -1,7 +1,7 @@
 //! Packet buffer manipulation.
 //!
 //! ## Remarks
-//! Retina does not support multi-segment Mbufs, but does support setting the maximum Mbuf size in
+//! Iris does not support multi-segment Mbufs, but does support setting the maximum Mbuf size in
 //! the runtime configuration (see [configuration parameters](crate::config)). However, all Mbufs
 //! will be allocated with the specified size, so allowing jumbo frames will limit the maximum
 //! number of Mbufs available in the memory pool.

@@ -1,10 +1,11 @@
 use super::hardware;
-use super::ptree::FilterLayer;
-use super::{Level, SubscriptionSpec};
 
 use std::collections::HashSet;
 use std::fmt;
 
+use crate::conntrack::conn::conn_state::StateTxOrd;
+use crate::conntrack::StateTransition;
+use crate::conntrack::{conn::conn_layers::SupportedLayer, DataLevel, LayerState};
 use crate::protocols::stream::ConnData;
 use bimap::BiMap;
 use ipnet::{Ipv4Net, Ipv6Net};
@@ -86,6 +87,33 @@ pub enum Predicate {
         op: BinOp,
         value: Value,
     },
+    /// Opaque filter function provided by user
+    Custom {
+        /// Filter name (function or struct (group) if present)
+        name: FuncIdent,
+        /// DataLevel(s) at which the filter must receive streaming updates
+        /// (e.g., "packets in the L4 payload") and/or phase transition
+        /// updates (e.g., "parsed session").
+        /// For a grouped filter (i.e., methods on a struct), each function
+        /// needs its own level.
+        levels: Vec<Vec<DataLevel>>,
+        /// Predicate for `partial match` (Continue) or `matched` (Accept)
+        matched: bool,
+    },
+    /// Streaming callback, which may need to be checked for "unsubscribe"
+    /// to determine Actions. This will only be used in filter sub-trees.
+    Callback {
+        /// Callback name (function or struct if present)
+        name: FuncIdent,
+    },
+    /// A State that must be checked for, e.g., "if L7 is in payload".
+    /// This may be needed for Layers that cannot be ordered to determine
+    /// which action(s) to maintain. This will only be used in filter sub-trees.
+    LayerState {
+        layer: SupportedLayer,
+        state: LayerState,
+        op: BinOp, // ge, le, lt, gt or eq
+    },
 }
 
 impl Predicate {
@@ -94,6 +122,16 @@ impl Predicate {
         match self {
             Predicate::Unary { protocol } => protocol,
             Predicate::Binary { protocol, .. } => protocol,
+            _ => ProtocolName::none(),
+        }
+    }
+
+    // Returns the name of the custom filter function
+    pub fn get_name(&self) -> &FuncIdent {
+        match self {
+            Predicate::Custom { name, .. } => name,
+            Predicate::Callback { name, .. } => name,
+            _ => panic!("Invoked get_name on non-custom filter"),
         }
     }
 
@@ -107,10 +145,91 @@ impl Predicate {
         matches!(self, Predicate::Binary { .. })
     }
 
+    // Returns `true` if predicate is a black-box function defined by a user.
+    pub fn is_custom(&self) -> bool {
+        matches!(self, Predicate::Custom { .. })
+    }
+
+    // Returns `true` if predicate contains a streaming level
+    pub fn is_streaming(&self) -> bool {
+        if let Predicate::Custom { levels, .. } = self {
+            if levels.len() > 1 {
+                return true;
+            }
+        }
+        self.levels().iter().any(|l| l.is_streaming())
+    }
+
+    // Returns `true` if predicate is a black-box callback defined by a user.
+    pub fn is_callback(&self) -> bool {
+        matches!(self, Predicate::Callback { .. })
+    }
+
+    // Returns `true` if predicate checks a Layer State
+    pub fn is_state(&self) -> bool {
+        matches!(self, Predicate::LayerState { .. })
+    }
+
+    // Returns `true` if is_state and is state predicate for given LayerState
+    pub fn matches_state(&self, layerstate: Option<(SupportedLayer, LayerState)>) -> bool {
+        if let Some((layer_, state_)) = layerstate {
+            match self {
+                Predicate::LayerState { layer, state, .. } => {
+                    return &layer_ == layer && &state_ == state;
+                }
+                _ => panic!("Invalid op for {:?}", self),
+            }
+        }
+        false
+    }
+
+    // TODO figure out how this works with grouped custom filters?
+    pub fn unknown(&self, layer: &DataLevel) -> bool {
+        self.levels()
+            .iter()
+            .any(|p| p.compare(layer) == StateTxOrd::Unknown)
+    }
+
+    pub fn is_matching(&self) -> bool {
+        if let Predicate::Custom { matched, .. } = self {
+            return !*matched;
+        }
+        panic!("Can't check for filter ``matching`` on {:?}", self);
+    }
+
+    pub fn set_matched(&mut self, val: bool) {
+        if let Predicate::Custom { matched, .. } = self {
+            *matched = val;
+        }
+    }
+
+    // Returns a reference to the `levels` vector for a custom filter.
+    // Inapplicable to static predicates and LayerState.
+    pub fn levels(&self) -> Vec<DataLevel> {
+        match self {
+            Predicate::Custom { levels, .. } => levels.into_iter().flatten().cloned().collect(),
+            Predicate::Callback { .. } => vec![],
+            // can be checked anytime [TODO could refine this later]
+            Predicate::LayerState { .. } => vec![DataLevel::L4FirstPacket],
+            _ => {
+                if self.on_packet() {
+                    return vec![DataLevel::L4FirstPacket];
+                }
+                if self.on_proto() {
+                    return vec![DataLevel::L7OnDisc];
+                }
+                if self.on_session() {
+                    return vec![DataLevel::L7EndHdrs];
+                }
+                panic!("Unknown predicate layer: {}", self);
+            }
+        }
+    }
+
     // Returns `true` if predicate can be pushed to a packet filter.
     // i.e., the lowest filter level needed to apply the predicate is a packet filter.
     pub fn on_packet(&self) -> bool {
-        !self.needs_conntrack()
+        !self.needs_conntrack() && !self.is_custom() && !self.is_state()
     }
 
     // Returns `true` if predicate *requires* raw packets
@@ -151,58 +270,134 @@ impl Predicate {
             || has_path(self.get_protocol(), &protocol!("udp"))
     }
 
-    pub(crate) fn is_next_layer(&self, filter_layer: FilterLayer) -> bool {
-        match filter_layer {
-            FilterLayer::Packet | FilterLayer::PacketContinue => !self.on_packet(),
-            FilterLayer::Protocol => self.on_session(),
-            FilterLayer::Session | FilterLayer::ConnectionDeliver | FilterLayer::PacketDeliver => {
-                false
+    // `self` depends on (layer, state)
+    // I.e., `self` cannot be applied unless (layer) is in (state)
+    // For grouped filters, we base the dependency on _all_ predicates.
+    pub(super) fn depends_on(&self, layer: SupportedLayer, state: LayerState) -> bool {
+        match layer {
+            SupportedLayer::L4 => false,
+            SupportedLayer::L7 => {
+                if let Predicate::LayerState {
+                    layer: l, state: s, ..
+                } = self
+                {
+                    return &layer == l && &state <= s;
+                }
+                let levels = self.levels();
+                match state {
+                    LayerState::Discovery => false,
+                    LayerState::Headers => {
+                        if let Predicate::Custom { levels, .. } = self {
+                            return levels
+                                .iter()
+                                .all(|fnlevel| fnlevel.iter().any(|l| l.layer_idx().is_some()));
+                        }
+                        // Requires L7 protocol
+                        levels.iter().any(|l| l.layer_idx().is_some())
+                    }
+                    LayerState::Payload => {
+                        if let Predicate::Custom { levels, .. } = self {
+                            return levels.iter().all(|fnlevel| {
+                                fnlevel.iter().any(|l| {
+                                    matches!(l, DataLevel::L7EndHdrs | DataLevel::L7InPayload(_))
+                                })
+                            });
+                        }
+                        // Requires payload or parsed session
+                        levels
+                            .iter()
+                            .any(|l| matches!(l, DataLevel::L7EndHdrs | DataLevel::L7InPayload(_)))
+                    }
+                    LayerState::None => panic!("Should not have LayerState::None predicate"),
+                }
             }
         }
     }
 
-    // Returns `true` if the predicate would have been checked at the previous
-    // filter layer based on both the filter layer and the subscription level.
-    pub(super) fn is_prev_layer(
-        &self,
-        filter_layer: FilterLayer,
-        subscription: &SubscriptionSpec,
-    ) -> bool {
-        match filter_layer {
-            FilterLayer::PacketContinue => false,
-            FilterLayer::Packet => {
-                // Packet would have already been delivered in PacketContinue
-                self.on_packet() && matches!(subscription.level, Level::Packet)
-            }
-            FilterLayer::PacketDeliver => {
-                // Subscription not delivered in this filter
-                !matches!(subscription.level, Level::Packet) ||
-                    // Subscription delivered in PacketContinue
-                    self.on_packet()
-            }
-            FilterLayer::Protocol => self.on_packet(),
-            FilterLayer::Session => {
-                (self.on_packet() || self.on_proto()) &&  // prev filter
-                !subscription.deliver_on_session()
-            }
-            FilterLayer::ConnectionDeliver => {
-                // Delivered elsewhere
-                !matches!(subscription.level, Level::Connection | Level::Static) ||
-                    // Delivered in packet filter
-                    (matches!(subscription.level, Level::Static) && self.on_packet())
+    // `self` can (or potentially can) be applied if `layer` is in `state`
+    pub(super) fn is_compatible(&self, layer: SupportedLayer, state: LayerState) -> bool {
+        let levels = self.levels();
+        if levels.contains(&DataLevel::L4Terminated) {
+            return false;
+        }
+        if let Predicate::LayerState { state: s, .. } = self {
+            // Can apply `self` if different layer (e.g., can check L4-payload after L7-headers)
+            // For simplicity, only apply `self` if equivalent
+            // (TODO maybe could optimize by better enforcing order in patterns of state preds)
+            return s == &state;
+        }
+        match layer {
+            SupportedLayer::L4 => true,
+            SupportedLayer::L7 => {
+                match state {
+                    LayerState::Discovery => {
+                        if let Predicate::Custom { levels, .. } = self {
+                            // Grouped filters: "okay to apply" if any of its predicates can be applied
+                            if levels.len() > 1 {
+                                return levels
+                                    .iter()
+                                    // Any filter function
+                                    .any(|fnlevel| {
+                                        fnlevel
+                                            .iter()
+                                            // ...can be invoked
+                                            .all(|l| l.layer_idx().is_none())
+                                    });
+                            }
+                        }
+                        // Does not require a session-layer state
+                        levels.iter().all(|l| l.layer_idx().is_none())
+                    }
+                    LayerState::Headers => {
+                        if let Predicate::Custom { levels, .. } = self {
+                            // Grouped filters: "okay to apply" if any of its predicates can be applied
+                            if levels.len() > 1 {
+                                return levels.iter().any(|fnlevel| {
+                                    fnlevel.iter().all(|l| {
+                                        l.layer_idx().is_none() || *l == DataLevel::L7OnDisc
+                                    })
+                                });
+                            }
+                        }
+                        // Does not require a session-layer state or only
+                        // requires L7 protocol discovery
+                        levels
+                            .iter()
+                            .all(|l| l.layer_idx().is_none() || *l == DataLevel::L7OnDisc)
+                    }
+                    LayerState::Payload => true,
+                    LayerState::None => panic!("Should not have LayerState::None predicate"),
+                }
             }
         }
     }
 
-    // Returns true if the predicate would have been checked at prev. layer
-    // Does not consider subscription type; meant to be used for filter collapse.
-    pub(super) fn is_prev_layer_pred(&self, filter_layer: FilterLayer) -> bool {
-        match filter_layer {
-            FilterLayer::PacketContinue => false,
-            FilterLayer::Packet | FilterLayer::Protocol => self.on_packet(),
-            FilterLayer::PacketDeliver | FilterLayer::ConnectionDeliver => true,
-            FilterLayer::Session => self.on_packet() || self.on_proto(),
+    // Returns true if the predicate `self` would have been checked at prev. layer
+    // Does not consider subscription type; meant to be used for filter collapse only.
+    pub(super) fn is_prev_layer(&self, curr: StateTransition) -> bool {
+        self.levels()
+            .iter()
+            .all(|l| matches!(l.compare(&curr), StateTxOrd::Less))
+    }
+
+    // Returns true if the predicate `self` cannot be checked at `curr`
+    pub(super) fn is_next_layer(&self, curr: StateTransition) -> bool {
+        if let Predicate::Custom { levels, .. } = self {
+            // Custom predicates may be grouped, and they should be checked at
+            // `curr` if ANY of their contained functions can be applied.
+            if levels.len() > 1 {
+                return levels.iter().all(|fnlevel| {
+                    fnlevel
+                        .iter()
+                        .all(|l| matches!(l.compare(&curr), StateTxOrd::Greater))
+                });
+            }
         }
+        !self.levels().is_empty()
+            && self
+                .levels()
+                .iter()
+                .all(|l| matches!(l.compare(&curr), StateTxOrd::Greater))
     }
 
     pub(super) fn default_pred() -> Predicate {
@@ -841,6 +1036,16 @@ impl fmt::Display for Predicate {
                 op,
                 value,
             } => write!(f, "{}.{} {} {}", protocol, field, op, value),
+            Predicate::Custom { name, matched, .. } => {
+                let state = if *matched { "matched" } else { "matching" };
+                write!(f, "{name}.{state}")
+            }
+            Predicate::Callback { name, .. } => {
+                write!(f, "{name}.active")
+            }
+            Predicate::LayerState { layer, state, op } => {
+                write!(f, "{:?}{}{:?}", layer, op, state)
+            }
         }
     }
 }
@@ -851,8 +1056,20 @@ impl fmt::Display for Predicate {
 pub struct ProtocolName(pub String);
 
 impl ProtocolName {
+    pub(crate) fn none<'a>() -> &'a ProtocolName {
+        static NONE: std::sync::OnceLock<ProtocolName> = std::sync::OnceLock::new();
+        NONE.get_or_init(|| protocol!("none"))
+    }
+
     pub fn name(&self) -> &str {
         self.0.as_str()
+    }
+
+    pub fn is_supported(&self) -> bool {
+        LAYERS
+            .node_indices()
+            .find(|i| LAYERS[*i] == *self)
+            .is_some()
     }
 }
 
@@ -880,6 +1097,23 @@ impl FieldName {
 }
 
 impl fmt::Display for FieldName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        write!(f, "{}", self.0)
+    }
+}
+
+/// Name of a custom filter function defined by a user
+/// By convention, this should be snake case
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct FuncIdent(pub String);
+
+impl FuncIdent {
+    pub fn name(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
+impl fmt::Display for FuncIdent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(f, "{}", self.0)
     }

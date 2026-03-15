@@ -26,6 +26,9 @@ pub struct Ssh {
     pub client_new_keys: Option<SshNewKeys>,
     /// Server New Keys message.
     pub server_new_keys: Option<SshNewKeys>,
+
+    #[serde(skip_serializing)]
+    pub(crate) last_body_offset: Option<usize>,
 }
 
 impl Ssh {

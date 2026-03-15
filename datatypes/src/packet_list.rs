@@ -22,8 +22,10 @@
 //! many UDP connections are short-lived, and UDP connections are not "closed" until
 //! a timeout period has passed.
 
-use crate::Tracked;
-use retina_core::{protocols::packet::tcp::TCP_PROTOCOL, L4Pdu, Mbuf};
+#[allow(unused_imports)]
+use iris_compiler::{datatype, datatype_group};
+use iris_core::subscription::Tracked;
+use iris_core::{protocols::packet::tcp::TCP_PROTOCOL, L4Pdu, Mbuf};
 
 /// Pasic raw packet bytes.
 #[derive(Debug)]
@@ -78,6 +80,7 @@ pub trait PktStream {
 /// For a connection, the bidirectional stream of packets
 /// in the order received by the framework.
 #[derive(Debug)]
+#[cfg_attr(not(feature = "skip_expand"), datatype)]
 pub struct BidirPktStream {
     /// The raw packet data.
     pub packets: Vec<PktData>,
@@ -108,19 +111,19 @@ impl Tracked for BidirPktStream {
         }
     }
 
-    fn update(&mut self, pdu: &L4Pdu, reassembled: bool) {
-        if !reassembled {
-            self.push(pdu);
-        }
+    #[cfg_attr(
+        not(feature = "skip_expand"),
+        datatype_group("BidirPktStream,level=L4InPayload")
+    )]
+    fn update(&mut self, pdu: &L4Pdu) {
+        self.push(pdu);
     }
+
+    fn phase_tx(&mut self, _: &iris_core::StateTxData) {}
 
     fn clear(&mut self) {
         self.packets.clear();
         self.mbufs.clear();
-    }
-
-    fn stream_protocols() -> Vec<&'static str> {
-        vec![]
     }
 }
 
@@ -128,6 +131,7 @@ impl Tracked for BidirPktStream {
 /// in the order received by the framework. For TCP streams, the
 /// "originator" is the endpoint that sends the first SYN. For UDP,
 /// it is the endpoint which sends the first-seen packet.
+#[cfg_attr(not(feature = "skip_expand"), datatype)]
 pub struct OrigPktStream {
     /// The raw packet data.
     pub packets: Vec<PktData>,
@@ -158,8 +162,12 @@ impl Tracked for OrigPktStream {
         }
     }
 
-    fn update(&mut self, pdu: &L4Pdu, reassembled: bool) {
-        if pdu.dir && !reassembled {
+    #[cfg_attr(
+        not(feature = "skip_expand"),
+        datatype_group("OrigPktStream,level=L4InPayload")
+    )]
+    fn update(&mut self, pdu: &L4Pdu) {
+        if pdu.dir {
             self.push(pdu);
         }
     }
@@ -169,9 +177,7 @@ impl Tracked for OrigPktStream {
         self.mbufs.clear();
     }
 
-    fn stream_protocols() -> Vec<&'static str> {
-        vec![]
-    }
+    fn phase_tx(&mut self, _: &iris_core::StateTxData) {}
 }
 
 /// For a connection, a responder's (unidirectional) stream of packets
@@ -179,6 +185,7 @@ impl Tracked for OrigPktStream {
 /// "responder" is the endpoint that receives the first SYN and responds
 /// with a SYN/ACK. For UDP, it is the endpoint which does not send the
 /// first packet.
+#[cfg_attr(not(feature = "skip_expand"), datatype)]
 pub struct RespPktStream {
     /// The raw packet data.
     pub packets: Vec<PktData>,
@@ -209,8 +216,12 @@ impl Tracked for RespPktStream {
         }
     }
 
-    fn update(&mut self, pdu: &L4Pdu, reassembled: bool) {
-        if !pdu.dir && !reassembled {
+    #[cfg_attr(
+        not(feature = "skip_expand"),
+        datatype_group("RespPktStream,level=L4InPayload")
+    )]
+    fn update(&mut self, pdu: &L4Pdu) {
+        if !pdu.dir {
             self.push(pdu);
         }
     }
@@ -220,249 +231,5 @@ impl Tracked for RespPktStream {
         self.mbufs.clear();
     }
 
-    fn stream_protocols() -> Vec<&'static str> {
-        vec![]
-    }
-}
-
-/// For a connection, an originator's (unidirectional) stream of packets
-/// in reassembled order. This should be used for TCP only.
-pub struct OrigPktsReassembled {
-    /// The raw packet data.
-    pub packets: Vec<PktData>,
-    /// The first few packets are stored as Mbufs
-    /// before data copies begin.
-    mbufs: Vec<Mbuf>,
-}
-
-impl PktStream for OrigPktsReassembled {
-    fn in_mbufs_own(&mut self) -> Vec<Mbuf> {
-        std::mem::take(&mut self.mbufs)
-    }
-
-    fn in_mbufs_ref(&mut self) -> &mut Vec<Mbuf> {
-        &mut self.mbufs
-    }
-
-    fn out_packets(&mut self) -> &mut Vec<PktData> {
-        &mut self.packets
-    }
-}
-
-impl Tracked for OrigPktsReassembled {
-    fn new(_first_pkt: &L4Pdu) -> Self {
-        Self {
-            packets: Vec::new(),
-            mbufs: Vec::new(),
-        }
-    }
-
-    fn update(&mut self, pdu: &L4Pdu, reassembled: bool) {
-        if pdu.dir && reassembled {
-            self.push(pdu);
-        }
-    }
-
-    fn clear(&mut self) {
-        self.packets.clear();
-        self.mbufs.clear();
-    }
-
-    fn stream_protocols() -> Vec<&'static str> {
-        vec![]
-    }
-}
-
-/// For a connection, a responder's (unidirectional) stream of packets
-/// in reassembled order. This should be used for TCP only.
-pub struct RespPktsReassembled {
-    /// The raw packet data.
-    pub packets: Vec<PktData>,
-    /// The first few packets are stored as Mbufs
-    /// before data copies begin.
-    mbufs: Vec<Mbuf>,
-}
-
-impl PktStream for RespPktsReassembled {
-    fn in_mbufs_own(&mut self) -> Vec<Mbuf> {
-        std::mem::take(&mut self.mbufs)
-    }
-
-    fn in_mbufs_ref(&mut self) -> &mut Vec<Mbuf> {
-        &mut self.mbufs
-    }
-
-    fn out_packets(&mut self) -> &mut Vec<PktData> {
-        &mut self.packets
-    }
-}
-
-impl Tracked for RespPktsReassembled {
-    fn new(_first_pkt: &L4Pdu) -> Self {
-        Self {
-            packets: Vec::new(),
-            mbufs: Vec::new(),
-        }
-    }
-
-    fn update(&mut self, pdu: &L4Pdu, reassembled: bool) {
-        if !pdu.dir && reassembled {
-            self.push(pdu);
-        }
-    }
-
-    fn clear(&mut self) {
-        self.packets.clear();
-        self.mbufs.clear();
-    }
-
-    fn stream_protocols() -> Vec<&'static str> {
-        vec![]
-    }
-}
-
-/// For a connection, the bidirectional stream of packets
-/// in the order received by the framework.
-pub struct BidirZcPktStream {
-    pub packets: Vec<Mbuf>,
-}
-
-impl Tracked for BidirZcPktStream {
-    fn new(_first_pkt: &L4Pdu) -> Self {
-        Self {
-            packets: Vec::new(),
-        }
-    }
-
-    fn update(&mut self, pdu: &L4Pdu, reassembled: bool) {
-        if !reassembled {
-            self.packets.push(Mbuf::new_ref(&pdu.mbuf));
-        }
-    }
-
-    fn clear(&mut self) {
-        self.packets.clear();
-    }
-
-    fn stream_protocols() -> Vec<&'static str> {
-        vec![]
-    }
-}
-
-/// For a connection, an originator's (unidirectional) stream of packets
-/// in the order received by the framework. For TCP streams, the
-/// "originator" is the endpoint that sends the first SYN. For UDP,
-/// it is the endpoint which sends the first-seen packet.
-pub struct OrigZcPktStream {
-    pub packets: Vec<Mbuf>,
-}
-
-impl Tracked for OrigZcPktStream {
-    fn new(_first_pkt: &L4Pdu) -> Self {
-        Self {
-            packets: Vec::new(),
-        }
-    }
-
-    fn update(&mut self, pdu: &L4Pdu, reassembled: bool) {
-        if !reassembled && pdu.dir {
-            self.packets.push(Mbuf::new_ref(&pdu.mbuf));
-        }
-    }
-
-    fn clear(&mut self) {
-        self.packets.clear();
-    }
-
-    fn stream_protocols() -> Vec<&'static str> {
-        vec![]
-    }
-}
-
-/// For a connection, a responder's (unidirectional) stream of packets
-/// in the order received by the framework. For TCP streams, the
-/// "responder" is the endpoint that receives the first SYN and responds
-/// with a SYN/ACK. For UDP, it is the endpoint which does not send the
-/// first packet.
-pub struct RespZcPktStream {
-    pub packets: Vec<Mbuf>,
-}
-
-impl Tracked for RespZcPktStream {
-    fn new(_first_pkt: &L4Pdu) -> Self {
-        // TODO figure out good default capacity
-        Self {
-            packets: Vec::new(),
-        }
-    }
-
-    fn update(&mut self, pdu: &L4Pdu, reassembled: bool) {
-        if !reassembled && !pdu.dir {
-            self.packets.push(Mbuf::new_ref(&pdu.mbuf));
-        }
-    }
-
-    fn clear(&mut self) {
-        self.packets.clear();
-    }
-
-    fn stream_protocols() -> Vec<&'static str> {
-        vec![]
-    }
-}
-
-/// For a connection, an originator's (unidirectional) stream of packets
-/// in reassembled order. This should be used for TCP only.
-pub struct OrigZcPktsReassembled {
-    pub packets: Vec<Mbuf>,
-}
-
-impl Tracked for OrigZcPktsReassembled {
-    fn new(_first_pkt: &L4Pdu) -> Self {
-        Self {
-            packets: Vec::new(),
-        }
-    }
-
-    fn update(&mut self, pdu: &L4Pdu, reassembled: bool) {
-        if reassembled && pdu.dir {
-            self.packets.push(Mbuf::new_ref(&pdu.mbuf));
-        }
-    }
-
-    fn clear(&mut self) {
-        self.packets.clear();
-    }
-
-    fn stream_protocols() -> Vec<&'static str> {
-        vec![]
-    }
-}
-
-/// For a connection, a responder's (unidirectional) stream of packets
-/// in reassembled order. This should be used for TCP only.
-pub struct RespZcPktsReassembled {
-    pub packets: Vec<Mbuf>,
-}
-
-impl Tracked for RespZcPktsReassembled {
-    fn new(_first_pkt: &L4Pdu) -> Self {
-        Self {
-            packets: Vec::new(),
-        }
-    }
-
-    fn update(&mut self, pdu: &L4Pdu, reassembled: bool) {
-        if reassembled && !pdu.dir {
-            self.packets.push(Mbuf::new_ref(&pdu.mbuf));
-        }
-    }
-
-    fn clear(&mut self) {
-        self.packets.clear();
-    }
-
-    fn stream_protocols() -> Vec<&'static str> {
-        vec![]
-    }
+    fn phase_tx(&mut self, _: &iris_core::StateTxData) {}
 }

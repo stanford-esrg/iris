@@ -22,3 +22,19 @@ macro_rules! field {
         $crate::filter::ast::FieldName($x.to_owned())
     };
 }
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! filterfunc {
+    ( $x:expr ) => {
+        $crate::filter::ast::FuncIdent($x.to_owned())
+    };
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! callbackfunc {
+    ( $x:expr ) => {
+        $crate::filter::ast::FuncIdent($x.to_owned())
+    };
+}

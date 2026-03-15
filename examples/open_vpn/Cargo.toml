@@ -1,0 +1,15 @@
+[package]
+name = "open_vpn"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+env_logger = "0.8.4"
+iris-core = { path = "../../core" }
+iris-compiler = { path = "../../compiler" }
+iris-datatypes = { path = "../../datatypes" }
+lazy_static = "1.4.0"
+serde = { version = "1.0", features = ["derive"] }
+regex = "1.7.3"
+clap = { version = "3.2.23", features = ["derive"] }
+anyhow = "1.0.40"

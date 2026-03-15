@@ -1,8 +1,9 @@
 use clap::Parser;
+use iris_compiler::{callback, input_files, iris_main};
+use iris_core::subscription::Tracked;
+use iris_core::{config::load_config, FiveTuple, Runtime};
+use iris_datatypes::{conn_fts::ByteCount, FromSession, StaticData, TlsHandshake};
 use lazy_static::lazy_static;
-use retina_core::{config::load_config, FiveTuple, Runtime};
-use retina_datatypes::{ByteCount, TlsHandshake};
-use retina_filtergen::{filter, retina_main};
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -13,16 +14,22 @@ static TLS_CB_COUNT: AtomicUsize = AtomicUsize::new(0);
 
 #[derive(Parser, Debug)]
 struct Args {
-    #[clap(short, long, parse(from_os_str), value_name = "FILE")]
-    config: PathBuf,
     #[clap(
         short,
         long,
         parse(from_os_str),
         value_name = "FILE",
-        default_value = "filter_stats.jsonl"
+        default_value = "./tests/functionality/basic_test/curr_output.jsonl"
     )]
     outfile: PathBuf,
+    #[clap(
+        short,
+        long,
+        parse(from_os_str),
+        value_name = "FILE",
+        default_value = "./configs/offline.toml"
+    )]
+    config: PathBuf,
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -36,14 +43,14 @@ lazy_static! {
     static ref RESULTS: Mutex<Vec<TlsResult>> = Mutex::new(Vec::new());
 }
 
-#[filter("tls")]
+#[callback("tls,level=L4Terminated")]
 fn tls_cb(tls: &TlsHandshake, bytecount: &ByteCount, five_tuple: &FiveTuple) {
     TLS_CB_COUNT.fetch_add(1, Ordering::Relaxed);
 
     let result = TlsResult {
         sni: Some(tls.sni().to_string()),
         five_tuple: five_tuple.clone(),
-        byte_count: bytecount.byte_count,
+        byte_count: bytecount.total(),
     };
 
     {
@@ -52,8 +59,10 @@ fn tls_cb(tls: &TlsHandshake, bytecount: &ByteCount, five_tuple: &FiveTuple) {
     }
 }
 
-#[retina_main(1)]
+#[input_files("$IRIS_HOME/datatypes/data.txt")]
+#[iris_main]
 fn main() {
+    env_logger::init();
     let args = Args::parse();
     let config = load_config(&args.config);
     let mut runtime: Runtime<SubscribedWrapper> = Runtime::new(config, filter).unwrap();

@@ -24,6 +24,7 @@ use tls_parser::*;
 /// Parses a single TLS handshake per connection.
 #[derive(Debug)]
 pub struct TlsParser {
+    /// Handshakes seen. We expect there to only be one.
     sessions: Vec<Tls>,
 }
 
@@ -95,6 +96,13 @@ impl ConnParsable for TlsParser {
     fn session_parsed_state(&self) -> ParsingState {
         ParsingState::Stop
     }
+
+    fn body_offset(&mut self) -> Option<usize> {
+        match self.sessions.last_mut() {
+            Some(tls) => std::mem::take(&mut tls.last_body_offset),
+            None => None,
+        }
+    }
 }
 
 // ------------------------------------------------------------
@@ -112,6 +120,7 @@ impl Tls {
             state: TlsState::None,
             tcp_buffer: vec![],
             record_buffer: vec![],
+            last_body_offset: None,
         }
     }
 
@@ -364,7 +373,7 @@ impl Tls {
         // do not parse if session is encrypted
         if self.state == TlsState::ClientChangeCipherSpec {
             log::trace!("TLS session encrypted, activating bypass");
-            return ParseResult::Done(0);
+            return ParseResult::HeadersDone(0);
         }
 
         // update state machine
@@ -399,7 +408,7 @@ impl Tls {
             },
             TlsMessage::Alert(ref a) => {
                 if a.severity == TlsAlertSeverity::Fatal {
-                    return ParseResult::Done(0);
+                    return ParseResult::HeadersDone(0);
                 }
             }
             _ => (),
@@ -413,6 +422,7 @@ impl Tls {
         &mut self,
         record: &TlsRawRecord<'_>,
         direction: bool,
+        pdu_len: usize,
     ) -> ParseResult {
         let mut v: Vec<u8>;
         let mut status = ParseResult::Continue(0);
@@ -424,7 +434,7 @@ impl Tls {
         // do not parse if session is encrypted
         if self.state == TlsState::ClientChangeCipherSpec {
             log::trace!("TLS session encrypted, activating bypass");
-            return ParseResult::Done(0);
+            return ParseResult::HeadersDone(0);
         }
 
         // only parse some message types (the Content type, first byte of TLS record)
@@ -456,6 +466,14 @@ impl Tls {
                 for msg in msg_list {
                     status = self.parse_message_level(msg, direction);
                     if status != ParseResult::Continue(0) {
+                        // Handshake done, but data remaining
+                        let remaining = rem.len();
+                        if matches!(status, ParseResult::HeadersDone(_))
+                            && remaining > 0
+                            && remaining < pdu_len
+                        {
+                            self.last_body_offset = Some(pdu_len - remaining - 1);
+                        }
                         return status;
                     }
                 }
@@ -483,13 +501,14 @@ impl Tls {
     pub(crate) fn parse_tcp_level(&mut self, data: &[u8], direction: bool) -> ParseResult {
         let mut v: Vec<u8>;
         let mut status = ParseResult::Continue(0);
+        let pdu_len = data.len(); // new data len
         log::trace!("parse_tcp_level ({} bytes)", data.len());
         log::trace!("defrag buffer size: {}", self.tcp_buffer.len());
 
         // do not parse if session is encrypted
         if self.state == TlsState::ClientChangeCipherSpec {
             log::trace!("TLS session encrypted, activating bypass");
-            return ParseResult::Done(0);
+            return ParseResult::HeadersDone(0);
         };
         // Check if TCP data is being defragmented
         let tcp_buffer = match self.tcp_buffer.len() {
@@ -511,7 +530,7 @@ impl Tls {
             match parse_tls_raw_record(cur_data) {
                 Ok((rem, ref record)) => {
                     cur_data = rem;
-                    status = self.parse_record_level(record, direction);
+                    status = self.parse_record_level(record, direction, pdu_len);
                     if status != ParseResult::Continue(0) {
                         return status;
                     }

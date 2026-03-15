@@ -555,21 +555,24 @@ impl fmt::Display for Throughputs {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(
             f,
-            "AVERAGE Ingress: {} / {}",
+            "AVERAGE Ingress: {} / {} / {}",
             pretty_print_unit(self.avg_ingress_bps, "bps"),
             pretty_print_unit(self.avg_ingress_pps, "pps"),
+            format!("{} bps", self.avg_process_bps)
         )?;
         writeln!(
             f,
-            "AVERAGE Good:    {} / {}",
+            "AVERAGE Good:    {} / {} / {}",
             pretty_print_unit(self.avg_good_bps, "bps"),
             pretty_print_unit(self.avg_good_pps, "pps"),
+            format!("{} bps", self.avg_process_bps)
         )?;
         writeln!(
             f,
-            "AVERAGE Process: {} / {}",
+            "AVERAGE Process: {} / {} / {}",
             pretty_print_unit(self.avg_process_bps, "bps"),
             pretty_print_unit(self.avg_process_pps, "pps"),
+            format!("{} bps", self.avg_process_bps)
         )?;
         writeln!(
             f,

@@ -10,22 +10,22 @@ duration = 120
 nb_rxd = 32768
 promiscuous = true
 mtu = 1500
-hardware_assist = false
+hardware_assist = true
 [[online.ports]]
 device = "0000:3b:00.0"
-cores = [ 1, 2, 3, 4, 5, 6, 7, 8 ] 
+cores = [ 1, 2, 3, 4, 5, 6, 7, 8 ]
 
-#[online.ports.sink]
-#core = 17
-#nb_buckets = 16
+[online.ports.sink]
+core = 17
+nb_buckets = 512
 
 [[online.ports]]
 device = "0000:d8:00.0"
 cores = [ 9, 10, 11, 12, 13, 14, 15, 16 ]
 
-#[online.ports.sink]
-#core = 18
-#nb_buckets = 16
+[online.ports.sink]
+core = 18
+nb_buckets = 512
 
 [conntrack]
 max_connections = 10000000

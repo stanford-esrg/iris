@@ -1,7 +1,7 @@
 //! HTTP transaction components.
 //!
 //! ## Remarks
-//! Retina currently only parses HTTP headers, and does not yet parse request/response bodies. This
+//! Iris currently only parses HTTP headers, and does not yet parse request/response bodies. This
 //! is an upcoming feature.
 
 use anyhow::{bail, Result};
@@ -103,7 +103,7 @@ pub struct HttpResponse {
 }
 
 impl HttpResponse {
-    pub(crate) fn parse_from(data: &[u8]) -> Result<Self> {
+    pub(crate) fn parse_from(data: &[u8]) -> Result<(Self, usize)> {
         let mut response = HttpResponse::default();
 
         const NUM_OF_HEADERS: usize = 20;
@@ -157,6 +157,10 @@ impl HttpResponse {
                 _ => (),
             }
         }
-        Ok(response)
+        let consumed = match status.unwrap() {
+            httparse::Status::Complete(nbytes) => nbytes,
+            httparse::Status::Partial => data.len(),
+        };
+        Ok((response, consumed))
     }
 }

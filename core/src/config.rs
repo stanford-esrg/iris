@@ -1,13 +1,13 @@
 //! Configuration options.
 //!
-//! While applications that use Retina are free to define their own command line arguments, Retina
+//! While applications that use Iris are free to define their own command line arguments, Iris
 //! requires a separate configuration file that defines runtime options for CPU and memory usage,
 //! network interface(s), logging, protocol-specific items, and more. The path to the configuration
 //! file itself will typically be a command line argument passed to the application.
 //!
-//!  Retina can run in either "online" mode (reading packets from a live network interface) or
+//!  Iris can run in either "online" mode (reading packets from a live network interface) or
 //! "offline" mode (reading packets from a capture file). See
-//! [configs](https://github.com/stanford-esrg/retina/tree/main/configs) for examples.
+//! [configs](https://github.com/stanford-esrg/iris/tree/main/configs) for examples.
 
 use crate::lcore::{CoreId, SocketId};
 
@@ -37,7 +37,7 @@ pub fn load_config<P: AsRef<Path>>(path: P) -> RuntimeConfig {
 /// Loads a default configuration file.
 ///
 /// For demonstration purposes only, not configured for performance. The default configuration
-/// assumes Retina is being run from the crate root in offline mode:
+/// assumes Iris is being run from the crate root in offline mode:
 /// ```toml
 /// main_core = 0
 ///
@@ -209,7 +209,7 @@ impl Default for RuntimeConfig {
             online: None,
             offline: Some(OfflineConfig {
                 mtu: 9702,
-                // assumes Retina is being run from crate root
+                // assumes Iris is being run from crate root
                 pcap: "./traces/small_flows.pcap".to_string(),
             }),
             conntrack: ConnTrackConfig {
@@ -233,7 +233,7 @@ impl Default for RuntimeConfig {
 
 /// Memory pool options.
 ///
-/// Retina manages packet buffer memory using DPDK's pool-based memory allocator. This takes
+/// Iris manages packet buffer memory using DPDK's pool-based memory allocator. This takes
 /// advantage of built-in DPDK huge page support, NUMA affinity, and access to DMA addresses. See
 /// [Memory in DPDK](https://www.dpdk.org/blog/2019/08/21/memory-in-dpdk-part-1-general-concepts/)
 /// for more details.
@@ -571,7 +571,7 @@ fn default_display_port_stats() -> Vec<String> {
 /// ```
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct LogConfig {
-    /// Log directory path. If logging is enabled, Retina will write logs to a timestamped folder
+    /// Log directory path. If logging is enabled, Iris will write logs to a timestamped folder
     /// inside `directory`. Defaults to `"./log"`.
     #[serde(default = "default_log_directory")]
     pub directory: String,

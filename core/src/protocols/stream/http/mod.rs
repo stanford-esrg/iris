@@ -1,7 +1,7 @@
 //! HTTP transaction parsing.
 //!
 //! ## Remarks
-//! Retina currently only parses HTTP 1.x request and response headers, and does not attempt to
+//! Iris currently only parses HTTP 1.x request and response headers, and does not attempt to
 //! parse or defragment HTTP bodies that may span multiple packets. This is enough for basic HTTP
 //! header analysis, but not for deep inspection of message body contents. Support for
 //! request/response continuations, chunked transfer encoding, and body content retrieval, are in

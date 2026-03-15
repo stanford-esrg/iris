@@ -112,6 +112,11 @@ impl ConnParsable for QuicParser {
     fn session_parsed_state(&self) -> ParsingState {
         ParsingState::Parsing
     }
+
+    // Temporary - not supported for QUIC parser.
+    fn body_offset(&mut self) -> Option<usize> {
+        None
+    }
 }
 
 /// Supported Quic Versions
@@ -501,7 +506,7 @@ impl QuicConn {
             .last()
             .is_some_and(|p| p.short_header.is_some())
         {
-            return ParseResult::Done(0);
+            return ParseResult::HeadersDone(0);
         }
         ParseResult::Continue(0)
     }

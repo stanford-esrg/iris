@@ -44,6 +44,11 @@ pub struct Tls {
     /// segments.
     #[serde(skip)]
     record_buffer: Vec<u8>,
+    /// Offset of the start of ciphertext (end of headers) in last-processed segment.
+    /// This will only be (possibly) relevant for last packet in the TLS handshake.
+    /// This can be inaccurate under 0-RTT est. or unsupported extensions.
+    #[serde(skip)]
+    last_body_offset: Option<usize>,
 }
 
 impl Tls {
@@ -217,7 +222,7 @@ impl Tls {
     /// Returns the negotiated TLS handshake version identifier, or `0` if none was identified.
     ///
     /// ## Remarks
-    /// Retina supports parsing SSL 3.0 up to TLS 1.3. This method returns the negotiated handshake
+    /// Iris supports parsing SSL 3.0 up to TLS 1.3. This method returns the negotiated handshake
     /// version identifier, even if it does not correspond to a major TLS version (e.g., a draft or
     /// bespoke version number).
     pub fn version(&self) -> u16 {

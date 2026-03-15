@@ -1,12 +1,14 @@
 //! A sample connection record that provides various TCP and/or UDP connection
 //! information, statistics, and state history. It does not deliver payload data.
 
-use retina_core::conntrack::conn::tcp_conn::reassembly::wrapping_lt;
-use retina_core::conntrack::conn_id::FiveTuple;
-use retina_core::conntrack::pdu::L4Pdu;
-use retina_core::protocols::packet::tcp::{ACK, FIN, RST, SYN};
-
-use super::Tracked;
+#[allow(unused_imports)]
+use iris_compiler::{datatype, datatype_group};
+use iris_core::conntrack::conn::tcp_conn::reassembly::wrapping_lt;
+use iris_core::conntrack::conn_id::FiveTuple;
+use iris_core::conntrack::pdu::L4Pdu;
+use iris_core::protocols::packet::tcp::{ACK, FIN, RST, SYN};
+use iris_core::subscription::Tracked;
+use iris_core::StateTxData;
 
 use serde::ser::{SerializeStruct, Serializer};
 use serde::Serialize;
@@ -119,14 +121,15 @@ impl fmt::Display for ConnRecord {
 /// ## Note
 /// Internal connection state is an associated type of a `pub` trait, and therefore must also be
 /// public. Documentation is hidden by default to avoid confusing users.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
+#[cfg_attr(not(feature = "skip_expand"), datatype)]
 pub struct ConnRecord {
     /// The connection 5-tuple.
     pub five_tuple: FiveTuple,
     /// Timestamp of the first packet.
     ///
     /// ## Remarks
-    /// This represents the time Retina observed the first packet in the connection, and does not
+    /// This represents the time Iris observed the first packet in the connection, and does not
     /// reflect timestamps read from a packet capture in offline analysis.
     pub first_seen_ts: Instant,
     /// Timestamp of the second packet (approximate).
@@ -234,15 +237,19 @@ impl Tracked for ConnRecord {
         self.history = Vec::with_capacity(0);
     }
 
-    fn update(&mut self, pdu: &L4Pdu, reassembled: bool) {
-        if !reassembled {
-            self.update_data(pdu);
-        }
+    // TODO currently we don't guarantee reassembly order for payload
+    // packets. This either needs to be changed in the framework or
+    // handled by the datatype (if ctxt.reassembled = true, we need to
+    // handle things differently).
+    #[cfg_attr(
+        not(feature = "skip_expand"),
+        datatype_group("ConnRecord,level=L4InPayload")
+    )]
+    fn update(&mut self, pdu: &L4Pdu) {
+        self.update_data(pdu);
     }
 
-    fn stream_protocols() -> Vec<&'static str> {
-        vec![]
-    }
+    fn phase_tx(&mut self, _: &StateTxData) {}
 }
 
 /// Default value for maximum chunk capacity.
