@@ -1,5 +1,3 @@
-# Websites
+# Websites Prometheus
 
-Records URLs visited by protocol.
-
-The script provided re-runs this multiple times in order to record changes over time.
+Records URLs visited by protocol and stores them using Prometheus.

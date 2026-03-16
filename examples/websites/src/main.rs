@@ -1,128 +1,86 @@
-use array_init::array_init;
-use retina_core::config::load_config;
-use retina_core::{CoreId, Runtime};
-use retina_datatypes::*;
-use retina_filtergen::{filter, retina_main};
-use std::sync::atomic::{AtomicPtr, Ordering};
+use prometheus_client::encoding::EncodeLabelSet;
+use prometheus_client::metrics::counter::Counter;
+use prometheus_client::metrics::family::Family;
+use prometheus_client::registry::Registry;
+use iris_core::config::load_config;
+use iris_core::{stats::register_base_prometheus_registry, CoreId, Runtime};
+use iris_datatypes::*;
+use iris_compiler::{callback, iris_end_macros, input_files};
 
 use clap::Parser;
-use std::fs::File;
-use std::io::{BufWriter, Write};
 use std::path::PathBuf;
-use std::sync::OnceLock;
-
-// Number of cores being used by the runtime; should match config file
-// Should be defined at compile-time so that we can use a
-// statically-sized array for results()
-const NUM_CORES: usize = 16;
-// Add 1 for ARR_LEN to avoid overflow; one core is used as main_core
-const ARR_LEN: usize = NUM_CORES + 1;
-// Temporary per-core files
-const OUTFILE_PREFIX: &str = "websites_";
-
-static RESULTS: OnceLock<[AtomicPtr<BufWriter<File>>; ARR_LEN]> = OnceLock::new();
-
-fn results() -> &'static [AtomicPtr<BufWriter<File>>; ARR_LEN] {
-    RESULTS.get_or_init(|| {
-        let mut outp = vec![];
-        for core_id in 0..ARR_LEN {
-            let file_name = String::from(OUTFILE_PREFIX) + &format!("{}", core_id) + ".jsonl";
-            let core_wtr = BufWriter::new(File::create(&file_name).unwrap());
-            let core_wtr = Box::into_raw(Box::new(core_wtr));
-            outp.push(core_wtr);
-        }
-        array_init(|i| AtomicPtr::new(outp[i]))
-    })
-}
-
-fn init() {
-    let _ = results();
-}
+use std::sync::LazyLock;
 
 #[derive(Parser, Debug)]
 struct Args {
     #[clap(short, long, parse(from_os_str), value_name = "FILE")]
     config: PathBuf,
-    #[clap(
-        short,
-        long,
-        parse(from_os_str),
-        value_name = "FILE",
-        default_value = "websites.jsonl"
-    )]
-    outfile: PathBuf,
 }
 
-fn write_result(key: &str, value: String, core_id: &CoreId) {
-    if value.is_empty() {
+// Note: Using unbounded and high cardinality label set (like website field here) is bad practice
+// and can lead to high memory and disk usage in Prometheus. This is just an example.
+#[derive(Clone, Debug, Hash, PartialEq, Eq, EncodeLabelSet)]
+struct Labels {
+    protocol: &'static str,
+    website: String,
+    core_id: u32,
+}
+
+static FAMILY: LazyLock<Family<Labels, Counter>> = LazyLock::new(Family::default);
+
+fn init() {
+    let mut r = Registry::default();
+    r.register(
+        "myapp_site_hits",
+        "Number of callback calls per each website and protocol",
+        FAMILY.clone(),
+    );
+    register_base_prometheus_registry(r);
+}
+
+fn write_result(protocol: &'static str, website: String, core_id: &CoreId) {
+    if website.is_empty() {
         return;
     } // Would it be helpful to count these?
-    let with_proto = format!("\n{}: {}", key, value);
-    let ptr = results()[core_id.raw() as usize].load(Ordering::Relaxed);
-    let wtr = unsafe { &mut *ptr };
-    wtr.write_all(with_proto.as_bytes()).unwrap();
+    FAMILY
+        .get_or_create(&Labels {
+            protocol,
+            website,
+            core_id: core_id.raw(),
+        })
+        .inc();
 }
 
-#[filter("dns")]
+#[callback("dns")]
 fn dns_cb(dns: &DnsTransaction, core_id: &CoreId) {
     let query_domain = (*dns).query_domain().to_string();
     write_result("dns", query_domain, core_id);
 }
 
-#[filter("http")]
+#[callback("http")]
 fn http_cb(http: &HttpTransaction, core_id: &CoreId) {
     let uri = (*http).uri().to_string();
     write_result("http", uri, core_id);
 }
 
-#[filter("tls")]
+#[callback("tls")]
 fn tls_cb(tls: &TlsHandshake, core_id: &CoreId) {
     let sni = (*tls).sni().to_string();
     write_result("tls", sni, core_id);
 }
 
-#[filter("quic")]
+#[callback("quic")]
 fn quic_cb(quic: &QuicStream, core_id: &CoreId) {
     let sni = quic.tls.sni().to_string();
     write_result("quic", sni, core_id);
 }
 
-fn combine_results(outfile: &PathBuf) {
-    println!("Combining results from {} cores...", NUM_CORES);
-    let mut output = Vec::new();
-    for core_id in 0..ARR_LEN {
-        let ptr = results()[core_id].load(Ordering::Relaxed);
-        let wtr = unsafe { &mut *ptr };
-        wtr.flush().unwrap();
-        let fp = String::from(OUTFILE_PREFIX) + &format!("{}", core_id) + ".jsonl";
-        let content = std::fs::read(fp.clone()).unwrap();
-        output.extend_from_slice(&content);
-        std::fs::remove_file(fp).unwrap();
-    }
-    let mut file = std::fs::File::create(outfile).unwrap();
-    file.write_all(&output).unwrap();
-}
-
-#[retina_main(4)]
+#[input_files("$IRIS_HOME/datatypes/data.txt")]
+#[iris_end_macros]
 fn main() {
     init();
     let args = Args::parse();
     let config = load_config(&args.config);
-    let cores = config.get_all_rx_core_ids();
-    let num_cores = cores.len();
-    if num_cores > NUM_CORES {
-        panic!(
-            "Compile-time NUM_CORES ({}) must be <= num cores ({}) in config file",
-            NUM_CORES, num_cores
-        );
-    }
-    if cores.len() > 1 && !cores.windows(2).all(|w| w[1].raw() - w[0].raw() == 1) {
-        panic!("Cores in config file should be consecutive for zero-lock indexing");
-    }
-    if cores[0].raw() > 1 {
-        panic!("RX core IDs should start at 0 or 1");
-    }
     let mut runtime: Runtime<SubscribedWrapper> = Runtime::new(config, filter).unwrap();
     runtime.run();
-    combine_results(&args.outfile);
 }

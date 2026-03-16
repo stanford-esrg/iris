@@ -6,6 +6,9 @@ use iris_core::{config::load_config, L4Pdu, Runtime};
 use iris_datatypes::{ConnRecord, TlsHandshake};
 use std::path::PathBuf;
 
+/// Most examples specify a config file as a command line argument, allowing users to
+/// easily run the same applications on multiple machines, test in offline and online mode,
+/// and try out different configs (e.g., flow sampling, connection timeouts, mempool size).
 #[derive(Parser, Debug)]
 struct Args {
     #[clap(
@@ -18,8 +21,20 @@ struct Args {
     config: PathBuf,
 }
 
+/// A basic callback that filters for "tls" connections and receives a
+/// TLS handshake (provided in the iris-datatypes crate).
+#[callback("tls")]
+fn log_tls(tls: &TlsHandshake) {
+    println!("Received TLS handshake: {:?}", tls);
+}
+
+/// Users who require more complex stateful filter logic can implement custom filters.
+/// These can be stateful (like this one) or stateless functions.
+/// All filter functions must return a `FilterResult`.
+/// Any filters that maintain state must implement the `StreamingFilter` trait.
 #[derive(Debug)]
 #[filter]
+#[allow(dead_code)]
 struct ShortConnLen {
     len: usize,
 }
@@ -31,7 +46,10 @@ impl StreamingFilter for ShortConnLen {
     fn clear(&mut self) {}
 }
 
+#[allow(dead_code)]
 impl ShortConnLen {
+    /// Every filter function in an `impl` block must be tagged with this macro.
+    /// In this case, we include the `level` to indicate when we want to receive updates.
     #[filter_group("ShortConnLen,level=L4InPayload")]
     fn update(&mut self, _: &L4Pdu) -> FilterResult {
         self.len += 1;
@@ -51,11 +69,32 @@ impl ShortConnLen {
     }
 }
 
-#[callback("tls and ShortConnLen,level=L4Terminated")]
+/// An alternate implementation of `ShortConnLen` would use
+/// the `PktCount` built-in data type. These are equivalent.
+/// If another filter or callback also uses `PktCount`, the
+/// same instance will be shared.
+#[filter("level=L4InPayload")]
+#[allow(dead_code)]
+fn short_conn_len(packets: &PktCount) -> FilterResult {
+    if packets.total() > 10 {
+        return FilterResult::Drop;
+    }
+    FilterResult::Continue
+}
+
+/// You use a custom filter by referring to it in the callback filter.
+/// Note: using `short_conn_len` or `ShortConnLen` are equivalent.
+/// #[callback("tls and ShortConnLen,level=L4Terminated")]
+#[callback("tls and short_conn_len,level=L4Terminated")]
 fn tls_cb(tls: &TlsHandshake, conn_record: &ConnRecord) {
     println!("Tls SNI: {}, conn. metrics: {:?}", tls.sni(), conn_record);
 }
 
+/// Users can implement stateful callbacks as structs.
+/// Each must implement the `StreamingCallback` trait.
+/// This callback also takes an input file, which is a list of additional filter
+/// predicates (one per line). This can be useful when users require a large number
+/// of filter predicates that would be cumbersome to list inline.
 #[derive(Debug)]
 #[callback("tls and file=$IRIS_HOME/examples/basic/tls_snis.txt")]
 struct TlsCbStreaming {
@@ -70,6 +109,11 @@ impl StreamingCallback for TlsCbStreaming {
 }
 
 impl TlsCbStreaming {
+    /// Stateful callback functions in the `impl` block must use this macro.
+    /// They must return a boolean value.
+    /// These can return `false` to unsubscribe to a connection, i.e., to stop
+    /// receiving updates for that connection. If one function in an `impl` block
+    /// returns `false`, the entire callback is unsubscribed.
     #[callback_group("TlsCbStreaming,level=L4InPayload")]
     fn update(&mut self, _: &L4Pdu) -> bool {
         true
@@ -83,6 +127,8 @@ impl TlsCbStreaming {
     }
 }
 
+/// Callbacks can also (statelessly) stream data within a connection.
+/// These can return `false` to unsubscribe to a connection.
 #[callback("tls,level=L4InPayload")]
 fn tls_cb_streaming(tls: &TlsHandshake, record: &ConnRecord) -> bool {
     println!("Received update in L7InPayload: {:?} {:?}", tls, record);

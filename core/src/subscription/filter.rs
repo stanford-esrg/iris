@@ -71,7 +71,7 @@ pub struct StatelessFilterWrapper {
 
 impl StatelessFilterWrapper {
     /// Create a new filter wrapper.
-    pub fn new() -> Self {
+    pub fn new(_: &L4Pdu) -> Self {
         Self {
             matched: FilterResult::Continue,
         }

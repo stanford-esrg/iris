@@ -4,12 +4,12 @@ members = [
     "datatypes",
     "examples/basic",
     "examples/enc_conns",
-    "examples/benchmark",
-    "tests/functionality/basic_test",
     "examples/measuring_sec",
     "examples/ml_qos",
     "examples/open_vpn",
     "examples/combined",
+    "examples/websites",
+    "tests/functionality/basic_test",
 ]
 resolver = "2"
 
