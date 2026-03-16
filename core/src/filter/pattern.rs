@@ -180,7 +180,9 @@ impl FlatPattern {
     pub(super) fn get_subpattern(&self, layer: SupportedLayer, state: LayerState) -> FlatPattern {
         let mut predicates: Vec<_> = self
             .predicates
-            .iter().filter(|&x| x.is_compatible(layer, state)).cloned()
+            .iter()
+            .filter(|&x| x.is_compatible(layer, state))
+            .cloned()
             .collect();
         predicates.push(Predicate::LayerState {
             layer,
@@ -372,9 +374,9 @@ impl FlatPattern {
                 .predicates
                 .iter()
                 .any(|p| p.is_custom() && p.is_matching() && p.levels().iter().any(|l| l == &curr))
-            {
-                pat.push(curr);
-            }
+        {
+            pat.push(curr);
+        }
         pat
     }
 }

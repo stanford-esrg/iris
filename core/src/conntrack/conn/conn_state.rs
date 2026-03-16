@@ -213,17 +213,15 @@ pub enum StateTxData<'a> {
 impl<'a> StateTxData<'a> {
     pub fn from_tx(state: &StateTransition, layer: &'a Layer) -> Self {
         match layer {
-            Layer::L7(layer) => {
-                match state {
-                    DataLevel::L4EndHshk => Self::L4EndHshk,
-                    DataLevel::L7OnDisc => Self::L7OnDisc(layer.get_protocol()),
-                    DataLevel::L7EndHdrs => {
-                        Self::L7EndHdrs(layer.sessions.last().expect("L7EndHdrs without session"))
-                    }
-                    DataLevel::L4Terminated => Self::L4Terminated,
-                    _ => Self::Null,
+            Layer::L7(layer) => match state {
+                DataLevel::L4EndHshk => Self::L4EndHshk,
+                DataLevel::L7OnDisc => Self::L7OnDisc(layer.get_protocol()),
+                DataLevel::L7EndHdrs => {
+                    Self::L7EndHdrs(layer.sessions.last().expect("L7EndHdrs without session"))
                 }
-            }
+                DataLevel::L4Terminated => Self::L4Terminated,
+                _ => Self::Null,
+            },
         }
     }
 

@@ -44,7 +44,7 @@ fn conn_callback(_conn: &ConnRecord) {
 }
 
 #[input_files("$IRIS_HOME/datatypes/data.txt")]
-#[iris_main]
+#[iris_end_macros]
 fn main() {
     env_logger::init();
     let args = Args::parse();

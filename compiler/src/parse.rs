@@ -539,8 +539,8 @@ impl InputKeys {
                         .push(DataLevel::from_str(l.trim()).expect("`level` key without values"));
                 }
             } else if k.contains("reassembled") {
-                reassembled =
-                    bool::from_str(&v).unwrap_or_else(|_| panic!("{}", ParserError::InvalidValue(k, v)));
+                reassembled = bool::from_str(&v)
+                    .unwrap_or_else(|_| panic!("{}", ParserError::InvalidValue(k, v)));
             } else if k.contains("name") {
                 assert!(
                     ret.first.is_none(),
@@ -608,12 +608,13 @@ impl InputKeys {
                 // Expand env variables
                 let fp = env_re
                     .replace_all(fp, |env_results: &regex::Captures| {
-                        std::env::var(&env_results[1])
-                            .unwrap_or_else(|_| panic!("Failed to find env variable {}", &env_results[1]))
+                        std::env::var(&env_results[1]).unwrap_or_else(|_| {
+                            panic!("Failed to find env variable {}", &env_results[1])
+                        })
                     })
                     .to_string();
-                let file =
-                    std::fs::File::open(fp.clone()).unwrap_or_else(|_| panic!("Failed to open file: {}", fp));
+                let file = std::fs::File::open(fp.clone())
+                    .unwrap_or_else(|_| panic!("Failed to open file: {}", fp));
                 let reader = std::io::BufReader::new(file);
                 for (idx, line) in reader.lines().enumerate() {
                     let line = line
@@ -656,10 +657,7 @@ impl InputKeys {
         Ok(ret)
     }
 
-    fn callback(
-        args: Option<String>,
-        name: &str,
-    ) -> Result<(String, Vec<DataLevel>, Vec<String>)> {
+    fn callback(args: Option<String>, name: &str) -> Result<(String, Vec<DataLevel>, Vec<String>)> {
         let mut ret = (String::new(), Vec::new(), Vec::new());
         match args {
             Some(args) => {

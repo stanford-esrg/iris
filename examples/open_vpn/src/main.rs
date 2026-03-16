@@ -58,7 +58,7 @@ fn callback(opcodes: &OpenVPNOpcode, acks: &OpenVPNAcks) -> bool {
     false
 }
 
-#[iris_main]
+#[iris_end_macros]
 fn main() -> Result<()> {
     env_logger::init();
     let args = Args::parse();

@@ -128,7 +128,8 @@ where
                     conn.inactivity_window = match &conn.l4conn {
                         L4Conn::Tcp(tcp) => tcp.inactivity_timeout(
                             self.config.tcp_inactivity_timeout,
-                            self.config.tcp_reassembly_timeout),
+                            self.config.tcp_reassembly_timeout,
+                        ),
                         L4Conn::Udp(_) => self.config.udp_inactivity_timeout,
                     };
                 }

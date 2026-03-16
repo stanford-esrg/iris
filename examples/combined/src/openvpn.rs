@@ -75,12 +75,13 @@ impl OpenVPNAcks {
 
         // If packet has same len as ACK, add to bin count
         if let Some(ack_len) = self.ack_len
-            && pdu.length() == ack_len {
-                let curr_bin = (self.n_payload_pkts() - 1) / 10;
-                if curr_bin < self.bins.len() {
-                    self.bins[curr_bin] += 1;
-                }
+            && pdu.length() == ack_len
+        {
+            let curr_bin = (self.n_payload_pkts() - 1) / 10;
+            if curr_bin < self.bins.len() {
+                self.bins[curr_bin] += 1;
             }
+        }
     }
 
     // Table 2

@@ -57,7 +57,6 @@ pub(crate) fn push_input(input: ParsedInput) {
     match outfile.as_ref() {
         Some(fp) => {
             let mut file = OpenOptions::new()
-                
                 .append(true)
                 .open(fp)
                 .expect("Failed to open file to append");
@@ -77,10 +76,12 @@ pub(crate) fn set_input_files(fps: Vec<&str>) {
     let mut cached = CACHED_DATA.lock().unwrap();
     for fp in fps {
         let fp = parse_filepath(fp);
-        let file = File::open(fp.clone()).unwrap_or_else(|_| panic!("Cannot find input file: {}", fp));
+        let file =
+            File::open(fp.clone()).unwrap_or_else(|_| panic!("Cannot find input file: {}", fp));
         let reader = BufReader::new(file);
         for line in reader.lines() {
-            let line = line.unwrap_or_else(|_| panic!("Failed to read line from input file {}", fp));
+            let line =
+                line.unwrap_or_else(|_| panic!("Failed to read line from input file {}", fp));
             if line.trim().is_empty() {
                 continue;
             }

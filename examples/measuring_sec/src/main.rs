@@ -31,7 +31,7 @@ struct Args {
 }
 
 #[input_files("$IRIS_HOME/datatypes/data.txt")]
-#[iris_main]
+#[iris_end_macros]
 fn main() {
     env_logger::init();
     init_files();

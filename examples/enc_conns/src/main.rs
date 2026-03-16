@@ -1,5 +1,5 @@
 use clap::Parser;
-use iris_compiler::{callback, datatype, datatype_group, input_files, iris_main};
+use iris_compiler::{callback, datatype, datatype_group, input_files, iris_end_macros};
 use iris_core::protocols::packet::tcp::TCP_PROTOCOL;
 use iris_core::protocols::stream::SessionProto;
 use iris_core::subscription::Tracked;
@@ -154,7 +154,7 @@ fn exempt(pkt: &FirstPayloadPkt, proto: &SessionProto) -> bool {
 }
 
 #[input_files("$IRIS_HOME/datatypes/data.txt")]
-#[iris_main]
+#[iris_end_macros]
 fn main() {
     env_logger::init();
     let args = Args::parse();

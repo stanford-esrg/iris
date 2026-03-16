@@ -80,11 +80,13 @@ pub fn dump_keys() {
         let filename = String::from(OUTFILE_PREFIX) + &format!("{}", core_id) + ".jsonl";
         let file = std::path::Path::new(&filename);
         if let Ok(m) = std::fs::metadata(file)
-            && m.is_file() && m.len() == 0 {
-                match std::fs::remove_file(file) {
-                    Ok(_) => {}
-                    Err(e) => println!("Failed to delete {}: {}", file.display(), e),
-                }
+            && m.is_file()
+            && m.len() == 0
+        {
+            match std::fs::remove_file(file) {
+                Ok(_) => {}
+                Err(e) => println!("Failed to delete {}: {}", file.display(), e),
             }
+        }
     }
 }

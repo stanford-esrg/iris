@@ -246,8 +246,10 @@ For instance, many of the [examples](./examples/) have the line:
 #[input_files("$IRIS_HOME/datatypes/data.txt")]
 ```
 
-Finally, you must tag the `main` function with:
+After all macros, you must tag some function or struct with:
 
 ```rust
-#[iris_main]
+#[iris_end_macros]
 ```
+
+This tells Iris that it has read all macro inputs and can begin generating code. This must go in the main file of every application. Generally, puttig it on the `main` function makes sense.

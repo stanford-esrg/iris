@@ -1,5 +1,5 @@
 use clap::Parser;
-use iris_compiler::{callback, input_files, iris_main};
+use iris_compiler::{callback, input_files, iris_end_macros};
 use iris_core::subscription::Tracked;
 use iris_core::{config::load_config, FiveTuple, Runtime};
 use iris_datatypes::{conn_fts::ByteCount, FromSession, StaticData, TlsHandshake};
@@ -60,7 +60,7 @@ fn tls_cb(tls: &TlsHandshake, bytecount: &ByteCount, five_tuple: &FiveTuple) {
 }
 
 #[input_files("$IRIS_HOME/datatypes/data.txt")]
-#[iris_main]
+#[iris_end_macros]
 fn main() {
     env_logger::init();
     let args = Args::parse();

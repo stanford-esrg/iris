@@ -18,17 +18,15 @@ pub fn drop_high_vol_conn(ft: &FiveTuple) -> FilterResult {
 pub fn drop_high_vol_sess(session: &Session) -> FilterResult {
     if let SessionData::Dns(dns) = &session.data {
         let domain = dns.query_domain();
-        if !domain.is_empty()
-            && HIGH_VOL_DNS_SUBSTRINGS.iter().any(|d| domain.contains(d)) {
-                return FilterResult::Drop;
-            }
+        if !domain.is_empty() && HIGH_VOL_DNS_SUBSTRINGS.iter().any(|d| domain.contains(d)) {
+            return FilterResult::Drop;
+        }
     }
     if let SessionData::Http(http) = &session.data {
         let ua = http.user_agent();
-        if !ua.is_empty()
-            && IOT_UAS.iter().any(|u| ua.contains(u)) {
-                return FilterResult::Drop;
-            }
+        if !ua.is_empty() && IOT_UAS.iter().any(|u| ua.contains(u)) {
+            return FilterResult::Drop;
+        }
     }
     if !matches!(
         session.data,

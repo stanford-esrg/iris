@@ -71,10 +71,9 @@ impl TcpConn {
     pub(crate) fn inactivity_timeout(
         &self,
         default_inactivity_timeout: usize,
-        reassembly_timeout: usize
+        reassembly_timeout: usize,
     ) -> usize {
-        match self.ctos.ooo_buf.is_empty() && self.stoc.ooo_buf.is_empty()
-        {
+        match self.ctos.ooo_buf.is_empty() && self.stoc.ooo_buf.is_empty() {
             true => default_inactivity_timeout,
             false => reassembly_timeout,
         }

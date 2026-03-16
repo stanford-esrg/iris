@@ -74,9 +74,11 @@ impl OpenVPNOpcode {
             // If we've already seen client/server reset and ACKs,
             // make sure we don't see another.
             if let (Some(crst), Some(srst)) = (self.crst, self.srst)
-                && (b == crst || b == srst) && self.openvpn_hshk_done() {
-                    self.rst_in_payl = true;
-                }
+                && (b == crst || b == srst)
+                && self.openvpn_hshk_done()
+            {
+                self.rst_in_payl = true;
+            }
         } else {
             // Value stored in offset/length fields are incorrect
             self.malformed += 1;

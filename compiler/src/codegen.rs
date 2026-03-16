@@ -336,11 +336,8 @@ pub(crate) fn data_actions_to_tokens(actions: &DataActions) -> proc_macro2::Toke
 
 pub(crate) fn tracked_actions_to_tokens(actions: &TrackedActions) -> proc_macro2::TokenStream {
     let active = actions_to_tokens(&actions.active);
-    let refr_at: Vec<proc_macro2::TokenStream> = actions
-        .refresh_at
-        .iter()
-        .map(actions_to_tokens)
-        .collect();
+    let refr_at: Vec<proc_macro2::TokenStream> =
+        actions.refresh_at.iter().map(actions_to_tokens).collect();
     quote! {
         TrackedActions {
             active: #active,

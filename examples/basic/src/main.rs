@@ -90,7 +90,7 @@ fn tls_cb_streaming(tls: &TlsHandshake, record: &ConnRecord) -> bool {
 }
 
 #[input_files("$IRIS_HOME/datatypes/data.txt")]
-#[iris_main]
+#[iris_end_macros]
 fn main() {
     env_logger::init();
     let args = Args::parse();

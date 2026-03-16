@@ -16,7 +16,7 @@ use iris_core::Runtime;
 use iris_core::config::load_config;
 
 #[input_files("$IRIS_HOME/datatypes/data.txt")]
-#[iris_main]
+#[iris_end_macros]
 fn main() {
     measuring_sec::init_files();
 

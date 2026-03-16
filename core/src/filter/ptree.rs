@@ -442,12 +442,7 @@ impl PTree {
         split_patterns
     }
 
-    fn add_pattern(
-        &mut self,
-        pattern_: &FlatPattern,
-        callbacks: &[CallbackSpec],
-        cb_id: &str,
-    ) {
+    fn add_pattern(&mut self, pattern_: &FlatPattern, callbacks: &[CallbackSpec], cb_id: &str) {
         let mut pattern = pattern_;
 
         // Pattern may have predicates that need to be annotated with
@@ -947,15 +942,14 @@ impl PTree {
             // outcome), then no filter condition is needed.
             // The exception is if there is a filter that we still need to apply.
             // --> TODO can we relax this requirement?
-            if self.deliver.len() == 1
-                && !self.contains_term_filters() {
-                    self.root
-                        .deliver
-                        .insert(self.deliver.iter().next().unwrap().clone());
-                    self.root.children.clear();
-                    self.update_size();
-                    return;
-                }
+            if self.deliver.len() == 1 && !self.contains_term_filters() {
+                self.root
+                    .deliver
+                    .insert(self.deliver.iter().next().unwrap().clone());
+                self.root.children.clear();
+                self.update_size();
+                return;
+            }
         }
         self.prune_redundant_branches();
         self.prune_packet_conditions();

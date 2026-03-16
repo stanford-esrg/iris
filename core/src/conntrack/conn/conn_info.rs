@@ -71,12 +71,13 @@ where
     /// flag if it has passed through the TCP reassembly module.
     pub(crate) fn new_packet(&mut self, pdu: &L4Pdu, subscription: &Subscription<T::Subscribed>) {
         if self.linfo.actions.needs_update()
-            && subscription.update(self, pdu, DataLevel::L4InPayload(pdu.ctxt.reassembled)) {
-                self.exec_state_tx(
-                    StateTransition::L4InPayload(pdu.ctxt.reassembled),
-                    subscription,
-                );
-            }
+            && subscription.update(self, pdu, DataLevel::L4InPayload(pdu.ctxt.reassembled))
+        {
+            self.exec_state_tx(
+                StateTransition::L4InPayload(pdu.ctxt.reassembled),
+                subscription,
+            );
+        }
     }
 
     /// Invoked by reassembly infrastructure when the TCP handshake is completed.

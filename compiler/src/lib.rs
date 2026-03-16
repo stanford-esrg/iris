@@ -125,7 +125,7 @@ pub fn input_files(args: TokenStream, input: TokenStream) -> TokenStream {
 }
 
 #[proc_macro_attribute]
-pub fn iris_main(_args: TokenStream, input: TokenStream) -> TokenStream {
+pub fn iris_end_macros(_args: TokenStream, input: TokenStream) -> TokenStream {
     env_logger::init();
     // TODO - backup option that lets you specify num expected invocations?
     println!("Done with macros - beginning code generation\n");
