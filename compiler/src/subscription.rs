@@ -786,7 +786,8 @@ mod tests {
         assert!({
             let pred = decoder.custom_preds.first().unwrap();
             let levels = pred.levels();
-            levels.len() == 2
+            levels.len() == 3
+                && levels.contains(&DataLevel::Packet)
                 && levels.contains(&DataLevel::L4InPayload(false))
                 && levels.contains(&DataLevel::L7EndHdrs)
         });
