@@ -127,11 +127,9 @@ pub fn input_files(args: TokenStream, input: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn iris_end_macros(_args: TokenStream, input: TokenStream) -> TokenStream {
     env_logger::init();
-    // TODO - backup option that lets you specify num expected invocations?
     println!("Done with macros - beginning code generation\n");
 
-    // TODO - allow this to be any input
-    let input = parse_macro_input!(input as syn::ItemFn);
+    let input: proc_macro2::TokenStream = input.into();
 
     let decoder = {
         let mut inputs = cache::CACHED_DATA.lock().unwrap();
@@ -233,7 +231,6 @@ pub fn iris_end_macros(_args: TokenStream, input: TokenStream) -> TokenStream {
                 pdu: &iris_core::L4Pdu,
                 state: iris_core::StateTransition) -> bool
             {
-                // TODO modify to actually return `ret`
                 let mut ret = false;
                 #tracked_update
                 ret

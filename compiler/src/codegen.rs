@@ -35,8 +35,7 @@ pub(crate) fn cb_to_tokens(
     );
     let cb_wrapper_str = cb_name.to_lowercase();
     let cb_name = match cb_name.contains("::") {
-        // TODO this is a tmp workaround for weird formatting of CallbackSpec
-        // in PNodes
+        // Workaround for weird formatting of CallbackSpec in PNodes; could be cleaner
         true => cb_name.split("::").last().unwrap(),
         false => cb_name,
     };
@@ -274,7 +273,6 @@ pub(crate) fn constr_to_tokens(
             .datatypes
             .first()
             .expect("Constructor without datatypes");
-        // TODO confirm syntax
         let param = if dt == "L4Pdu" {
             quote! { pdu }
         } else if dt == "Session" {
@@ -457,10 +455,14 @@ fn tracked_to_type_tokens(tracked: &TrackedType) -> proc_macro2::TokenStream {
 
 pub(crate) fn parsers_to_tokens(sub: &SubscriptionDecoder) -> proc_macro2::TokenStream {
     let mut parsers = vec![];
-    println!(
-        "Parsers: {}\n",
-        sub.parsers.iter().cloned().collect::<Vec<_>>().join(", ")
-    );
+    if sub.parsers.is_empty() {
+        println!("No session-level parsers registered; L5-L7 protocols will not be detected or parsed.");
+    } else {
+        println!(
+            "Parsers: {}\n",
+            sub.parsers.iter().cloned().collect::<Vec<_>>().join(", ")
+        );
+    }
     for parser in &sub.parsers {
         let name = LitStr::new(parser.trim(), Span::call_site());
         parsers.push(quote! {

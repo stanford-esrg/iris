@@ -157,6 +157,7 @@ impl SubscriptionDecoder {
             spec.add_invoke_once();
         }
         ret.decode_updates();
+        assert!(!ret.cbs_raw.is_empty(), "No callbacks defined");
         ret
     }
 
