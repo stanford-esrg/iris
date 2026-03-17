@@ -1,5 +1,5 @@
 #[allow(unused_imports)]
-use iris_compiler::{cache_file, datatype, datatype_group};
+use iris_compiler::{cache_file, datatype, datatype_fn};
 use iris_core::subscription::Tracked;
 use iris_core::{L4Pdu, StateTxData, protocols::stream::SessionProto};
 use std::time::Instant;
@@ -89,7 +89,7 @@ impl Tracked for FeatureChunk {
     fn phase_tx(&mut self, _tx: &StateTxData) {}
     #[cfg_attr(
         not(feature = "skip_expand"),
-        datatype_group("FeatureChunk,level=L4InPayload")
+        datatype_fn("FeatureChunk,level=L4InPayload")
     )]
     fn update(&mut self, pdu: &L4Pdu) {
         self.new_packet(pdu);

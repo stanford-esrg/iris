@@ -23,7 +23,7 @@
 //! a timeout period has passed.
 
 #[allow(unused_imports)]
-use iris_compiler::{datatype, datatype_group};
+use iris_compiler::{datatype, datatype_fn};
 use iris_core::subscription::Tracked;
 use iris_core::{protocols::packet::tcp::TCP_PROTOCOL, L4Pdu, Mbuf};
 
@@ -113,7 +113,7 @@ impl Tracked for BidirPktStream {
 
     #[cfg_attr(
         not(feature = "skip_expand"),
-        datatype_group("BidirPktStream,level=L4InPayload")
+        datatype_fn("BidirPktStream,level=L4InPayload")
     )]
     fn update(&mut self, pdu: &L4Pdu) {
         self.push(pdu);
@@ -164,7 +164,7 @@ impl Tracked for OrigPktStream {
 
     #[cfg_attr(
         not(feature = "skip_expand"),
-        datatype_group("OrigPktStream,level=L4InPayload")
+        datatype_fn("OrigPktStream,level=L4InPayload")
     )]
     fn update(&mut self, pdu: &L4Pdu) {
         if pdu.dir {
@@ -218,7 +218,7 @@ impl Tracked for RespPktStream {
 
     #[cfg_attr(
         not(feature = "skip_expand"),
-        datatype_group("RespPktStream,level=L4InPayload")
+        datatype_fn("RespPktStream,level=L4InPayload")
     )]
     fn update(&mut self, pdu: &L4Pdu) {
         if !pdu.dir {

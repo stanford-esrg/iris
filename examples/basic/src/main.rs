@@ -50,7 +50,7 @@ impl StreamingFilter for ShortConnLen {
 impl ShortConnLen {
     /// Every filter function in an `impl` block must be tagged with this macro.
     /// In this case, we include the `level` to indicate when we want to receive updates.
-    #[filter_group("ShortConnLen,level=L4InPayload")]
+    #[filter_fn("ShortConnLen,level=L4InPayload")]
     fn update(&mut self, _: &L4Pdu) -> FilterResult {
         self.len += 1;
         if self.len > 10 {
@@ -59,7 +59,7 @@ impl ShortConnLen {
         FilterResult::Continue
     }
 
-    #[filter_group("ShortConnLen,level=L4Terminated")]
+    #[filter_fn("ShortConnLen,level=L4Terminated")]
     fn terminated(&self) -> FilterResult {
         if self.len <= 10 {
             FilterResult::Accept
@@ -114,12 +114,12 @@ impl TlsCbStreaming {
     /// These can return `false` to unsubscribe to a connection, i.e., to stop
     /// receiving updates for that connection. If one function in an `impl` block
     /// returns `false`, the entire callback is unsubscribed.
-    #[callback_group("TlsCbStreaming,level=L4InPayload")]
+    #[callback_fn("TlsCbStreaming,level=L4InPayload")]
     fn update(&mut self, _: &L4Pdu) -> bool {
         true
     }
 
-    #[callback_group("TlsCbStreaming,level=L7EndHdrs")]
+    #[callback_fn("TlsCbStreaming,level=L7EndHdrs")]
     fn state_tx(&mut self, tx: &StateTxData) -> bool {
         assert!(matches!(tx, StateTxData::L7EndHdrs(_)));
         self.in_payload = true;

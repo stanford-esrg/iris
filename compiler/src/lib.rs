@@ -32,7 +32,7 @@ pub fn datatype(args: TokenStream, input: TokenStream) -> TokenStream {
 }
 
 #[proc_macro_attribute]
-pub fn datatype_group(args: TokenStream, input: TokenStream) -> TokenStream {
+pub fn datatype_fn(args: TokenStream, input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(args as StringOpt).value;
     let input = parse_macro_input!(input as Item);
     let mut spec = ParsedInput::DatatypeFn(DatatypeFnSpec::default());
@@ -60,7 +60,7 @@ pub fn callback(args: TokenStream, input: TokenStream) -> TokenStream {
 }
 
 #[proc_macro_attribute]
-pub fn callback_group(args: TokenStream, input: TokenStream) -> TokenStream {
+pub fn callback_fn(args: TokenStream, input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(args as StringOpt).value;
     let input = parse_macro_input!(input as Item);
     let mut spec = ParsedInput::CallbackGroupFn(CallbackGroupFnSpec::default());
@@ -88,7 +88,7 @@ pub fn filter(args: TokenStream, input: TokenStream) -> TokenStream {
 }
 
 #[proc_macro_attribute]
-pub fn filter_group(args: TokenStream, input: TokenStream) -> TokenStream {
+pub fn filter_fn(args: TokenStream, input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(args as StringOpt).value;
     let input = parse_macro_input!(input as Item);
     let mut spec = ParsedInput::FilterGroupFn(FilterGroupFnSpec::default());

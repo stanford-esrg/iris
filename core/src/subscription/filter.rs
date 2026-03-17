@@ -3,7 +3,7 @@ use crate::L4Pdu;
 
 /// The framework expects that any stateful filter implements this trait.
 /// The user must also define the actual filter function(s), annotated with
-/// the appropriate #[filter_group(...)] macros. Each filter function must
+/// the appropriate #[filter_fn(...)] macros. Each filter function must
 /// return a FilterResult.
 pub trait StreamingFilter {
     /// Initialize internal data, if applicable. Invoked on first packet.

@@ -42,7 +42,7 @@ impl StreamingCallback for Predictor {
 }
 
 impl Predictor {
-    #[callback_group("Predictor,level=L4InPayload")]
+    #[callback_fn("Predictor,level=L4InPayload")]
     pub fn update(&mut self, tracked: &FeatureChunk, start: &StartTime) -> bool {
         if start.elapsed().as_secs() < START_INF_AFTER_TS {
             return true; // Not enough historical data to start inference
@@ -63,7 +63,7 @@ impl Predictor {
         true
     }
 
-    #[callback_group("Predictor,level=L4Terminated")]
+    #[callback_fn("Predictor,level=L4Terminated")]
     pub fn conn_done(&mut self, _tx: &StateTxData) -> bool {
         if !self.labels.is_empty() {
             N_CONNS.fetch_add(1, Ordering::Relaxed);
@@ -100,7 +100,7 @@ lazy_static::lazy_static! {
 }
 
 #[allow(unused_imports)]
-use iris_compiler::{cache_file, datatype, datatype_group};
+use iris_compiler::{cache_file, datatype, datatype_fn};
 use iris_core::protocols::stream::SessionProto;
 use welford::Welford;
 
@@ -181,7 +181,7 @@ impl Tracked for FeatureChunk {
     fn phase_tx(&mut self, _tx: &StateTxData) {}
     #[cfg_attr(
         not(feature = "skip_expand"),
-        datatype_group("FeatureChunk,level=L4InPayload")
+        datatype_fn("FeatureChunk,level=L4InPayload")
     )]
     fn update(&mut self, pdu: &L4Pdu) {
         self.new_packet(pdu);

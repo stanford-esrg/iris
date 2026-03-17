@@ -1,5 +1,5 @@
 use clap::Parser;
-use iris_compiler::{callback, datatype, datatype_group, input_files, iris_end_macros};
+use iris_compiler::{callback, datatype, datatype_fn, input_files, iris_end_macros};
 use iris_core::protocols::packet::tcp::TCP_PROTOCOL;
 use iris_core::protocols::stream::SessionProto;
 use iris_core::subscription::Tracked;
@@ -84,7 +84,7 @@ impl Tracked for FirstPayloadPkt {
         Self { payload: None }
     }
 
-    #[datatype_group("FirstPayloadPkt,level=L4InPayload")]
+    #[datatype_fn("FirstPayloadPkt,level=L4InPayload")]
     fn update(&mut self, pdu: &L4Pdu) {
         // Tracking TCP packets only
         if pdu.ctxt.proto != TCP_PROTOCOL {

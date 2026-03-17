@@ -82,7 +82,7 @@ impl OpenVPNOpcode {
     /// as well as *when* the callback should be invoked
     /// within the lifetime of a connection
     /// (here, anywhere in a TCP or UDP connection payload).
-    #[datatype_group("OpenVPNOpcode,level=L4InPayload")]
+    #[datatype_fn("OpenVPNOpcode,level=L4InPayload")]
     pub fn new_packet(&mut self, pdu: &L4Pdu) {
         // ... body
     }
@@ -124,7 +124,7 @@ impl StreamingFilter for ShortConnLen {
 impl ShortConnLen {
     /// As with data types, filter functions must specify
     /// when they should be invoked.
-    #[filter_group("ShortConnLen,level=L4InPayload")]
+    #[filter_fn("ShortConnLen,level=L4InPayload")]
     fn update(&mut self, _: &L4Pdu) -> FilterResult {
         self.len += 1;
         if self.len > 10 {
@@ -138,7 +138,7 @@ impl ShortConnLen {
     /// As with data types, stateful filters can have multiple functions.
     /// This one is invoked on connection termination (timeout or
     /// TCP FIN/ACK sequence).
-    #[filter_group("ShortConnLen,level=L4Terminated")]
+    #[filter_fn("ShortConnLen,level=L4Terminated")]
     fn terminated(&self) -> FilterResult {
         if self.len <= 10 {
             FilterResult::Accept
@@ -179,7 +179,7 @@ impl Predictor {
     /// arbitrary data types.
     /// By requesting `L4InPayload` updates, this function is invoked
     /// on every new packet in the connection.
-    #[callback_group("Predictor,level=L4InPayload")]
+    #[callback_fn("Predictor,level=L4InPayload")]
     fn update(&mut self, tracked: &FeatureChunk, start: &StartTime) -> bool {
         // ...
     }

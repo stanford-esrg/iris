@@ -715,10 +715,10 @@ mod tests {
          * impl MyGroup {
          *  fn new() -> Self;
          *
-         *  #[filter_group("MyGroup,L4InPayload")]
+         *  #[filter_fn("MyGroup,L4InPayload")]
          *  fn update(&mut self, pdu: &L4Pdu) -> FilterResult;
          *
-         *  #[filter_group("MyGroup")]
+         *  #[filter_fn("MyGroup")]
          *  fn tls(&mut self, tls: &TlsHandshake) -> FilterResult;
          * }
          */

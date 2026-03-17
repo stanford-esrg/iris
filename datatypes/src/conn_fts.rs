@@ -2,7 +2,7 @@
 //! connection information, statistics, and state history.
 
 #[allow(unused_imports)]
-use iris_compiler::{datatype, datatype_group};
+use iris_compiler::{datatype, datatype_fn};
 use iris_core::L4Pdu;
 use iris_core::{subscription::Tracked, StateTxData};
 use serde::ser::{Serialize, SerializeSeq, SerializeStruct, Serializer};
@@ -57,7 +57,7 @@ impl Tracked for ConnDuration {
     #[inline]
     #[cfg_attr(
         not(feature = "skip_expand"),
-        datatype_group("ConnDuration,level=L4InPayload")
+        datatype_fn("ConnDuration,level=L4InPayload")
     )]
     fn update(&mut self, pdu: &L4Pdu) {
         self.last_ts = pdu.ts;
@@ -100,7 +100,7 @@ impl Tracked for PktCount {
     #[inline]
     #[cfg_attr(
         not(feature = "skip_expand"),
-        datatype_group("PktCount,level=L4InPayload")
+        datatype_fn("PktCount,level=L4InPayload")
     )]
     fn update(&mut self, pdu: &L4Pdu) {
         if pdu.dir {
@@ -148,7 +148,7 @@ impl Tracked for ByteCount {
     #[inline]
     #[cfg_attr(
         not(feature = "skip_expand"),
-        datatype_group("ByteCount,level=L4InPayload")
+        datatype_fn("ByteCount,level=L4InPayload")
     )]
     fn update(&mut self, pdu: &L4Pdu) {
         if pdu.dir {
@@ -203,7 +203,7 @@ impl Tracked for InterArrivals {
     #[inline]
     #[cfg_attr(
         not(feature = "skip_expand"),
-        datatype_group("InterArrivals,level=L4InPayload")
+        datatype_fn("InterArrivals,level=L4InPayload")
     )]
     fn update(&mut self, pdu: &L4Pdu) {
         let now = Instant::now();
@@ -288,7 +288,7 @@ impl Tracked for ConnHistory {
     #[inline]
     #[cfg_attr(
         not(feature = "skip_expand"),
-        datatype_group("ConnHistory,level=L4InPayload")
+        datatype_fn("ConnHistory,level=L4InPayload")
     )]
     fn update(&mut self, pdu: &L4Pdu) {
         if pdu.dir {

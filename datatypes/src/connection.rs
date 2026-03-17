@@ -2,7 +2,7 @@
 //! information, statistics, and state history. It does not deliver payload data.
 
 #[allow(unused_imports)]
-use iris_compiler::{datatype, datatype_group};
+use iris_compiler::{datatype, datatype_fn};
 use iris_core::conntrack::conn::tcp_conn::reassembly::wrapping_lt;
 use iris_core::conntrack::conn_id::FiveTuple;
 use iris_core::conntrack::pdu::L4Pdu;
@@ -243,7 +243,7 @@ impl Tracked for ConnRecord {
     // handle things differently).
     #[cfg_attr(
         not(feature = "skip_expand"),
-        datatype_group("ConnRecord,level=L4InPayload")
+        datatype_fn("ConnRecord,level=L4InPayload")
     )]
     fn update(&mut self, pdu: &L4Pdu) {
         self.update_data(pdu);

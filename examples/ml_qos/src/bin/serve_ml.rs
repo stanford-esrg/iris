@@ -48,7 +48,7 @@ impl StreamingCallback for Predictor {
 }
 
 impl Predictor {
-    #[callback_group("Predictor,level=L4InPayload")]
+    #[callback_fn("Predictor,level=L4InPayload")]
     fn update(&mut self, tracked: &FeatureChunk, start: &StartTime) -> bool {
         if start.elapsed().as_secs() < START_INF_AFTER_TS {
             return true; // Not enough historical data to start inference
@@ -76,7 +76,7 @@ impl Predictor {
         true
     }
 
-    #[callback_group("Predictor,level=L4Terminated")]
+    #[callback_fn("Predictor,level=L4Terminated")]
     fn conn_done(&mut self, _tx: &StateTxData) -> bool {
         if !self.labels.is_empty() {
             N_CONNS.fetch_add(1, Ordering::Relaxed);

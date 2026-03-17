@@ -2,7 +2,7 @@ use crate::L4Pdu;
 
 /// The framework expects that any stateful callback implements this trait.
 /// The user must also define the actual callback function(s), annotated with
-/// the appropriate #[callback_group(...)] macros.
+/// the appropriate #[callback_fn(...)] macros.
 pub trait StreamingCallback {
     /// Initializes internal data, if applicable.
     /// Called on first packet in connection.
