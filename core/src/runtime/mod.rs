@@ -64,13 +64,14 @@ where
             let eal_params = config.get_eal_params();
             let eal_params_len = eal_params.len() as i32;
 
-            let mut args = vec![];
-            let mut ptrs = vec![];
-            for arg in eal_params.into_iter() {
-                let s = CString::new(arg).unwrap();
-                ptrs.push(s.as_ptr() as *mut u8);
-                args.push(s);
-            }
+            let args: Vec<CString> = eal_params
+                .into_iter()
+                .map(|arg| CString::new(arg).unwrap())
+                .collect();
+            let ptrs: Vec<*mut u8> = args
+                .iter()
+                .map(|s| s.as_ptr() as *mut u8)
+                .collect();
 
             let ret = unsafe { dpdk::rte_eal_init(eal_params_len, ptrs.as_ptr() as *mut _) };
             if ret < 0 {

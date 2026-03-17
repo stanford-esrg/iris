@@ -3,7 +3,7 @@ use iris_compiler::*;
 use iris_core::subscription::{FilterResult, StreamingCallback, StreamingFilter};
 use iris_core::StateTxData;
 use iris_core::{config::load_config, L4Pdu, Runtime};
-use iris_datatypes::{ConnRecord, TlsHandshake, PktCount};
+use iris_datatypes::{ConnRecord, PktCount, TlsHandshake};
 use std::path::PathBuf;
 
 /// Most examples specify a config file as a command line argument, allowing users to

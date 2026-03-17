@@ -1,5 +1,6 @@
 use crate::conntrack::conn::conn_state::StateTxData;
 use crate::L4Pdu;
+use quote::quote;
 
 /// Interface for datatypes that must be "tracked" throughout
 /// all or part of a connection.
@@ -42,7 +43,7 @@ impl StringToTokens for FilterStr<'_> {
     #[doc(hidden)]
     fn from_string(filter: &str) -> proc_macro2::TokenStream {
         let str = syn::LitStr::new(filter, proc_macro2::Span::call_site());
-        quote::quote! { &#str }
+        quote! { &#str }
     }
 }
 

@@ -25,7 +25,7 @@ pub fn datatype(args: TokenStream, input: TokenStream) -> TokenStream {
     spec.parse(&input, args).unwrap();
     println!("Parsed datatype: {}", spec.name());
     cache::push_input(spec);
-    quote::quote! {
+    quote! {
         #input
     }
     .into()
@@ -39,7 +39,7 @@ pub fn datatype_fn(args: TokenStream, input: TokenStream) -> TokenStream {
     spec.parse(&input, args).unwrap();
     println!("Parsed datatype function: {}", spec.name());
     cache::push_input(spec);
-    quote::quote! {
+    quote! {
         #input
     }
     .into()
@@ -53,7 +53,7 @@ pub fn callback(args: TokenStream, input: TokenStream) -> TokenStream {
     spec.parse(&input, args).unwrap();
     println!("Parsed callback: {:?}", spec.name());
     cache::push_input(spec);
-    quote::quote! {
+    quote! {
         #input
     }
     .into()
@@ -67,7 +67,7 @@ pub fn callback_fn(args: TokenStream, input: TokenStream) -> TokenStream {
     spec.parse(&input, args).unwrap();
     println!("Parsed grouped callback function: {}", spec.name());
     cache::push_input(spec);
-    quote::quote! {
+    quote! {
         #input
     }
     .into()
@@ -81,7 +81,7 @@ pub fn filter(args: TokenStream, input: TokenStream) -> TokenStream {
     spec.parse(&input, args).unwrap();
     println!("Parsed filter definition: {}", spec.name());
     cache::push_input(spec);
-    quote::quote! {
+    quote! {
         #input
     }
     .into()
@@ -95,7 +95,7 @@ pub fn filter_fn(args: TokenStream, input: TokenStream) -> TokenStream {
     spec.parse(&input, args).unwrap();
     println!("Parsed grouped filter function: {:?}", spec);
     cache::push_input(spec);
-    quote::quote! {
+    quote! {
         #input
     }
     .into()

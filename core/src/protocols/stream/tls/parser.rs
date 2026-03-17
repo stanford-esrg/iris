@@ -28,8 +28,6 @@ pub struct TlsParser {
     sessions: Vec<Tls>,
 }
 
-impl TlsParser {}
-
 impl Default for TlsParser {
     fn default() -> Self {
         TlsParser {

@@ -22,21 +22,15 @@ pub(crate) fn set_crate_outfile(fp: String) {
     let fp = parse_filepath(&fp);
 
     // Create or clear file
-    let path = PathBuf::from(fp.clone());
-    if !path.exists() {
-        OpenOptions::new()
-            .create(true)
-            .write(true)
-            .truncate(true)
-            .open(&path)
-            .unwrap_or_else(|_| panic!("Failed to create file {}", fp));
-    } else if std::fs::metadata(&path).unwrap().len() != 0 {
+    let path = PathBuf::from(&fp);
+    if path.exists() && std::fs::metadata(&path).unwrap().len() != 0 {
         println!("Warning - clearing existing contents of file {}", fp);
     }
 
     println!("GOT OUTPUT FILE NAME: {}", fp);
 
     let mut file = OpenOptions::new()
+        .create(true)
         .write(true)
         .truncate(true)
         .open(&path)
@@ -94,11 +88,18 @@ pub(crate) fn set_input_files(fps: Vec<&str>) {
 
 fn parse_filepath(fp: &str) -> String {
     if fp.starts_with("$") {
-        let mut dirs = fp.split("/").collect::<Vec<_>>();
-        let home = std::env::var(dirs[0].replace("$", ""))
-            .unwrap_or_else(|_| panic!("Cannot find env variable {}", dirs[0]));
-        dirs[0] = &home;
-        dirs.join("/")
+        let env_var = &fp[1..];
+        let (home, path) = env_var
+            .split_once('/')
+            .map(|(v, r)| (v, Some(r)))
+            .unwrap_or((env_var, None));
+        let value =
+            std::env::var(home).unwrap_or_else(|_| panic!("Cannot find env variable ${}", home));
+
+        match path {
+            Some(path) => format!("{}/{}", value, path),
+            None => value,
+        }
     } else if fp.starts_with("~") {
         let home = std::env::var("HOME").expect("Cannot find home directory");
         fp.replace("~", &home)

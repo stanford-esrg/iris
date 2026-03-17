@@ -184,12 +184,9 @@ where
             if self.options.online.hardware_assist {
                 log::info!("Applying hardware filters...");
                 let res = self.filter.set_hardware_filter(port);
-                match res {
-                    Ok(_) => (),
-                    Err(error) => {
-                        log::warn!("Failed to apply some patterns, passing all traffic through Port {}. Reason: {}", port.id, error);
-                    }
-                }
+                if let Err(error) = res {
+                    log::warn!("Failed to apply some patterns, passing all traffic through Port {}. Reason: {}", port.id, error);
+                };
             } else {
                 log::info!("No hardware assist configured for port {}, passing all traffic through device.", port.id);
             }

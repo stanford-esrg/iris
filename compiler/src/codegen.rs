@@ -456,7 +456,9 @@ fn tracked_to_type_tokens(tracked: &TrackedType) -> proc_macro2::TokenStream {
 pub(crate) fn parsers_to_tokens(sub: &SubscriptionDecoder) -> proc_macro2::TokenStream {
     let mut parsers = vec![];
     if sub.parsers.is_empty() {
-        println!("No session-level parsers registered; L5-L7 protocols will not be detected or parsed.");
+        println!(
+            "No session-level parsers registered; L5-L7 protocols will not be detected or parsed."
+        );
     } else {
         println!(
             "Parsers: {}\n",

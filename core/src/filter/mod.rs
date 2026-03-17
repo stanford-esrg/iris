@@ -91,14 +91,14 @@ impl Filter {
     pub fn new(filter_raw: &str, valid_custom_preds: &[Predicate]) -> Result<Filter> {
         let raw_patterns = FilterParser::parse_filter(filter_raw)?;
 
-        let flat_patterns = raw_patterns
+        let flat_patterns: Vec<_> = raw_patterns
             .into_iter()
             .map(|p| {
                 let mut patt = FlatPattern { predicates: p };
                 patt.handle_custom_predicates(valid_custom_preds).unwrap();
                 patt
             })
-            .collect::<Vec<_>>();
+            .collect();
 
         let mut fq_patterns = vec![];
         for pattern in flat_patterns.iter() {
@@ -130,7 +130,7 @@ impl Filter {
         self.patterns
             .iter()
             .map(|p| p.to_flat_pattern())
-            .collect::<Vec<_>>()
+            .collect()
     }
 
     // Returns predicate tree
