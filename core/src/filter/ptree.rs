@@ -257,36 +257,56 @@ impl PNode {
 
 impl fmt::Display for PNode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.pred)?;
-        if !self.actions.drop() {
-            write!(f, " -- Actions: {}", self.actions)?;
+        let mut invoke: Vec<&str> = self.deliver.iter().map(|d| d.as_str.as_str()).collect();
+        invoke.sort_unstable();
+        let invoke_s = invoke.join(",");
+
+        let mut active: Vec<&str> = self.matched.iter().map(|m| m.as_str.as_str()).collect();
+        active.sort_unstable();
+        let active_s = active.join(",");
+
+        let mut data: Vec<&str> = self.datatypes.iter().map(|d| d.as_str()).collect();
+        data.sort_unstable();
+        let data_s = data.join(",");
+
+        let actions_s = if self.actions.drop() {
+            String::new()
+        } else {
+            format!("{}", self.actions)
+        };
+
+        let mut parts: Vec<String> = Vec::new();
+        if !actions_s.is_empty() {
+            parts.push(format!("Actions: {}", actions_s));
         }
-        if !self.deliver.is_empty() {
-            write!(f, " Invoke: ")?;
-            write!(f, "( ")?;
-            for d in &self.deliver {
-                write!(f, "{}, ", d.as_str)?;
-            }
-            write!(f, ")")?;
+        if !invoke_s.is_empty() {
+            parts.push(format!("Invoke: {}", invoke_s));
         }
-        if !self.matched.is_empty() {
-            write!(f, " Active: ")?;
-            write!(f, "( ")?;
-            for m in &self.matched {
-                write!(f, "{}, ", m.as_str)?;
-            }
-            write!(f, ")")?;
+        if !active_s.is_empty() {
+            parts.push(format!("Active: {}", active_s));
         }
-        if !self.datatypes.is_empty() {
-            write!(f, " Data: ")?;
-            write!(f, "( ")?;
-            for d in &self.datatypes {
-                write!(f, "{}", d)?;
-            }
-            write!(f, ")")?;
+        if !data_s.is_empty() {
+            parts.push(format!("Data: {}", data_s));
         }
+
+        let mut pred_s = format!("{}", self.pred);
         if self.if_else {
-            write!(f, " x")?;
+            pred_s.push_str(" x");
+        }
+
+        if parts.is_empty() {
+            return write!(f, "{}", pred_s);
+        }
+
+        let candidate_single = format!("{}  {}", pred_s, parts.join("  "));
+        if candidate_single.len() <= 100 {
+            return write!(f, "{}", candidate_single);
+        }
+
+        // Multi-line: predicate header, then section lines (indent handled by tree printer).
+        write!(f, "{}", pred_s)?;
+        for p in parts {
+            write!(f, "\n{}", p)?;
         }
         Ok(())
     }
@@ -648,14 +668,29 @@ impl PTree {
     fn pprint(&self) -> String {
         fn pprint(s: &mut String, node: &PNode, prefix: String, last: bool) {
             let prefix_current = if last { "`- " } else { "|- " };
-
-            let s_next = format!("{}{}{}: {}\n", prefix, prefix_current, node.id, node);
-            s.push_str(&s_next);
-
             let prefix_child = if last { "   " } else { "|  " };
+
+            let node_str = format!("{}", node);
+            let mut lines = node_str.lines();
+            let first = lines.next().unwrap_or("");
+            s.push_str(&format!("{}{}{}: {}\n", prefix, prefix_current, node.id, first));
+
+            // Line breaks in node's printout need to be indented
+            // Follow the tree indentation, plus 2 extra spaces for data
+            let cont_prefix = format!(
+                "{}{}{}",
+                prefix,
+                prefix_child,
+                " ".repeat(node.id.to_string().len() + 2) // ": "
+            );
+            for line in lines {
+                s.push_str(&format!("{}  {}\n", cont_prefix, line));
+            }
+
             let prefix = prefix + prefix_child;
 
             if !node.children.is_empty() {
+                // "last child" in a tree layer formatted with `-
                 let last_child = node.children.len() - 1;
 
                 for (i, child) in node.children.iter().enumerate() {

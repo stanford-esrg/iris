@@ -28,6 +28,26 @@ pub struct TrackedActions {
     pub refresh_at: [Actions; NUM_STATE_TRANSITIONS],
 }
 
+fn fmt_actions(actions: Actions) -> String {
+    if actions.is_none() {
+        return "-".to_string();
+    }
+    let mut parts: Vec<&'static str> = Vec::new();
+    if actions.intersects(Actions::Update) {
+        parts.push("Update");
+    }
+    if actions.intersects(Actions::Parse) {
+        parts.push("Parse");
+    }
+    if actions.intersects(Actions::PassThrough) {
+        parts.push("PassThrough");
+    }
+    if actions.intersects(Actions::Track) {
+        parts.push("Track");
+    }
+    parts.join(",")
+}
+
 impl TrackedActions {
     /// Initialize empty
     pub fn new() -> Self {
@@ -116,21 +136,42 @@ impl TrackedActions {
 
 impl std::fmt::Display for TrackedActions {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if self.active.is_none() {
-            return write!(f, "None");
-        }
-        write!(f, "{:?}", self.active)?;
-        let mut refresh_at = vec![];
+        if self.active.is_none() { return write!(f, "-"); }
+
+        let active_str = fmt_actions(self.active);
+        let mut state_txs: Vec<(String, Actions)> = Vec::new();
         for i in 0..NUM_STATE_TRANSITIONS {
-            if self.refresh_at[i] != 0 {
-                refresh_at.push(format!(
-                    " {}: {:?}",
-                    StateTransition::from_usize(i),
-                    self.refresh_at[i].clone()
-                ));
+            let a = self.refresh_at[i];
+            if !a.is_none() {
+                state_txs.push((StateTransition::from_usize(i).to_string(), a));
             }
         }
-        write!(f, " (Until: {})", refresh_at.join(","))?;
-        Ok(())
+
+        assert!(!state_txs.is_empty(), "Active actions but no refresh points?");
+
+        // All actions have same refresh point
+        if !self.active.is_none() && state_txs.iter().all(|(_, a)| *a == self.active) {
+            let state_tx_list = state_txs.into_iter().map(|(u, _)| u).collect::<Vec<_>>().join(",");
+            return write!(f, "{}->({})", active_str, state_tx_list);
+        }
+
+        // Map actions to refresh point
+        let mut state_tx_list: Vec<Actions> = Vec::new();
+        for (_, a) in &state_txs {
+            if !state_tx_list.iter().any(|x| *x == *a) {
+                state_tx_list.push(*a);
+            }
+        }
+        let action_set = state_tx_list
+            .into_iter()
+            .map(fmt_actions)
+            .collect::<Vec<_>>()
+            .join(",");
+        let state_tx_list = state_txs
+            .into_iter()
+            .map(|(u, a)| format!("{}={}", u, fmt_actions(a)))
+            .collect::<Vec<_>>()
+            .join(",");
+        write!(f, "{}->({})", action_set, state_tx_list)
     }
 }

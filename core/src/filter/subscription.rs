@@ -35,13 +35,10 @@ pub struct DataActions {
 
 impl std::fmt::Display for DataActions {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut pref = "";
         if let Some(if_matches) = self.if_matches {
-            write!(f, "{:?}:{:?}", if_matches.0, if_matches.1)?;
-            pref = "- ";
+            write!(f, "{:?}:{:?}-", if_matches.0, if_matches.1)?;
         }
-        write!(f, "{}L4: {} ", pref, self.transport)?;
-        write!(f, "{}L7: {}", pref, self.layers[0])?;
+        write!(f, "L4:{}; L7:{}", self.transport, self.layers[0])?;
         Ok(())
     }
 }
@@ -176,7 +173,10 @@ pub struct NodeActions {
 
 impl std::fmt::Display for NodeActions {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for d in &self.actions {
+        for (i, d) in self.actions.iter().enumerate() {
+            if i > 0 {
+                write!(f, " ")?; // spacing
+            }
             write!(f, "{}", d)?;
         }
         Ok(())
