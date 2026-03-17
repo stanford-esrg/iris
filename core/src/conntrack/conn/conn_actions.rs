@@ -48,6 +48,13 @@ fn fmt_actions(actions: Actions) -> String {
     parts.join(",")
 }
 
+// Clippy #new_without_default warning for pub types
+impl Default for TrackedActions {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TrackedActions {
     /// Initialize empty
     pub fn new() -> Self {
@@ -136,7 +143,9 @@ impl TrackedActions {
 
 impl std::fmt::Display for TrackedActions {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if self.active.is_none() { return write!(f, "-"); }
+        if self.active.is_none() {
+            return write!(f, "-");
+        }
 
         let active_str = fmt_actions(self.active);
         let mut state_txs: Vec<(String, Actions)> = Vec::new();
@@ -147,18 +156,25 @@ impl std::fmt::Display for TrackedActions {
             }
         }
 
-        assert!(!state_txs.is_empty(), "Active actions but no refresh points?");
+        assert!(
+            !state_txs.is_empty(),
+            "Active actions but no refresh points?"
+        );
 
         // All actions have same refresh point
         if !self.active.is_none() && state_txs.iter().all(|(_, a)| *a == self.active) {
-            let state_tx_list = state_txs.into_iter().map(|(u, _)| u).collect::<Vec<_>>().join(",");
+            let state_tx_list = state_txs
+                .into_iter()
+                .map(|(u, _)| u)
+                .collect::<Vec<_>>()
+                .join(",");
             return write!(f, "{}->({})", active_str, state_tx_list);
         }
 
         // Map actions to refresh point
         let mut state_tx_list: Vec<Actions> = Vec::new();
         for (_, a) in &state_txs {
-            if !state_tx_list.iter().any(|x| *x == *a) {
+            if !state_tx_list.contains(a) {
                 state_tx_list.push(*a);
             }
         }

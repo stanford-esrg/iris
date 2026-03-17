@@ -125,11 +125,7 @@ impl Ssh {
                     let version_exchange = SshVersionExchange {
                         protoversion: Some(self.byte_to_string(ssh_id_string.proto)),
                         softwareversion: Some(self.byte_to_string(ssh_id_string.software)),
-                        comments: if ssh_id_string.comments.is_some() {
-                            Some(self.byte_to_string(ssh_id_string.comments.unwrap()))
-                        } else {
-                            None
-                        },
+                        comments: ssh_id_string.comments.map(|c| self.byte_to_string(c)),
                     };
 
                     if dir {

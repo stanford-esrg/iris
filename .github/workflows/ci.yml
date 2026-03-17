@@ -77,8 +77,8 @@ jobs:
       run: cargo test core --manifest-path core/Cargo.toml --no-default-features
     - name: Clippy iris-core (with timing)
       run: cargo clippy --manifest-path core/Cargo.toml --no-default-features --features timing
-    - name: Clippy iris-filtergen (no mlx5)
-      run: cargo clippy --manifest-path filtergen/Cargo.toml --no-default-features -- --deny warnings
+    - name: Clippy iris-compiler (no mlx5)
+      run: cargo clippy --manifest-path compiler/Cargo.toml --no-default-features -- --deny warnings
 
   format:
     runs-on: ubuntu-latest

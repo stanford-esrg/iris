@@ -134,10 +134,10 @@ where
                 // no longer require receiving reassembled traffic.
                 if !self.info.needs_reassembly() {
                     // Safe to discard out-of-order buffers
-                    if tcp_conn.ctos.ooo_buf.len() != 0 {
+                    if !tcp_conn.ctos.ooo_buf.is_empty() {
                         tcp_conn.ctos.ooo_buf.buf.clear();
                     }
-                    if tcp_conn.stoc.ooo_buf.len() != 0 {
+                    if !tcp_conn.stoc.ooo_buf.is_empty() {
                         tcp_conn.stoc.ooo_buf.buf.clear();
                     }
                 }

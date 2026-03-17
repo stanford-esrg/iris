@@ -1,8 +1,8 @@
 use clap::{ArgAction::SetTrue, Parser};
+use iris_compiler::{callback, input_files, iris_end_macros};
 use iris_core::multicore::{ChannelDispatcher, ChannelMode, DedicatedWorkerThreadSpawner};
 use iris_core::{config::load_config, CoreId, Runtime};
 use iris_datatypes::{ConnRecord, DnsTransaction, TlsHandshake};
-use iris_compiler::{callback, iris_end_macros, input_files};
 use serde::Serialize;
 use std::path::PathBuf;
 use std::sync::{Arc, OnceLock};

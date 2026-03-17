@@ -1,8 +1,8 @@
 use clap::{ArgAction::SetTrue, Parser};
+use iris_compiler::{callback, input_files, iris_end_macros};
 use iris_core::multicore::{ChannelDispatcher, ChannelMode, SharedWorkerThreadSpawner};
 use iris_core::{config::load_config, CoreId, Runtime};
 use iris_datatypes::{ConnRecord, DnsTransaction, TlsHandshake};
-use iris_compiler::{callback, iris_end_macros, input_files};
 use serde::Serialize;
 use std::path::PathBuf;
 use std::sync::{Arc, OnceLock};
@@ -139,7 +139,7 @@ fn main() {
     let final_stats = worker_handle.shutdown(args.flush_channels.as_ref());
 
     if args.show_stats {
-        if let Some(tls_stats) = final_stats.get(0) {
+        if let Some(tls_stats) = final_stats.first() {
             println!("=== TLS Stats ===");
             println!("{tls_stats}");
         }

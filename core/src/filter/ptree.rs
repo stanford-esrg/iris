@@ -673,7 +673,10 @@ impl PTree {
             let node_str = format!("{}", node);
             let mut lines = node_str.lines();
             let first = lines.next().unwrap_or("");
-            s.push_str(&format!("{}{}{}: {}\n", prefix, prefix_current, node.id, first));
+            s.push_str(&format!(
+                "{}{}{}: {}\n",
+                prefix, prefix_current, node.id, first
+            ));
 
             // Line breaks in node's printout need to be indented
             // Follow the tree indentation, plus 2 extra spaces for data

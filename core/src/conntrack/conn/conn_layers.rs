@@ -236,6 +236,13 @@ impl L7Session {
     }
 }
 
+// Clippy #new_without_default warning for pub types
+impl Default for L7Session {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TrackableLayer for L7Session {
     fn end_state_tx(&mut self) {
         // Nothing to parse if in payload and no more sessions expected

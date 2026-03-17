@@ -194,6 +194,7 @@ impl OutOfOrderBuffer {
     }
 
     /// Returns the number of elements in the buffer
+    #[allow(dead_code)]
     pub(crate) fn len(&self) -> usize {
         self.buf.len()
     }

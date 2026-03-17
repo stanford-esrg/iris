@@ -464,7 +464,6 @@ impl DataLevelSpec {
                 DataLevel::L4Terminated => {
                     let mut a = DataActions::new();
                     a.transport.active |= Actions::Track;
-                    a.transport.refresh_at[level.as_usize()];
                     actions.push_action(a);
                 }
                 // No actions
@@ -617,7 +616,7 @@ impl SubscriptionLevel {
                 .all(|l| curr.compare(l) == StateTxOrd::Greater)
     }
 
-    /// -- utilities for iteratively building up a spec --
+    // -- utilities for iteratively building up a spec --
 
     pub(crate) fn empty() -> Self {
         Self {

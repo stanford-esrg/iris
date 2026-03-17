@@ -81,7 +81,7 @@ impl ToTokens for Streaming {
 
 /// Specification for one complete subscription
 /// A subscription is defined as a filter, callback, and one or more datatypes
-/// This is public to be accessible by the filtergen crate.
+/// This is public to be accessible by the compiler crate.
 #[derive(Debug, Clone)]
 pub struct SubscriptionSpec {
     /// Datatype(s) invoked in callback

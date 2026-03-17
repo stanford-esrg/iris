@@ -1,11 +1,11 @@
+use iris_compiler::{callback, input_files, iris_end_macros};
+use iris_core::config::load_config;
+use iris_core::{stats::register_base_prometheus_registry, CoreId, Runtime};
+use iris_datatypes::*;
 use prometheus_client::encoding::EncodeLabelSet;
 use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;
 use prometheus_client::registry::Registry;
-use iris_core::config::load_config;
-use iris_core::{stats::register_base_prometheus_registry, CoreId, Runtime};
-use iris_datatypes::*;
-use iris_compiler::{callback, iris_end_macros, input_files};
 
 use clap::Parser;
 use std::path::PathBuf;
