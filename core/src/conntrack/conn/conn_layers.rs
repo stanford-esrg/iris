@@ -1,5 +1,5 @@
-// Additional traffic layers built on top of the L4 base transport layer.
-
+#![doc(hidden)]
+/// Additional traffic layers built on top of the L4 base transport layer.
 use super::conn_actions::TrackedActions;
 use super::conn_state::{LayerState, StateTransition};
 use crate::conntrack::Actions;

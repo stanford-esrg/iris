@@ -68,10 +68,7 @@ where
                 .into_iter()
                 .map(|arg| CString::new(arg).unwrap())
                 .collect();
-            let ptrs: Vec<*mut u8> = args
-                .iter()
-                .map(|s| s.as_ptr() as *mut u8)
-                .collect();
+            let ptrs: Vec<*mut u8> = args.iter().map(|s| s.as_ptr() as *mut u8).collect();
 
             let ret = unsafe { dpdk::rte_eal_init(eal_params_len, ptrs.as_ptr() as *mut _) };
             if ret < 0 {

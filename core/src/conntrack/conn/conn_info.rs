@@ -1,9 +1,5 @@
-// Consume_PDU [invoked on first pkt and UDP [in update], + via reassembled TCP]
-// Update [invoked on non-first pkt]
-// Must now store actions
-// Terminate handler
-// Probe, parse, etc.
-
+#![doc(hidden)]
+/// Per-connection data structure for subscription management.
 use super::conn_actions::TrackedActions;
 use crate::lcore::CoreId;
 use crate::protocols::packet::tcp::TCP_PROTOCOL;
@@ -14,7 +10,7 @@ use crate::L4Pdu;
 
 use super::{conn_layers::*, conn_state::*};
 
-/// Per-connection struct. Tracks all subscription-requested
+/// Per-connection. Tracks all subscription-requested
 /// datatypes (`tracked` data). Maintains the State of the connection
 /// at each layer, including the `Actions` to execute when new
 /// packets are received.
@@ -25,7 +21,7 @@ pub struct ConnInfo<T>
 where
     T: Trackable,
 {
-    /// Actions and state from the perspective of L4.
+    /// Actions and state from the perspective of L4 (TCP or UDP).
     /// Valid states are Payload or None.
     pub linfo: LayerInfo,
     /// Connection five-tuple for filtering and determining directionality

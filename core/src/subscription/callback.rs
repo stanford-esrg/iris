@@ -11,6 +11,7 @@ pub trait StreamingCallback {
     fn clear(&mut self);
 }
 
+#[doc(hidden)]
 #[derive(Debug)]
 pub enum CallbackState {
     Active,

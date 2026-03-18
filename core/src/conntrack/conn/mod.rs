@@ -2,6 +2,9 @@
 //!
 //! Tracks a TCP or UDP connection, performs stream reassembly, and (via ConnInfo)
 //! manages protocol parser state throughout the duration of the connection.
+//!
+//! Developers should not have to directly interact with anything in this module, but
+//! it must be public for generated code.
 
 pub mod conn_actions;
 pub mod conn_info;
@@ -28,7 +31,7 @@ use std::time::Instant;
 
 /// Tracks either a TCP or a UDP connection.
 ///
-/// Performs light-weight stream reassembly for TCP connections and tracks UDP connections.
+/// Performs zero-copy stream reassembly for TCP connections and tracks UDP connections.
 pub(crate) enum L4Conn {
     Tcp(TcpConn),
     Udp(UdpConn),

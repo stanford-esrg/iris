@@ -69,7 +69,7 @@ impl TrackedActions {
     /// Also clear `PassThrough`, which will be reset after the
     /// state TX if child layer(s) have actions set.
     #[inline]
-    pub fn start_state_tx(&mut self, state: StateTransition) {
+    pub(crate) fn start_state_tx(&mut self, state: StateTransition) {
         self.active &= self.refresh_at[state.as_usize()].not();
         self.active &= (Actions::PassThrough).not();
     }
@@ -82,7 +82,7 @@ impl TrackedActions {
 
     /// Clear intersection of actions with `peer`, including `update_at`
     #[inline]
-    pub fn clear_intersection(&mut self, peer: &TrackedActions) {
+    pub(crate) fn clear_intersection(&mut self, peer: &TrackedActions) {
         self.clear(&peer.active);
         for i in 0..NUM_STATE_TRANSITIONS {
             self.refresh_at[i] &= peer.refresh_at[i].not();
@@ -95,23 +95,28 @@ impl TrackedActions {
         self.active.is_none()
     }
 
+    /// `PassThrough` indicates that there is another session/protocol encapsulated
+    /// in this one. Since we currently just support one layer within TCP/UDP, this is
+    /// currently unused.
+    #[allow(dead_code)]
     #[inline]
-    pub fn has_next_layer(&self) -> bool {
+    pub(crate) fn has_next_layer(&self) -> bool {
         self.active.intersects(Actions::PassThrough)
     }
 
+    /// See has_next_layer
     #[inline]
-    pub fn set_next_layer(&mut self) {
+    pub(crate) fn set_next_layer(&mut self) {
         self.active |= Actions::PassThrough;
     }
 
     #[inline]
-    pub fn needs_parse(&self) -> bool {
+    pub(crate) fn needs_parse(&self) -> bool {
         self.active.intersects(Actions::Parse)
     }
 
     #[inline]
-    pub fn needs_update(&self) -> bool {
+    pub(crate) fn needs_update(&self) -> bool {
         self.active.intersects(Actions::Update)
     }
 
@@ -136,7 +141,7 @@ impl TrackedActions {
 
     /// Returns `true` if this state TX can be safely skipped
     /// (i.e., nothing needs to be delivered and no actions need refresh here)
-    pub fn skip_tx(&self, tx: &StateTransition) -> bool {
+    pub(crate) fn skip_tx(&self, tx: &StateTransition) -> bool {
         self.refresh_at[tx.as_usize()].is_none()
     }
 }

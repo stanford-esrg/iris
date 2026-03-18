@@ -31,7 +31,7 @@ const RSS_RETA_SIZE: usize = 512;
 pub(crate) struct PortId(pub(crate) u16);
 
 impl PortId {
-    pub fn new_from_device(device: String) -> PortId {
+    pub(crate) fn new_from_device(device: String) -> PortId {
         let mut port_id: u16 = 0;
         let _device = device.clone();
         let ret = unsafe {

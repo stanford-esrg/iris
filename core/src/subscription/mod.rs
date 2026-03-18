@@ -9,15 +9,11 @@ use crate::protocols::stream::ParserRegistry;
 use crate::stats::{StatExt, TCP_BYTE, TCP_PKT, UDP_BYTE, UDP_PKT};
 
 pub mod data;
-#[doc(hidden)]
 pub mod filter;
 pub use data::Tracked;
 pub use filter::StreamingFilter;
-#[doc(hidden)]
 pub mod callback;
 pub use callback::StreamingCallback;
-
-pub mod timer;
 
 #[cfg(feature = "timing")]
 use crate::timing::timer::Timers;
@@ -53,7 +49,6 @@ pub trait Trackable {
     fn clear(&mut self);
 }
 
-#[allow(dead_code)]
 pub struct Subscription<S>
 where
     S: Subscribable,
@@ -65,7 +60,6 @@ where
     pub(crate) timers: Timers,
 }
 
-#[allow(dead_code)]
 impl<S> Subscription<S>
 where
     S: Subscribable,

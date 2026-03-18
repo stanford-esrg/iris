@@ -1,3 +1,5 @@
+#![doc(hidden)]
+/// Internal management for per-connection state machines.
 use serde::{Deserialize, Serialize};
 use std::{cmp::Ordering, str::FromStr};
 use strum::IntoEnumIterator;
@@ -8,8 +10,8 @@ use crate::{
     protocols::{stream::SessionProto, Session},
 };
 
-/// State that each Layer maintains, based on what it has
-/// seen so far in the connection.
+/// Current state of the Layer in per-connection state machine.
+/// Based on what it has seen so far in the connection.
 #[derive(PartialEq, Eq, Debug, Copy, Clone, Ord, PartialOrd, Hash, EnumIter)]
 pub enum LayerState {
     /// Determining protocol

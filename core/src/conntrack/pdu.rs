@@ -1,3 +1,6 @@
+//! Transport-layer protocol data unit.
+//! Directly exposed to users as a primitive data type.
+
 use crate::memory::mbuf::Mbuf;
 use crate::protocols::packet::ethernet::Ethernet;
 use crate::protocols::packet::ipv4::Ipv4;

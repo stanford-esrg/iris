@@ -1,9 +1,4 @@
 //! Utilities for compile-time filter generation and subscription handling.
-//!
-//! This module's exports will be most relevant for those adding new filter utilities
-//! and/or datatypes. Nothing in this module is needed for writing an ordinary
-//! Iris application.
-//!
 
 #[doc(hidden)]
 #[macro_use]
@@ -13,6 +8,7 @@ pub mod ast;
 mod hardware;
 #[allow(clippy::upper_case_acronyms)]
 mod parser;
+#[doc(hidden)]
 pub mod pattern;
 #[doc(hidden)]
 pub mod pred_ptree;
@@ -45,11 +41,14 @@ use thiserror::Error;
 /// Software filter applied to each packet. Will drop, deliver, and/or
 /// forward packets to the connection manager. If hardware assist is enabled,
 /// the framework will additionally attempt to install the filter in the NICs.
+#[doc(hidden)]
 pub type PacketFilterFn = fn(&Mbuf, &CoreId) -> bool;
 /// Filter applied on a state transition.
+#[doc(hidden)]
 pub type StateTxFn<T> = fn(&mut ConnInfo<T>, &StateTransition);
 /// Invoked to update internal data on each new packet
 /// Returns `true` if something changed (CB unsubscribed, streaming filter matched/didn't match)
+#[doc(hidden)]
 pub type UpdateFn<T> = fn(&mut ConnInfo<T>, &L4Pdu, DataLevel) -> bool;
 
 #[doc(hidden)]
@@ -83,6 +82,7 @@ where
 }
 
 #[derive(Default, Debug, Clone)]
+#[doc(hidden)]
 pub struct Filter {
     patterns: Vec<LayeredPattern>,
 }
@@ -120,30 +120,28 @@ impl Filter {
         })
     }
 
-    // Returns disjunct of layered patterns
+    /// Returns disjunct of layered patterns
     pub fn get_patterns_layered(&self) -> Vec<LayeredPattern> {
         self.patterns.clone()
     }
 
-    // Returns disjuct of flat patterns
+    /// Returns disjuct of flat patterns
     pub fn get_patterns_flat(&self) -> Vec<FlatPattern> {
-        self.patterns
-            .iter()
-            .map(|p| p.to_flat_pattern())
-            .collect()
+        self.patterns.iter().map(|p| p.to_flat_pattern()).collect()
     }
 
-    // Returns predicate tree
+    /// Returns predicate tree
     pub fn to_ptree(&self) -> PredPTree {
         PredPTree::new(&self.get_patterns_flat(), false)
     }
 
-    // Returns `true` if filter can be completely realized in hardware
+    /// Returns `true` if filter can be completely realized in hardware
     pub fn is_hardware_filterable(&self) -> bool {
         // needs to take port as argument
         todo!();
     }
 
+    /// Offload packet-level filter prefixes, where possible, to hardware.
     pub(crate) fn set_hardware_filter(&self, port: &Port) -> Result<()> {
         let hw_filter = HardwareFilter::new(self, port);
         match hw_filter.install() {
@@ -168,9 +166,6 @@ impl fmt::Display for Filter {
 
 #[derive(Error, Debug)]
 pub enum FilterError {
-    // Catches all filters that do not satisfy the grammar.
-    // This is an umbrella error type that covers some of the
-    // more specific errors below as well.
     #[error("Invalid filter format")]
     InvalidFormat,
 

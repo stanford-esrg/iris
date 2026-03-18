@@ -42,6 +42,7 @@ use hashlink::linked_hash_map::{LinkedHashMap, RawEntryMut};
 /// users, but can be configured at runtime with a maximum capacity, out-of-order tolerance,
 /// different timeout values, and other options. See
 /// [ConnTrackConfig](crate::config::ConnTrackConfig) for details.
+#[doc(hidden)]
 pub struct ConnTracker<T>
 where
     T: Trackable,

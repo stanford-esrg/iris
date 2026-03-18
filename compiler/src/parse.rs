@@ -722,7 +722,7 @@ impl Parse for StringOpt {
 
 /// Valid errors when parsing
 #[derive(Error, Debug)]
-pub enum ParserError {
+pub(crate) enum ParserError {
     #[error("Invalid return value for {0}")]
     InvalidReturn(String),
     #[error("Incompatible macro for {0}")]
