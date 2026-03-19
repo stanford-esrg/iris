@@ -21,7 +21,7 @@ pub enum CallbackState {
 
 #[doc(hidden)]
 /// Wrapper for a stateful callback that is invoked in a streaming state
-/// (e.g., L4InPayload) or has multiple functions.
+/// (e.g., InL4Conn) or has multiple functions.
 #[derive(Debug)]
 pub struct StreamCallbackWrapper<C>
 where

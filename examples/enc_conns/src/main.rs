@@ -84,7 +84,7 @@ impl Tracked for FirstPayloadPkt {
         Self { payload: None }
     }
 
-    #[datatype_fn("FirstPayloadPkt,level=L4InPayload")]
+    #[datatype_fn("FirstPayloadPkt,level=InL4Conn")]
     fn update(&mut self, pdu: &L4Pdu) {
         // Tracking TCP packets only
         if pdu.ctxt.proto != TCP_PROTOCOL {
@@ -113,7 +113,7 @@ impl Tracked for FirstPayloadPkt {
 }
 
 /* Callback to apply exemption rules */
-#[callback("tcp,level=L4InPayload,parsers=http&tls")]
+#[callback("tcp,level=InL4Conn,parsers=http&tls")]
 fn exempt(pkt: &FirstPayloadPkt, proto: &SessionProto) -> bool {
     if pkt.payload.is_none() || matches!(proto, SessionProto::Probing) {
         return true; // Continue

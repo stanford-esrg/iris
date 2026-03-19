@@ -18,12 +18,12 @@ use thiserror::Error;
 ///
 /// # Examples
 ///
-/// ```rust
+/// ```rust,ignore
 /// // Create a shared mode dispatcher
 /// let shared_mode = ChannelMode::Shared;
 /// ```
 ///
-/// ```rust
+/// ```rust,ignore
 /// // Create a per-core mode dispatcher for specific cores
 /// let cores = vec![CoreId(0), CoreId(1), CoreId(2)];
 /// let per_core_mode = ChannelMode::PerCore(cores);

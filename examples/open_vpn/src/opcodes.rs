@@ -36,7 +36,7 @@ impl OpenVPNOpcode {
         }
     }
 
-    #[datatype_fn("OpenVPNOpcode,level=L4InPayload")]
+    #[datatype_fn("OpenVPNOpcode,level=InL4Conn")]
     pub fn new_packet(&mut self, pdu: &L4Pdu) {
         // Ignore if connection has been reset
         if self.rst_in_payl || self.opcodes_tot.len() > N_OPCODES {

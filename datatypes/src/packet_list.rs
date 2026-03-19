@@ -113,7 +113,7 @@ impl Tracked for BidirPktStream {
 
     #[cfg_attr(
         not(feature = "skip_expand"),
-        datatype_fn("BidirPktStream,level=L4InPayload")
+        datatype_fn("BidirPktStream,level=InL4Conn")
     )]
     fn update(&mut self, pdu: &L4Pdu) {
         self.push(pdu);
@@ -164,7 +164,7 @@ impl Tracked for OrigPktStream {
 
     #[cfg_attr(
         not(feature = "skip_expand"),
-        datatype_fn("OrigPktStream,level=L4InPayload")
+        datatype_fn("OrigPktStream,level=InL4Conn")
     )]
     fn update(&mut self, pdu: &L4Pdu) {
         if pdu.dir {
@@ -218,7 +218,7 @@ impl Tracked for RespPktStream {
 
     #[cfg_attr(
         not(feature = "skip_expand"),
-        datatype_fn("RespPktStream,level=L4InPayload")
+        datatype_fn("RespPktStream,level=InL4Conn")
     )]
     fn update(&mut self, pdu: &L4Pdu) {
         if !pdu.dir {

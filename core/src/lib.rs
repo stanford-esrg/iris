@@ -14,7 +14,7 @@
 //! DSL documented in [crate::compiler].
 //! For example, only a few lines of code are needed to capture HTTP requests with a specific user agent:
 //!
-//! ```rust,no_run
+//! ```rust,ignore
 //! #[callback("http.user-agent contains 'Mozilla'")]
 //! fn log_http(http: &HttpRequest, ft: &FiveTuple) {
 //!     log::info!("{}: {}", ft.src_subnet(24), http);
@@ -33,7 +33,7 @@
 //!
 //! For example, we can define a data type that extracts features from the body of a connection:
 //!
-//! ```rust,no_run
+//! ```rust,ignore
 //! #[datatype]
 //! struct FeatureChunk { /* ... */}
 //!

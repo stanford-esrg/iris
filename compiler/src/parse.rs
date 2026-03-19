@@ -575,8 +575,8 @@ impl InputKeys {
         );
         if reassembled {
             for l in &mut ret.levels {
-                if matches!(l, DataLevel::L4InPayload(false)) {
-                    *l = DataLevel::L4InPayload(true);
+                if matches!(l, DataLevel::InL4Conn(false)) {
+                    *l = DataLevel::InL4Conn(true);
                 }
                 if matches!(l, DataLevel::L7InPayload(false)) {
                     *l = DataLevel::L7InPayload(true);

@@ -228,7 +228,7 @@ pub fn filter(args: TokenStream, input: TokenStream) -> TokenStream {
 /// Example usage (in an `impl` block for `ShortConnLen`):
 ///
 /// ```rust,ignore
-/// #[filter_fn("ShortConnLen,level=L4InPayload")]
+/// #[filter_fn("ShortConnLen,level=InL4Conn")]
 ///   fn update(&mut self, _: &L4Pdu) -> FilterResult {
 ///       self.len += 1;
 ///       if self.len > 10 {

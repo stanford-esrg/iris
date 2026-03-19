@@ -23,7 +23,7 @@ lazy_static::lazy_static! {
 }
 
 /// S8 in original paper - recorded TCP and UDP flows
-#[callback("tcp or udp,level=L4InPayload")]
+#[callback("tcp or udp,level=InL4Conn")]
 fn callback(opcodes: &OpenVPNOpcode, acks: &OpenVPNAcks) -> bool {
     // Reset
     if opcodes.rst_in_payl {

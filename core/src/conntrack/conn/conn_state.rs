@@ -45,7 +45,7 @@ pub enum DataLevel {
     /// Streaming anywhere in L4 connection, including TCP handshake.
     /// Must specify in associated data whether the packets must be
     /// reassembled (true) or not (false).
-    L4InPayload(bool),
+    InL4Conn(bool),
 
     /// On L7 protocol identification
     L7OnDisc,
@@ -69,7 +69,7 @@ pub enum DataLevel {
     /// Packet-level filters cannot be combined with datatypes or callbacks
     /// that require connection/session tracking. Packet-level datatypes can only be
     /// requested in higher-level filters/callbacks if a streaming level
-    /// (e.g., L4InPayload) is specified.
+    /// (e.g., InL4Conn) is specified.
     ///
     /// Internal notes:
     /// - This must be last in the enum variant list.
@@ -80,7 +80,7 @@ pub enum DataLevel {
 impl std::fmt::Display for DataLevel {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::L4InPayload(_) => write!(f, "L4InPayload"), // hide encap value
+            Self::InL4Conn(_) => write!(f, "InL4Conn"), // hide encap value
             Self::L7InPayload(_) => write!(f, "L7InPayload"),
             _ => write!(f, "{:?}", self),
         }
@@ -110,7 +110,7 @@ impl DataLevel {
         match self {
             DataLevel::L4FirstPacket => "L4FirstPacket",
             DataLevel::L4EndHshk => "L4EndHshk",
-            DataLevel::L4InPayload(_) => "L4InPayload",
+            DataLevel::InL4Conn(_) => "InL4Conn",
             DataLevel::L4Terminated => "L4Terminated",
             DataLevel::L7OnDisc => "L7OnDisc",
             DataLevel::L7InHdrs => "L7InHdrs",
@@ -246,8 +246,9 @@ impl FromStr for DataLevel {
         match s {
             "L4FirstPacket" => Ok(DataLevel::L4FirstPacket),
             "L4EndHshk" => Ok(DataLevel::L4EndHshk),
-            "L4InPayload" => Ok(DataLevel::L4InPayload(false)),
-            "L4InPayload(reassemble)" => Ok(DataLevel::L4InPayload(true)),
+            // New API name.
+            "InL4Conn" => Ok(DataLevel::InL4Conn(false)),
+            "InL4Conn(reassemble)" => Ok(DataLevel::InL4Conn(true)),
             "L4Terminated" => Ok(DataLevel::L4Terminated),
             "L7OnDisc" => Ok(DataLevel::L7OnDisc),
             "L7InHdrs" => Ok(DataLevel::L7InHdrs),
@@ -268,8 +269,8 @@ mod tests {
     fn test_data_level_raw() {
         assert_eq!(DataLevel::Packet.as_usize(), NUM_STATE_TRANSITIONS);
         assert_eq!(
-            DataLevel::L4InPayload(true).as_usize(),
-            DataLevel::L4InPayload(false).as_usize()
+            DataLevel::InL4Conn(true).as_usize(),
+            DataLevel::InL4Conn(false).as_usize()
         );
     }
 }

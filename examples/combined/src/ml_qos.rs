@@ -21,7 +21,7 @@ use smartcore::linalg::basic::matrix::DenseMatrix;
 const INTERVAL_TS: u64 = 10;
 const START_INF_AFTER_TS: u64 = 60;
 
-#[callback("tls,level=L4InPayload")]
+#[callback("tls,level=InL4Conn")]
 #[derive(Debug, Serialize)]
 pub struct Predictor {
     pub labels: Vec<usize>,
@@ -42,7 +42,7 @@ impl StreamingCallback for Predictor {
 }
 
 impl Predictor {
-    #[callback_fn("Predictor,level=L4InPayload")]
+    #[callback_fn("Predictor,level=InL4Conn")]
     pub fn update(&mut self, tracked: &FeatureChunk, start: &StartTime) -> bool {
         if start.elapsed().as_secs() < START_INF_AFTER_TS {
             return true; // Not enough historical data to start inference
@@ -181,7 +181,7 @@ impl Tracked for FeatureChunk {
     fn phase_tx(&mut self, _tx: &StateTxData) {}
     #[cfg_attr(
         not(feature = "skip_expand"),
-        datatype_fn("FeatureChunk,level=L4InPayload")
+        datatype_fn("FeatureChunk,level=InL4Conn")
     )]
     fn update(&mut self, pdu: &L4Pdu) {
         self.new_packet(pdu);

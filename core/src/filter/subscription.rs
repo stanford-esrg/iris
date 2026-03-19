@@ -340,9 +340,9 @@ impl DataLevelSpec {
                         _ => continue,
                     }
                 }
-                DataLevel::L4InPayload(reassembled) => {
+                DataLevel::InL4Conn(reassembled) => {
                     // "In" suggests an update is required
-                    // InPayload datatype by itself can't "unsubscribe"
+                    // InL4Conn datatype by itself can't "unsubscribe"
                     a.transport.active |= Actions::Update;
                     if *reassembled {
                         // Require reassembly if requested
@@ -579,7 +579,7 @@ impl SubscriptionLevel {
     pub fn can_deliver(&self, curr: &StateTransition) -> bool {
         // Only deliver callback at explicitly-specified level.
         // Note that the connection tracker invokes `update` AFTER
-        // parsing and applying state transitions. For example, an `L4InPayload`
+        // parsing and applying state transitions. For example, an `InL4Conn`
         // update will be invoked after an `L7OnDisc` state transition, if the
         // same PDU triggers both.
         // - TODO this could change if we add an `update` before reassembly.
@@ -660,18 +660,18 @@ mod tests {
         // L7 headers with a customized fingerprint that requires
         // analyzing payload metadata.
         static ref l7_fingerprint: DataLevelSpec = DataLevelSpec {
-            updates: vec![DataLevel::L4InPayload(false), DataLevel::L7EndHdrs],
+            updates: vec![DataLevel::InL4Conn(false), DataLevel::L7EndHdrs],
             name: "l7_fingerprint".into(),
         };
         // Basic connection metadata, delivered at end of connection
         static ref conn_data: DataLevelSpec = DataLevelSpec {
-            updates: vec![DataLevel::L4InPayload(false), DataLevel::L4Terminated],
+            updates: vec![DataLevel::InL4Conn(false), DataLevel::L4Terminated],
             name: "conn_data".into(),
         };
         // Basic connection metadata, delivered in streaming fashion.
         // Also requests update when handshake completes.
         static ref conn_streamdata: DataLevelSpec = DataLevelSpec {
-            updates: vec![DataLevel::L4InPayload(false), DataLevel::L4EndHshk],
+            updates: vec![DataLevel::InL4Conn(false), DataLevel::L4EndHshk],
             name: "conn_streamdata".into(),
         };
     );
@@ -736,7 +736,7 @@ mod tests {
 
         // Ambiguous: may be pre- or post-payload
         let actions = l7_fingerprint
-            .to_actions(StateTransition::L4InPayload(false))
+            .to_actions(StateTransition::InL4Conn(false))
             .actions;
         // Added "nodes" for LayerState checks: L7 disc, headers, payload
         assert!(actions.len() == 3);
@@ -763,9 +763,9 @@ mod tests {
                 == Actions::Update | Actions::PassThrough | Actions::Track
         );
         // Indicate that this will be in a streaming callback
-        node.push_cb(StateTransition::L4InPayload(false));
+        node.push_cb(StateTransition::InL4Conn(false));
         assert!(
-            node.actions[0].transport.refresh_at[StateTransition::L4InPayload(false).as_usize()]
+            node.actions[0].transport.refresh_at[StateTransition::InL4Conn(false).as_usize()]
                 == Actions::Update | Actions::PassThrough | Actions::Track
         );
     }

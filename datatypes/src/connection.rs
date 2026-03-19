@@ -243,7 +243,7 @@ impl Tracked for ConnRecord {
     // handle things differently).
     #[cfg_attr(
         not(feature = "skip_expand"),
-        datatype_fn("ConnRecord,level=L4InPayload")
+        datatype_fn("ConnRecord,level=InL4Conn")
     )]
     fn update(&mut self, pdu: &L4Pdu) {
         self.update_data(pdu);

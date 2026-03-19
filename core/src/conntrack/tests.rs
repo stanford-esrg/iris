@@ -142,7 +142,7 @@ fn core_state_tx() {
         let info = &entry.info;
         assert!(
             info.linfo.state == LayerState::Payload,
-            "ConnTracker should be in L4InPayload state after SYN packet."
+            "ConnTracker should be in InL4Conn state after SYN packet."
         );
         assert!(
             info.linfo.actions.active == Actions::Update | Actions::PassThrough,
@@ -164,8 +164,8 @@ fn core_state_tx() {
             .expect("Connection should exist");
         let info = &entry.info;
         assert!(
-            info.tracked.invoked[DataLevel::L4InPayload(true).as_usize()] == 2,
-            "Tracked should have invoked L4InPayload after duplicate SYN packet."
+            info.tracked.invoked[DataLevel::InL4Conn(true).as_usize()] == 2,
+            "Tracked should have invoked InL4Conn after duplicate SYN packet."
         );
         assert!(
             info.linfo.actions.active == Actions::Update | Actions::PassThrough,
@@ -184,7 +184,7 @@ fn core_state_tx() {
             .get(&conn_id)
             .expect("Connection should exist");
         let info = &entry.info;
-        assert!(info.tracked.invoked[DataLevel::L4InPayload(true).as_usize()] == 3);
+        assert!(info.tracked.invoked[DataLevel::InL4Conn(true).as_usize()] == 3);
         let l7 = match info.layers.get(0).unwrap() {
             Layer::L7(layer) => layer,
         };

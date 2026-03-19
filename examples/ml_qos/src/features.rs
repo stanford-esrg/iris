@@ -89,7 +89,7 @@ impl Tracked for FeatureChunk {
     fn phase_tx(&mut self, _tx: &StateTxData) {}
     #[cfg_attr(
         not(feature = "skip_expand"),
-        datatype_fn("FeatureChunk,level=L4InPayload")
+        datatype_fn("FeatureChunk,level=InL4Conn")
     )]
     fn update(&mut self, pdu: &L4Pdu) {
         self.new_packet(pdu);

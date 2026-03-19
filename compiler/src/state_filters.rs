@@ -50,7 +50,7 @@ pub(crate) fn gen_state_filters(
         let ident = Ident::new(&tx.to_string(), Span::call_site());
         if matches!(
             tx,
-            StateTransition::L4InPayload(_) | StateTransition::L7InPayload(_)
+            StateTransition::InL4Conn(_) | StateTransition::L7InPayload(_)
         ) {
             main.push(quote! {
                 StateTransition::#ident(_) => #fn_name(conn, &tx),

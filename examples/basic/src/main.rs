@@ -50,7 +50,7 @@ impl StreamingFilter for ShortConnLen {
 impl ShortConnLen {
     /// Every filter function in an `impl` block must be tagged with this macro.
     /// In this case, we include the `level` to indicate when we want to receive updates.
-    #[filter_fn("ShortConnLen,level=L4InPayload")]
+    #[filter_fn("ShortConnLen,level=InL4Conn")]
     fn update(&mut self, _: &L4Pdu) -> FilterResult {
         self.len += 1;
         if self.len > 10 {
@@ -73,7 +73,7 @@ impl ShortConnLen {
 /// the `PktCount` built-in data type. These are equivalent.
 /// If another filter or callback also uses `PktCount`, the
 /// same instance will be shared.
-#[filter("level=L4InPayload")]
+#[filter("level=InL4Conn")]
 #[allow(dead_code)]
 fn short_conn_len(packets: &PktCount) -> FilterResult {
     if packets.total() > 10 {
@@ -114,7 +114,7 @@ impl TlsCbStreaming {
     /// These can return `false` to unsubscribe to a connection, i.e., to stop
     /// receiving updates for that connection. If one function in an `impl` block
     /// returns `false`, the entire callback is unsubscribed.
-    #[callback_fn("TlsCbStreaming,level=L4InPayload")]
+    #[callback_fn("TlsCbStreaming,level=InL4Conn")]
     fn update(&mut self, _: &L4Pdu) -> bool {
         true
     }
@@ -129,7 +129,7 @@ impl TlsCbStreaming {
 
 /// Callbacks can also (statelessly) stream data within a connection.
 /// These can return `false` to unsubscribe to a connection.
-#[callback("tls,level=L4InPayload")]
+#[callback("tls,level=InL4Conn")]
 fn tls_cb_streaming(tls: &TlsHandshake, record: &ConnRecord) -> bool {
     println!("Received update in L7InPayload: {:?} {:?}", tls, record);
     record.orig.nb_pkts < 100

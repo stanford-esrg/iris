@@ -1070,7 +1070,7 @@ mod tests {
         assert!(node.deliver.len() == 1);
 
         // "Maintenance"
-        let mut tree = PTree::new_empty(DataLevel::L4InPayload(false));
+        let mut tree = PTree::new_empty(DataLevel::InL4Conn(false));
         tree.add_subscription(&patterns, &TLS_SUB, &TLS_SUB[0].as_str);
         // eth
         // -> ipv4 -> tcp
@@ -1092,15 +1092,15 @@ mod tests {
     lazy_static! {
         static ref CUSTOM_FILTERS: Vec<Predicate> = vec![Predicate::Custom {
             name: filterfunc!("my_filter"),
-            levels: vec![vec![DataLevel::L4InPayload(false)]],
+            levels: vec![vec![DataLevel::InL4Conn(false)]],
             matched: true,
         }];
         static ref SESS_RECORD_DATATYPE: DataLevelSpec = DataLevelSpec {
-            updates: vec![DataLevel::L4InPayload(false), DataLevel::L7EndHdrs],
+            updates: vec![DataLevel::InL4Conn(false), DataLevel::L7EndHdrs],
             name: "ConnAndSession".into(),
         };
         static ref STREAMING_SUB: Vec<CallbackSpec> = vec![CallbackSpec {
-            expl_level: Some(DataLevel::L4InPayload(false)),
+            expl_level: Some(DataLevel::InL4Conn(false)),
             datatypes: vec![TLS_DATATYPE.clone(), SESS_RECORD_DATATYPE.clone()],
             must_deliver: false,
             invoke_once: false,
@@ -1116,14 +1116,14 @@ mod tests {
         let patterns = filter.get_patterns_flat();
 
         // On first packet: set up parsing, streaming
-        // Refresh at: L4InPayload (my_filter) and L7OnDisc ("tls")
+        // Refresh at: InL4Conn (my_filter) and L7OnDisc ("tls")
         let mut tree = PTree::new_empty(DataLevel::L4FirstPacket);
         tree.add_subscription(&patterns, &STREAMING_SUB, &STREAMING_SUB[0].as_str);
         let node = tree.get_subtree(2).unwrap(); // "tcp" node
         assert!(node.actions.transport.active == Actions::PassThrough | Actions::Update);
         let l7_actions = &node.actions.layers[0];
         assert!(
-            l7_actions.refresh_at[DataLevel::L4InPayload(false).as_usize()] == Actions::Parse
+            l7_actions.refresh_at[DataLevel::InL4Conn(false).as_usize()] == Actions::Parse
                 && l7_actions.refresh_at[DataLevel::L7OnDisc.as_usize()] == Actions::Parse
         );
 
@@ -1191,7 +1191,7 @@ mod tests {
         let filter = Filter::new("ipv4 and tls and my_filter", &CUSTOM_FILTERS).unwrap();
         let patterns = filter.get_patterns_flat();
 
-        let mut tree = PTree::new_empty(DataLevel::L4InPayload(false));
+        let mut tree = PTree::new_empty(DataLevel::InL4Conn(false));
         tree.add_subscription(&patterns, &FIVETUPLE_SUB, &FIVETUPLE_SUB[0].as_str);
         tree.collapse(); // Remove ipv4/tcp
                          // eth -> my filter (matched) -> L7 Disc (Actions - parse)
@@ -1202,7 +1202,7 @@ mod tests {
         let filter =
             Filter::new("ipv4 and tls.sni = \'abc\' and my_filter", &CUSTOM_FILTERS).unwrap();
         let patterns = filter.get_patterns_flat();
-        let mut tree = PTree::new_empty(DataLevel::L4InPayload(false));
+        let mut tree = PTree::new_empty(DataLevel::InL4Conn(false));
         tree.add_subscription(&patterns, &FIVETUPLE_SUB, &FIVETUPLE_SUB[0].as_str);
         tree.collapse();
         // Similar to above. Added:
@@ -1215,7 +1215,7 @@ mod tests {
         static ref CUSTOM_FILTERS_GROUPED: Vec<Predicate> = vec![Predicate::Custom {
             name: filterfunc!("GroupedFil"),
             levels: vec![
-                vec![DataLevel::L4InPayload(false)],
+                vec![DataLevel::InL4Conn(false)],
                 vec![DataLevel::L7EndHdrs]
             ],
             matched: true,
@@ -1223,7 +1223,7 @@ mod tests {
         static ref CUSTOM_FILTERS_GROUPED_TERM: Vec<Predicate> = vec![Predicate::Custom {
             name: filterfunc!("GroupedFil"),
             levels: vec![
-                vec![DataLevel::L4InPayload(false)],
+                vec![DataLevel::InL4Conn(false)],
                 vec![DataLevel::L4Terminated]
             ],
             matched: true,
@@ -1243,7 +1243,7 @@ mod tests {
     fn test_ptree_grouped() {
         let filter = Filter::new("ipv4 and tls and GroupedFil", &CUSTOM_FILTERS_GROUPED).unwrap();
         let patterns = filter.get_patterns_flat();
-        let mut tree = PTree::new_empty(DataLevel::L4InPayload(false));
+        let mut tree = PTree::new_empty(DataLevel::InL4Conn(false));
         tree.add_subscription(&patterns, &FIVETUPLE_SUB, &FIVETUPLE_SUB[0].as_str);
         tree.collapse();
         assert!(tree.size == 10, "Action size: {}", tree.size);
@@ -1314,7 +1314,7 @@ mod tests {
             name: "SessionProto".into(),
         };
         static ref SESSION_PROTO_SUB: Vec<CallbackSpec> = vec![CallbackSpec {
-            expl_level: Some(DataLevel::L4InPayload(false)),
+            expl_level: Some(DataLevel::InL4Conn(false)),
             datatypes: vec![FIRST_PKT.clone(), SESSION_PROTO.clone()],
             must_deliver: false,
             invoke_once: false,
@@ -1328,7 +1328,7 @@ mod tests {
     fn test_ptree_proto_stream() {
         let filter = Filter::new("ipv4 and tcp", &CUSTOM_FILTERS_GROUPED_TERM).unwrap();
         let patterns = filter.get_patterns_flat();
-        let mut tree = PTree::new_empty(DataLevel::L4InPayload(false));
+        let mut tree = PTree::new_empty(DataLevel::InL4Conn(false));
         tree.add_subscription(&patterns, &SESSION_PROTO_SUB, &SESSION_PROTO_SUB[0].as_str);
         tree.collapse();
         let node = tree.get_subtree(1).unwrap(); // checks if CB is active

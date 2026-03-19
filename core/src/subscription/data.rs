@@ -17,7 +17,7 @@ pub trait Tracked {
     fn new(first_pkt: &L4Pdu) -> Self;
     /// Invoked for each newly received PDU.
     /// Update phases of interest must be specified as attributes, e.g.
-    /// #[invoke(L4InPayload)]
+    /// #[invoke(InL4Conn)]
     fn update(&mut self, pdu: &L4Pdu);
     /// Invoked for phase transitions of interest, which must be specified
     /// as attributes.

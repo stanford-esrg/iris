@@ -36,7 +36,7 @@ impl OpenVPNAcks {
         }
     }
 
-    #[datatype_fn("OpenVPNAcks,level=L4InPayload")]
+    #[datatype_fn("OpenVPNAcks,level=InL4Conn")]
     pub fn new_packet(&mut self, pdu: &L4Pdu) {
         if self.drop {
             return;

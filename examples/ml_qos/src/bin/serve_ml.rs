@@ -27,7 +27,7 @@ use smartcore::linalg::basic::matrix::DenseMatrix;
 const INTERVAL_TS: u64 = 10;
 const START_INF_AFTER_TS: u64 = 60; // Start after 60s
 
-#[callback("tls,level=L4InPayload")]
+#[callback("tls,level=InL4Conn")]
 #[derive(Debug, Serialize)]
 struct Predictor {
     labels: Vec<usize>,
@@ -48,7 +48,7 @@ impl StreamingCallback for Predictor {
 }
 
 impl Predictor {
-    #[callback_fn("Predictor,level=L4InPayload")]
+    #[callback_fn("Predictor,level=InL4Conn")]
     fn update(&mut self, tracked: &FeatureChunk, start: &StartTime) -> bool {
         if start.elapsed().as_secs() < START_INF_AFTER_TS {
             return true; // Not enough historical data to start inference

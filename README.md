@@ -82,7 +82,7 @@ impl OpenVPNOpcode {
     /// as well as *when* the callback should be invoked
     /// within the lifetime of a connection
     /// (here, anywhere in a TCP or UDP connection payload).
-    #[datatype_fn("OpenVPNOpcode,level=L4InPayload")]
+    #[datatype_fn("OpenVPNOpcode,level=InL4Conn")]
     pub fn new_packet(&mut self, pdu: &L4Pdu) {
         // ... body
     }
@@ -124,7 +124,7 @@ impl StreamingFilter for ShortConnLen {
 impl ShortConnLen {
     /// As with data types, filter functions must specify
     /// when they should be invoked.
-    #[filter_fn("ShortConnLen,level=L4InPayload")]
+    #[filter_fn("ShortConnLen,level=InL4Conn")]
     fn update(&mut self, _: &L4Pdu) -> FilterResult {
         self.len += 1;
         if self.len > 10 {
@@ -177,9 +177,9 @@ impl StreamingCallback for Predictor {
 impl Predictor {
     /// Tag the callback with when it should be invoked, and request
     /// arbitrary data types.
-    /// By requesting `L4InPayload` updates, this function is invoked
+    /// By requesting `InL4Conn` updates, this function is invoked
     /// on every new packet in the connection.
-    #[callback_fn("Predictor,level=L4InPayload")]
+    #[callback_fn("Predictor,level=InL4Conn")]
     fn update(&mut self, tracked: &FeatureChunk, start: &StartTime) -> bool {
         // ...
     }

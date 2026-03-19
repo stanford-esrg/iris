@@ -34,7 +34,7 @@ impl OpenVPNAcks {
         }
     }
 
-    #[datatype_fn("OpenVPNAcks,level=L4InPayload")]
+    #[datatype_fn("OpenVPNAcks,level=InL4Conn")]
     pub fn new_packet(&mut self, pdu: &L4Pdu) {
         if self.drop {
             return;
@@ -136,7 +136,7 @@ impl OpenVPNOpcode {
         }
     }
 
-    #[datatype_fn("OpenVPNOpcode,level=L4InPayload")]
+    #[datatype_fn("OpenVPNOpcode,level=InL4Conn")]
     pub fn new_packet(&mut self, pdu: &L4Pdu) {
         // Ignore if connection has been reset
         if self.rst_in_payl || self.opcodes_tot.len() > N_OPCODES {
@@ -212,7 +212,7 @@ lazy_static::lazy_static! {
 }
 
 /// S8 in original paper - recorded TCP and UDP flows
-#[callback("tcp or udp,level=L4InPayload")]
+#[callback("tcp or udp,level=InL4Conn")]
 pub fn callback(opcodes: &OpenVPNOpcode, acks: &OpenVPNAcks) -> bool {
     // Reset
     if opcodes.rst_in_payl {

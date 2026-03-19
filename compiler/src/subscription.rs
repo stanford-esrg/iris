@@ -716,7 +716,7 @@ mod tests {
          * impl MyGroup {
          *  fn new() -> Self;
          *
-         *  #[filter_fn("MyGroup,L4InPayload")]
+         *  #[filter_fn("MyGroup,InL4Conn")]
          *  fn update(&mut self, pdu: &L4Pdu) -> FilterResult;
          *
          *  #[filter_fn("MyGroup")]
@@ -730,7 +730,7 @@ mod tests {
                 expl_parsers: vec![],
             }),
             ParsedInput::FilterGroupFn(FilterGroupFnSpec {
-                level: vec![DataLevel::L4InPayload(false)],
+                level: vec![DataLevel::InL4Conn(false)],
                 group_name: "MyGroup".into(),
                 func: FnSpec {
                     name: "update".into(),
@@ -769,11 +769,11 @@ mod tests {
                     datatypes: vec!["L4Pdu".into()],
                     returns: FnReturn::None,
                 },
-                level: vec![DataLevel::L4InPayload(false)],
+                level: vec![DataLevel::InL4Conn(false)],
             }),
             ParsedInput::Callback(CallbackFnSpec {
                 filter: "ipv4 and tls and MyGroup".into(),
-                level: vec![DataLevel::L4InPayload(false)],
+                level: vec![DataLevel::InL4Conn(false)],
                 func: FnSpec {
                     name: "my_cb".into(),
                     datatypes: vec!["ConnRecord".into(), "TlsHandshake".into()],
@@ -789,7 +789,7 @@ mod tests {
             let levels = pred.levels();
             levels.len() == 3
                 && levels.contains(&DataLevel::Packet)
-                && levels.contains(&DataLevel::L4InPayload(false))
+                && levels.contains(&DataLevel::InL4Conn(false))
                 && levels.contains(&DataLevel::L7EndHdrs)
         });
         assert!({
@@ -798,14 +798,14 @@ mod tests {
             datatypes.len() == 2
                 && datatypes
                     .iter()
-                    .any(|dt| dt.updates == vec![DataLevel::L4InPayload(false)])
+                    .any(|dt| dt.updates == vec![DataLevel::InL4Conn(false)])
                 && datatypes
                     .iter()
                     .any(|dt| dt.updates == vec![DataLevel::L7EndHdrs])
         });
 
         assert!(decoder.updates.len() == 1);
-        let entr = decoder.updates.get(&DataLevel::L4InPayload(false)).unwrap();
+        let entr = decoder.updates.get(&DataLevel::InL4Conn(false)).unwrap();
         assert!(
             entr.len() == 3,
             "Actual len: {} (value: {:?}",
@@ -836,7 +836,7 @@ mod tests {
         ptree.collapse();
         assert!(!ptree.deliver.is_empty());
 
-        let mut ptree = PTree::new_empty(DataLevel::L4InPayload(false));
+        let mut ptree = PTree::new_empty(DataLevel::InL4Conn(false));
         for s in &decoder.subscriptions {
             let filter = Filter::new(&s.filter, &decoder.custom_preds).unwrap();
             let patterns = filter.get_patterns_flat();
