@@ -5,7 +5,7 @@ use std::fmt;
 
 use crate::conntrack::conn::conn_state::StateTxOrd;
 use crate::conntrack::StateTransition;
-use crate::conntrack::{conn::conn_layers::SupportedLayer, DataLevel, LayerState};
+use crate::conntrack::{conn::conn_layers::SupportedLayer, LayerState};
 use crate::protocols::stream::ConnData;
 use bimap::BiMap;
 use ipnet::{Ipv4Net, Ipv6Net};
@@ -91,12 +91,12 @@ pub enum Predicate {
     Custom {
         /// Filter name (function or struct (group) if present)
         name: FuncIdent,
-        /// DataLevel(s) at which the filter must receive streaming updates
+        /// StateTransition(s) at which the filter must receive streaming updates
         /// (e.g., "packets in the L4 payload") and/or phase transition
         /// updates (e.g., "parsed session").
         /// For a grouped filter (i.e., methods on a struct), each function
         /// needs its own level.
-        levels: Vec<Vec<DataLevel>>,
+        levels: Vec<Vec<StateTransition>>,
         /// Predicate for `partial match` (Continue) or `matched` (Accept)
         matched: bool,
     },
@@ -184,7 +184,7 @@ impl Predicate {
     }
 
     // TODO figure out how this works with grouped custom filters?
-    pub fn unknown(&self, layer: &DataLevel) -> bool {
+    pub fn unknown(&self, layer: &StateTransition) -> bool {
         self.levels()
             .iter()
             .any(|p| p.compare(layer) == StateTxOrd::Unknown)
@@ -205,21 +205,21 @@ impl Predicate {
 
     // Returns a reference to the `levels` vector for a custom filter.
     // Inapplicable to static predicates and LayerState.
-    pub fn levels(&self) -> Vec<DataLevel> {
+    pub fn levels(&self) -> Vec<StateTransition> {
         match self {
             Predicate::Custom { levels, .. } => levels.iter().flatten().cloned().collect(),
             Predicate::Callback { .. } => vec![],
             // can be checked anytime [TODO could refine this later]
-            Predicate::LayerState { .. } => vec![DataLevel::L4FirstPacket],
+            Predicate::LayerState { .. } => vec![StateTransition::L4FirstPacket],
             _ => {
                 if self.on_packet() {
-                    return vec![DataLevel::L4FirstPacket];
+                    return vec![StateTransition::L4FirstPacket];
                 }
                 if self.on_proto() {
-                    return vec![DataLevel::L7OnDisc];
+                    return vec![StateTransition::L7OnDisc];
                 }
                 if self.on_session() {
-                    return vec![DataLevel::L7EndHdrs];
+                    return vec![StateTransition::L7EndHdrs];
                 }
                 panic!("Unknown predicate layer: {}", self);
             }
@@ -299,14 +299,14 @@ impl Predicate {
                         if let Predicate::Custom { levels, .. } = self {
                             return levels.iter().all(|fnlevel| {
                                 fnlevel.iter().any(|l| {
-                                    matches!(l, DataLevel::L7EndHdrs | DataLevel::L7InPayload(_))
+                                    matches!(l, StateTransition::L7EndHdrs | StateTransition::L7InPayload(_))
                                 })
                             });
                         }
                         // Requires payload or parsed session
                         levels
                             .iter()
-                            .any(|l| matches!(l, DataLevel::L7EndHdrs | DataLevel::L7InPayload(_)))
+                            .any(|l| matches!(l, StateTransition::L7EndHdrs | StateTransition::L7InPayload(_)))
                     }
                     LayerState::None => panic!("Should not have LayerState::None predicate"),
                 }
@@ -317,7 +317,7 @@ impl Predicate {
     // `self` can (or potentially can) be applied if `layer` is in `state`
     pub(super) fn is_compatible(&self, layer: SupportedLayer, state: LayerState) -> bool {
         let levels = self.levels();
-        if levels.contains(&DataLevel::L4Terminated) {
+        if levels.contains(&StateTransition::L4Terminated) {
             return false;
         }
         if let Predicate::LayerState { state: s, .. } = self {
@@ -354,7 +354,7 @@ impl Predicate {
                             if levels.len() > 1 {
                                 return levels.iter().any(|fnlevel| {
                                     fnlevel.iter().all(|l| {
-                                        l.layer_idx().is_none() || *l == DataLevel::L7OnDisc
+                                        l.layer_idx().is_none() || *l == StateTransition::L7OnDisc
                                     })
                                 });
                             }
@@ -363,7 +363,7 @@ impl Predicate {
                         // requires L7 protocol discovery
                         levels
                             .iter()
-                            .all(|l| l.layer_idx().is_none() || *l == DataLevel::L7OnDisc)
+                            .all(|l| l.layer_idx().is_none() || *l == StateTransition::L7OnDisc)
                     }
                     LayerState::Payload => true,
                     LayerState::None => panic!("Should not have LayerState::None predicate"),

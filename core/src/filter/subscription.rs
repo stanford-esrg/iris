@@ -3,7 +3,7 @@ use std::hash::{Hash, Hasher};
 
 use crate::conntrack::conn::conn_layers::{SupportedLayer, NUM_LAYERS};
 use crate::conntrack::conn::conn_state::StateTxOrd;
-use crate::conntrack::{Actions, DataLevel, LayerState, StateTransition, TrackedActions};
+use crate::conntrack::{Actions, LayerState, StateTransition, TrackedActions};
 
 use super::ast::Predicate;
 use super::pattern::FlatPattern;
@@ -84,7 +84,7 @@ impl DataActions {
         } = pred
         {
             assert!(!*matched);
-            let spec = DataLevelSpec {
+            let spec = StateTransitionSpec {
                 updates: levels.iter().flatten().cloned().collect(),
                 name: name.clone().0,
             };
@@ -210,7 +210,7 @@ impl NodeActions {
     }
 
     /// Update actions with an additional datatype.
-    pub(crate) fn add_datatype(&mut self, spec: &DataLevelSpec) {
+    pub(crate) fn add_datatype(&mut self, spec: &StateTransitionSpec) {
         assert!(
             !self.end_datatypes,
             "Cannot add new datatypes after adding filter predicates."
@@ -276,14 +276,14 @@ impl NodeActions {
 /// or custom filter predicate.
 /// Might also be used to represent a stateful custom filter predicate.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DataLevelSpec {
+pub struct StateTransitionSpec {
     /// Updates: streaming updates and state transitions requested.
-    pub updates: Vec<DataLevel>,
+    pub updates: Vec<StateTransition>,
     /// The name of the datatype as a string
     pub name: String,
 }
 
-impl DataLevelSpec {
+impl StateTransitionSpec {
     /// From a filter predicate
     pub(crate) fn from_pred(pred: &Predicate) -> Option<Self> {
         // Predicates that have already matched don't need add'l actions
@@ -319,12 +319,12 @@ impl DataLevelSpec {
             let cmp = filter_layer.compare(level);
             let mut a = DataActions::new();
             match level {
-                DataLevel::L4FirstPacket => {
+                StateTransition::L4FirstPacket => {
                     // Nothing required.
                     // Datatype can be delivered or cached on first packet filter.
                     continue;
                 }
-                DataLevel::L4EndHshk => {
+                StateTransition::L4EndHshk => {
                     match cmp {
                         StateTxOrd::Less | StateTxOrd::Unknown => {
                             // Detecting the handshake requires invoking reassembly
@@ -340,7 +340,7 @@ impl DataLevelSpec {
                         _ => continue,
                     }
                 }
-                DataLevel::InL4Conn(reassembled) => {
+                StateTransition::InL4Conn(reassembled) => {
                     // "In" suggests an update is required
                     // InL4Conn datatype by itself can't "unsubscribe"
                     a.transport.active |= Actions::Update;
@@ -350,7 +350,7 @@ impl DataLevelSpec {
                     }
                     actions.push_action(a);
                 }
-                DataLevel::L7OnDisc => {
+                StateTransition::L7OnDisc => {
                     match cmp {
                         StateTxOrd::Equal | StateTxOrd::Greater | StateTxOrd::Any => continue,
                         StateTxOrd::Less | StateTxOrd::Unknown => {
@@ -369,7 +369,7 @@ impl DataLevelSpec {
                         }
                     }
                 }
-                DataLevel::L7InHdrs => {
+                StateTransition::L7InHdrs => {
                     match cmp {
                         StateTxOrd::Greater | StateTxOrd::Any => continue,
                         StateTxOrd::Equal | StateTxOrd::Less | StateTxOrd::Unknown => {
@@ -377,7 +377,7 @@ impl DataLevelSpec {
                             // - If before protocol discovery: to get to start of L7 headers
                             // - If at or in headers: to update and (eventually) identify end of headers
                             a.transport.active |= Actions::PassThrough;
-                            a.transport.refresh_at[DataLevel::L7EndHdrs.as_usize()] |=
+                            a.transport.refresh_at[StateTransition::L7EndHdrs.as_usize()] |=
                                 Actions::PassThrough;
                             // Parse to get to end of headers
                             if matches!(cmp, StateTxOrd::Less | StateTxOrd::Equal) {
@@ -401,7 +401,7 @@ impl DataLevelSpec {
                         }
                     }
                 }
-                DataLevel::L7EndHdrs => match cmp {
+                StateTransition::L7EndHdrs => match cmp {
                     StateTxOrd::Equal | StateTxOrd::Greater | StateTxOrd::Any => continue,
                     StateTxOrd::Less | StateTxOrd::Unknown => {
                         a.transport.active |= Actions::PassThrough;
@@ -417,7 +417,7 @@ impl DataLevelSpec {
                         actions.push_action(a);
                     }
                 },
-                DataLevel::L7InPayload(reassembled) => {
+                StateTransition::L7InPayload(reassembled) => {
                     if matches!(cmp, StateTxOrd::Greater | StateTxOrd::Any) {
                         continue;
                     }
@@ -457,17 +457,17 @@ impl DataLevelSpec {
                         actions.push_action(in_payload);
                     }
                 }
-                DataLevel::L7EndPayload => {
+                StateTransition::L7EndPayload => {
                     // L7 payload parsing not yet implemented. Use L4Terminated instead.
                     unimplemented!();
                 }
-                DataLevel::L4Terminated => {
+                StateTransition::L4Terminated => {
                     let mut a = DataActions::new();
                     a.transport.active |= Actions::Track;
                     actions.push_action(a);
                 }
                 // No actions
-                DataLevel::Packet => continue,
+                StateTransition::Packet => continue,
             }
         }
         actions
@@ -481,9 +481,9 @@ impl DataLevelSpec {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct CallbackSpec {
     /// If the callback explicitly specifies when to be invoked
-    pub expl_level: Option<DataLevel>,
+    pub expl_level: Option<StateTransition>,
     /// Datatype inputs to the callback
-    pub datatypes: Vec<DataLevelSpec>,
+    pub datatypes: Vec<StateTransitionSpec>,
     /// This callback cannot be optimized out.
     /// Typically true if ``FilterStr`` (i.e., information
     /// about the specific filter matched) is a parameter.
@@ -516,12 +516,12 @@ impl Hash for CallbackSpec {
 }
 
 impl CallbackSpec {
-    pub(super) fn get_datatypes(&self) -> Vec<DataLevelSpec> {
+    pub(super) fn get_datatypes(&self) -> Vec<StateTransitionSpec> {
         let mut datatypes: Vec<_> = self.datatypes.to_vec();
         if let Some(expl_level) = self.expl_level {
             // Requires streaming `updates` or the level cannot be
             // inferred from the datatype alone
-            datatypes.push(DataLevelSpec {
+            datatypes.push(StateTransitionSpec {
                 updates: vec![expl_level],
                 name: self.as_str.clone(),
             });
@@ -551,15 +551,19 @@ impl CallbackSpec {
 #[derive(Debug, Clone)]
 pub struct SubscriptionLevel {
     /// Levels at which datatype updates need to happen
-    pub datatypes: HashSet<DataLevel>,
+    pub datatypes: HashSet<StateTransition>,
     /// Levels at which a new filter predicate needs to be applied
-    pub filter_preds: HashSet<DataLevel>,
+    pub filter_preds: HashSet<StateTransition>,
     /// If the callback explicitly requests to be delivered at a level
-    pub callback: Option<DataLevel>,
+    pub callback: Option<StateTransition>,
 }
 
 impl SubscriptionLevel {
-    pub fn new(data: &Vec<DataLevelSpec>, preds: &FlatPattern, cb: Option<DataLevel>) -> Self {
+    pub fn new(
+        data: &Vec<StateTransitionSpec>,
+        preds: &FlatPattern,
+        cb: Option<StateTransition>,
+    ) -> Self {
         let mut ret = Self::empty();
         for d in data {
             ret.add_datatype(d);
@@ -627,19 +631,19 @@ impl SubscriptionLevel {
     }
 
     /// Add the Level of the streaming callback (e.g., "In L4 payload")
-    pub(crate) fn add_callback(&mut self, level: Option<DataLevel>) {
+    pub(crate) fn add_callback(&mut self, level: Option<StateTransition>) {
         self.callback = level;
     }
 
     /// Add a datatype requested in a callback
-    pub(crate) fn add_datatype(&mut self, data: &DataLevelSpec) {
+    pub(crate) fn add_datatype(&mut self, data: &StateTransitionSpec) {
         for d in &data.updates {
             self.datatypes.insert(*d);
         }
     }
 
     /// Add a filter predicate
-    pub(crate) fn add_filter_pred(&mut self, pred: &Vec<DataLevel>) {
+    pub(crate) fn add_filter_pred(&mut self, pred: &Vec<StateTransition>) {
         for d in pred {
             self.filter_preds.insert(*d);
         }
@@ -653,25 +657,25 @@ mod tests {
 
     lazy_static::lazy_static!(
         // L7 headers, e.g., TLS handshake, HTTP headers, DNS txn
-        static ref l7_header: DataLevelSpec = DataLevelSpec {
-            updates: vec![DataLevel::L7EndHdrs],
+        static ref l7_header: StateTransitionSpec = StateTransitionSpec {
+            updates: vec![StateTransition::L7EndHdrs],
             name: "l7_header".into(),
         };
         // L7 headers with a customized fingerprint that requires
         // analyzing payload metadata.
-        static ref l7_fingerprint: DataLevelSpec = DataLevelSpec {
-            updates: vec![DataLevel::InL4Conn(false), DataLevel::L7EndHdrs],
+        static ref l7_fingerprint: StateTransitionSpec = StateTransitionSpec {
+            updates: vec![StateTransition::InL4Conn(false), StateTransition::L7EndHdrs],
             name: "l7_fingerprint".into(),
         };
         // Basic connection metadata, delivered at end of connection
-        static ref conn_data: DataLevelSpec = DataLevelSpec {
-            updates: vec![DataLevel::InL4Conn(false), DataLevel::L4Terminated],
+        static ref conn_data: StateTransitionSpec = StateTransitionSpec {
+            updates: vec![StateTransition::InL4Conn(false), StateTransition::L4Terminated],
             name: "conn_data".into(),
         };
         // Basic connection metadata, delivered in streaming fashion.
         // Also requests update when handshake completes.
-        static ref conn_streamdata: DataLevelSpec = DataLevelSpec {
-            updates: vec![DataLevel::InL4Conn(false), DataLevel::L4EndHshk],
+        static ref conn_streamdata: StateTransitionSpec = StateTransitionSpec {
+            updates: vec![StateTransition::InL4Conn(false), StateTransition::L4EndHshk],
             name: "conn_streamdata".into(),
         };
     );
@@ -716,7 +720,7 @@ mod tests {
         assert!(actions.len() == 1);
         assert!(actions[0].transport.has_next_layer() && actions[0].transport.needs_update());
         for tx in StateTransition::iter() {
-            // At end of headers, expect DataLevel::L7EndHdrs done.
+            // At end of headers, expect StateTransition::L7EndHdrs done.
             if tx == StateTransition::L7EndHdrs {
                 assert!(
                     actions[0].transport.refresh_at[tx.as_usize()] == Actions::PassThrough,

@@ -14,7 +14,7 @@ mod tests;
 
 pub use conn::conn_actions::{Actions, TrackedActions};
 pub use conn::conn_layers::Layer;
-pub use conn::conn_state::{DataLevel, LayerState, StateTransition, StateTxData};
+pub use conn::conn_state::{LayerState, StateTransition, StateTxData};
 pub use conn::ConnInfo;
 
 use self::conn::{Conn, L4Conn};

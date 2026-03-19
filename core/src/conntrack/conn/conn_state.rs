@@ -28,14 +28,14 @@ pub enum LayerState {
     None,
 }
 
-/// The possible Levels that a data type, filter, or callback
+/// The possible state transitions that a data type, filter, or callback
 /// can be associated with.
 /// NOTE: for the same layer, enums must be listed in order.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, EnumIter, Serialize, Deserialize,
 )]
 #[repr(u8)]
-pub enum DataLevel {
+pub enum StateTransition {
     /// On first packet in connection
     L4FirstPacket = 0,
     /// Complete TCP handshake has been observed.
@@ -77,7 +77,7 @@ pub enum DataLevel {
     Packet,
 }
 
-impl std::fmt::Display for DataLevel {
+impl std::fmt::Display for StateTransition {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::InL4Conn(_) => write!(f, "InL4Conn"), // hide encap value
@@ -88,18 +88,18 @@ impl std::fmt::Display for DataLevel {
 }
 
 // https://doc.rust-lang.org/reference/items/enumerations.html#casting
-impl DataLevel {
+impl StateTransition {
     pub fn as_usize(&self) -> usize {
         self.raw() as usize
     }
 
     pub fn from_usize(i: usize) -> Self {
-        for level in DataLevel::iter() {
+        for level in StateTransition::iter() {
             if level.as_usize() == i {
                 return level;
             }
         }
-        panic!("Cannot build DataLevel from {}", i);
+        panic!("Cannot build StateTransition from {}", i);
     }
 
     pub fn raw(&self) -> u8 {
@@ -108,16 +108,16 @@ impl DataLevel {
 
     pub fn name(&self) -> &str {
         match self {
-            DataLevel::L4FirstPacket => "L4FirstPacket",
-            DataLevel::L4EndHshk => "L4EndHshk",
-            DataLevel::InL4Conn(_) => "InL4Conn",
-            DataLevel::L4Terminated => "L4Terminated",
-            DataLevel::L7OnDisc => "L7OnDisc",
-            DataLevel::L7InHdrs => "L7InHdrs",
-            DataLevel::L7EndHdrs => "L7EndHdrs",
-            DataLevel::L7InPayload(_) => "L7InPayload",
-            DataLevel::L7EndPayload => "L7EndPayload",
-            DataLevel::Packet => "L4Pdu",
+            StateTransition::L4FirstPacket => "L4FirstPacket",
+            StateTransition::L4EndHshk => "L4EndHshk",
+            StateTransition::InL4Conn(_) => "InL4Conn",
+            StateTransition::L4Terminated => "L4Terminated",
+            StateTransition::L7OnDisc => "L7OnDisc",
+            StateTransition::L7InHdrs => "L7InHdrs",
+            StateTransition::L7EndHdrs => "L7EndHdrs",
+            StateTransition::L7InPayload(_) => "L7InPayload",
+            StateTransition::L7EndPayload => "L7EndPayload",
+            StateTransition::Packet => "L4Pdu",
         }
     }
 
@@ -138,9 +138,9 @@ impl DataLevel {
 
     /// Returns Greater if self > Other, Less if self < Other, Equal if self == Other,
     /// and Unknown if the two cannot be compared (different layers).
-    pub fn compare(&self, other: &DataLevel) -> StateTxOrd {
+    pub fn compare(&self, other: &StateTransition) -> StateTxOrd {
         // L4Pdu is any
-        if matches!(self, DataLevel::Packet) || matches!(other, DataLevel::Packet) {
+        if matches!(self, StateTransition::Packet) || matches!(other, StateTransition::Packet) {
             if self != other {
                 return StateTxOrd::Any;
             } else {
@@ -149,11 +149,17 @@ impl DataLevel {
         }
 
         // End of connection is always greatest
-        if matches!(self, DataLevel::L4Terminated) || matches!(other, DataLevel::L4Terminated) {
+        if matches!(
+            self,
+            StateTransition::L4Terminated
+        ) || matches!(other, StateTransition::L4Terminated)
+        {
             return StateTxOrd::from_ord(self.cmp(other));
         }
         // Start of connection is always lowest
-        if matches!(self, DataLevel::L4FirstPacket) || matches!(other, DataLevel::L4FirstPacket) {
+        if matches!(self, StateTransition::L4FirstPacket)
+            || matches!(other, StateTransition::L4FirstPacket)
+        {
             return StateTxOrd::from_ord(self.cmp(other));
         }
 
@@ -165,7 +171,7 @@ impl DataLevel {
         }
 
         // Exceptions to the ordering rule
-        if matches!(self, DataLevel::L4EndHshk) {
+        if matches!(self, StateTransition::L4EndHshk) {
             return StateTxOrd::Unknown;
         }
 
@@ -197,7 +203,6 @@ impl StateTxOrd {
 /// For `InX` Levels, the state transition is triggered if
 /// a streaming callback or filter changed match state (i.e.,
 /// was and is no longer active).
-pub type StateTransition = DataLevel;
 /// Number of variants; used to size the `refresh_at` array
 pub(crate) const NUM_STATE_TRANSITIONS: usize = 9;
 
@@ -216,12 +221,12 @@ impl<'a> StateTxData<'a> {
     pub fn from_tx(state: &StateTransition, layer: &'a Layer) -> Self {
         match layer {
             Layer::L7(layer) => match state {
-                DataLevel::L4EndHshk => Self::L4EndHshk,
-                DataLevel::L7OnDisc => Self::L7OnDisc(layer.get_protocol()),
-                DataLevel::L7EndHdrs => {
+                StateTransition::L4EndHshk => Self::L4EndHshk,
+                StateTransition::L7OnDisc => Self::L7OnDisc(layer.get_protocol()),
+                StateTransition::L7EndHdrs => {
                     Self::L7EndHdrs(layer.sessions.last().expect("L7EndHdrs without session"))
                 }
-                DataLevel::L4Terminated => Self::L4Terminated,
+                StateTransition::L4Terminated => Self::L4Terminated,
                 _ => Self::Null,
             },
         }
@@ -240,23 +245,23 @@ impl<'a> StateTxData<'a> {
     }
 }
 
-impl FromStr for DataLevel {
+impl FromStr for StateTransition {
     type Err = String;
     fn from_str(s: &str) -> Result<Self, String> {
         match s {
-            "L4FirstPacket" => Ok(DataLevel::L4FirstPacket),
-            "L4EndHshk" => Ok(DataLevel::L4EndHshk),
+            "L4FirstPacket" => Ok(StateTransition::L4FirstPacket),
+            "L4EndHshk" => Ok(StateTransition::L4EndHshk),
             // New API name.
-            "InL4Conn" => Ok(DataLevel::InL4Conn(false)),
-            "InL4Conn(reassemble)" => Ok(DataLevel::InL4Conn(true)),
-            "L4Terminated" => Ok(DataLevel::L4Terminated),
-            "L7OnDisc" => Ok(DataLevel::L7OnDisc),
-            "L7InHdrs" => Ok(DataLevel::L7InHdrs),
-            "L7EndHdrs" => Ok(DataLevel::L7EndHdrs),
-            "L7InPayload" => Ok(DataLevel::L7InPayload(true)),
-            "L7EndPayload" => Ok(DataLevel::L7EndPayload),
-            "Packet" => Ok(DataLevel::Packet),
-            _ => Err(format!("Invalid DataLevel: {}", s)),
+            "InL4Conn" => Ok(StateTransition::InL4Conn(false)),
+            "InL4Conn(reassemble)" => Ok(StateTransition::InL4Conn(true)),
+            "L4Terminated" => Ok(StateTransition::L4Terminated),
+            "L7OnDisc" => Ok(StateTransition::L7OnDisc),
+            "L7InHdrs" => Ok(StateTransition::L7InHdrs),
+            "L7EndHdrs" => Ok(StateTransition::L7EndHdrs),
+            "L7InPayload" => Ok(StateTransition::L7InPayload(true)),
+            "L7EndPayload" => Ok(StateTransition::L7EndPayload),
+            "Packet" => Ok(StateTransition::Packet),
+            _ => Err(format!("Invalid StateTransition: {}", s)),
         }
     }
 }
@@ -267,10 +272,10 @@ mod tests {
 
     #[test]
     fn test_data_level_raw() {
-        assert_eq!(DataLevel::Packet.as_usize(), NUM_STATE_TRANSITIONS);
+        assert_eq!(StateTransition::Packet.as_usize(), NUM_STATE_TRANSITIONS);
         assert_eq!(
-            DataLevel::InL4Conn(true).as_usize(),
-            DataLevel::InL4Conn(false).as_usize()
+            StateTransition::InL4Conn(true).as_usize(),
+            StateTransition::InL4Conn(false).as_usize()
         );
     }
 }

@@ -6,7 +6,7 @@
 use super::ast::*;
 use super::pattern::{FlatPattern, LayeredPattern};
 use super::subscription::CallbackSpec;
-use crate::conntrack::DataLevel;
+use crate::conntrack::StateTransition;
 
 use std::collections::HashSet;
 use std::fmt;
@@ -165,10 +165,10 @@ impl PredPTree {
         let callback = if callbacks.len() == 1
             && callbacks[0].datatypes.iter().all(|dt| {
                 dt.updates.len() == 1
-                    && matches!(dt.updates[0], DataLevel::Packet | DataLevel::L4FirstPacket)
+                    && matches!(dt.updates[0], StateTransition::Packet | StateTransition::L4FirstPacket)
             }) {
             match callbacks[0].expl_level {
-                Some(DataLevel::Packet) => Some(callbacks[0].clone()),
+                Some(StateTransition::Packet) => Some(callbacks[0].clone()),
                 None => Some(callbacks[0].clone()),
                 _ => None,
             }

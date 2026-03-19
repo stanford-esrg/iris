@@ -74,7 +74,7 @@ pub mod utils;
 
 pub use self::conntrack::conn_id::{ConnId, FiveTuple};
 pub use self::conntrack::pdu::L4Pdu;
-pub use self::conntrack::{DataLevel, StateTransition, StateTxData};
+pub use self::conntrack::{StateTransition, StateTxData};
 pub use self::lcore::CoreId;
 pub use self::memory::mbuf::Mbuf;
 pub use self::runtime::Runtime;

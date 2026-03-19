@@ -1,5 +1,5 @@
 use super::ast::*;
-use super::subscription::DataLevelSpec;
+use super::subscription::StateTransitionSpec;
 
 use std::cmp::Ordering;
 use std::collections::HashSet;
@@ -154,7 +154,7 @@ impl FlatPattern {
         Ok(fq_patterns)
     }
 
-    // Validate and populate DataLevels for the custom predicates
+    // Validate and populate StateTransitions for the custom predicates
     // When building a filter from a string, only the name of the custom filter is available.
     // To populate needed data, we need to correlate these names with the information parsed
     // at compile-time from the defined custom filters.
@@ -294,10 +294,10 @@ impl FlatPattern {
 
     // Get datatypes from the pattern in order to build up `actions`
     // Note: this skips filter predicates that have already matched
-    pub(super) fn get_datatypes(&self) -> Vec<DataLevelSpec> {
+    pub(super) fn get_datatypes(&self) -> Vec<StateTransitionSpec> {
         self.predicates
             .iter()
-            .filter_map(DataLevelSpec::from_pred)
+            .filter_map(StateTransitionSpec::from_pred)
             .collect()
     }
 
@@ -520,14 +520,14 @@ mod tests {
 
     use super::*;
     use crate::{
-        conntrack::DataLevel,
+        conntrack::StateTransition,
         filter::{ast::Predicate, parser::FilterParser, pred_ptree::PredPTree, Filter},
     };
 
     lazy_static! {
         static ref CUSTOM_FILTERS: Vec<Predicate> = vec![Predicate::Custom {
             name: filterfunc!("my_filter"),
-            levels: vec![vec![DataLevel::InL4Conn(false)]],
+            levels: vec![vec![StateTransition::InL4Conn(false)]],
             matched: true,
         }];
     }

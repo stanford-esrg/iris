@@ -1,11 +1,11 @@
 use crate::parse::*;
-use iris_core::conntrack::{DataLevel, StateTransition};
+use iris_core::conntrack::StateTransition;
 use iris_core::filter::{
     ast::{FuncIdent, Predicate},
     pattern::FlatPattern,
     pred_ptree::PredPTree,
     ptree::PTree,
-    subscription::{CallbackSpec, DataLevelSpec, SubscriptionLevel},
+    subscription::{CallbackSpec, StateTransitionSpec, SubscriptionLevel},
     Filter,
 };
 use lazy_static::lazy_static;
@@ -15,32 +15,32 @@ lazy_static! {
     pub(crate) static ref BUILTIN_TYPES: Vec<ParsedInput> = vec![
         ParsedInput::Datatype(DatatypeSpec {
             name: "L4Pdu".into(),
-            level: Some(DataLevel::Packet),
+            level: Some(StateTransition::Packet),
             expl_parsers: vec![],
         }),
         ParsedInput::Datatype(DatatypeSpec {
             name: "FilterStr".into(),
-            level: Some(DataLevel::Packet),
+            level: Some(StateTransition::Packet),
             expl_parsers: vec![],
         }),
         ParsedInput::Datatype(DatatypeSpec {
             name: "StateTxData".into(),
-            level: Some(DataLevel::Packet),
+            level: Some(StateTransition::Packet),
             expl_parsers: vec![], // Must be provided by application
         }),
         ParsedInput::Datatype(DatatypeSpec {
             name: "Session".into(),
-            level: Some(DataLevel::L7EndHdrs),
+            level: Some(StateTransition::L7EndHdrs),
             expl_parsers: vec![], // Must be provided by application
         }),
         ParsedInput::Datatype(DatatypeSpec {
             name: "SessionProto".into(),
-            level: Some(DataLevel::L7OnDisc),
+            level: Some(StateTransition::L7OnDisc),
             expl_parsers: vec![], // Must be provided by application
         }),
         ParsedInput::Datatype(DatatypeSpec {
             name: "CoreId".into(),
-            level: Some(DataLevel::Packet),
+            level: Some(StateTransition::Packet),
             expl_parsers: vec![],
         }),
         // TODO StateTx (without data?)
@@ -86,7 +86,7 @@ impl SubscriptionSpec {
         // Streaming CBs invoked until unsubscribe; L4Terminated subscriptions
         // don't need to be tracked.
         if let Some(level) = self.callbacks[0].expl_level {
-            if level.is_streaming() || level == DataLevel::L4Terminated {
+            if level.is_streaming() || level == StateTransition::L4Terminated {
                 return;
             }
         }
@@ -121,13 +121,13 @@ pub(crate) struct SubscriptionDecoder {
     pub(crate) custom_preds: Vec<Predicate>,
     /// Datatype name -> Datatype Spec with all updates
     /// Used to derive levels for callbacks and custom filters
-    pub(crate) datatypes: HashMap<String, DataLevelSpec>,
+    pub(crate) datatypes: HashMap<String, StateTransitionSpec>,
     /// Full subscriptions
     pub(crate) subscriptions: Vec<SubscriptionSpec>,
 
     /// Required `updates`: Level of required update -->
     /// datatype update, filter method, or streaming callback.
-    pub(crate) updates: HashMap<DataLevel, Vec<ParsedInput>>,
+    pub(crate) updates: HashMap<StateTransition, Vec<ParsedInput>>,
     /// Tracked datatypes (stored as fields in Tracked struct)
     pub(crate) tracked: HashSet<TrackedType>,
 }
@@ -214,7 +214,7 @@ impl SubscriptionDecoder {
 
     fn decode_datatypes(&mut self) {
         for (dt, inp) in &self.datatypes_raw {
-            let spec = DataLevelSpec {
+            let spec = StateTransitionSpec {
                 name: dt.clone(),
                 updates: inp.iter().cloned().flat_map(|l| l.levels()).collect(),
             };
@@ -331,7 +331,7 @@ impl SubscriptionDecoder {
         spec: &FnSpec,
         as_str: String,
         subscription_id: String,
-        expl_level: Option<DataLevel>,
+        expl_level: Option<StateTransition>,
     ) -> CallbackSpec {
         let must_deliver = spec.datatypes.iter().any(|dt| dt == "FilterStr");
         let datatypes = spec
@@ -367,7 +367,7 @@ impl SubscriptionDecoder {
 
     // TODO figure out what should go here -- need to fix filters
     // Pull the top-level datatype declaration to infer a function level
-    fn datatypes_to_levels(&self, spec: &FnSpec) -> Vec<DataLevel> {
+    fn datatypes_to_levels(&self, spec: &FnSpec) -> Vec<StateTransition> {
         let mut lvls = vec![];
         for dt_name in &spec.datatypes {
             let dt_info = self
@@ -500,7 +500,9 @@ impl SubscriptionDecoder {
                 let static_dts = cb
                     .datatypes
                     .iter()
-                    .filter(|dt| dt.updates.len() == 1 && dt.updates[0] == DataLevel::L4FirstPacket)
+                    .filter(|dt| {
+                        dt.updates.len() == 1 && dt.updates[0] == StateTransition::L4FirstPacket
+                    })
                     .collect::<Vec<_>>();
                 for dt in static_dts {
                     self.tracked.insert(TrackedType {
@@ -513,7 +515,10 @@ impl SubscriptionDecoder {
         self.updates = updates;
     }
 
-    fn push_update(updates: &mut HashMap<DataLevel, Vec<ParsedInput>>, inps: &Vec<ParsedInput>) {
+    fn push_update(
+        updates: &mut HashMap<StateTransition, Vec<ParsedInput>>,
+        inps: &Vec<ParsedInput>,
+    ) {
         for inp in inps {
             if inp.is_group() {
                 continue;
@@ -701,7 +706,7 @@ impl Hash for TrackedType {
 
 #[cfg(test)]
 mod tests {
-    use iris_core::conntrack::DataLevel;
+    use iris_core::conntrack::StateTransition;
     use iris_core::filter::{ptree::*, Filter};
 
     use super::*;
@@ -730,7 +735,7 @@ mod tests {
                 expl_parsers: vec![],
             }),
             ParsedInput::FilterGroupFn(FilterGroupFnSpec {
-                level: vec![DataLevel::InL4Conn(false)],
+                level: vec![StateTransition::InL4Conn(false)],
                 group_name: "MyGroup".into(),
                 func: FnSpec {
                     name: "update".into(),
@@ -748,12 +753,12 @@ mod tests {
                 },
             }),
             ParsedInput::Datatype(DatatypeSpec {
-                level: Some(DataLevel::Packet),
+                level: Some(StateTransition::Packet),
                 name: "L4Pdu".into(),
                 expl_parsers: vec![],
             }),
             ParsedInput::Datatype(DatatypeSpec {
-                level: Some(DataLevel::L7EndHdrs),
+                level: Some(StateTransition::L7EndHdrs),
                 name: "TlsHandshake".into(),
                 expl_parsers: vec![],
             }),
@@ -769,11 +774,11 @@ mod tests {
                     datatypes: vec!["L4Pdu".into()],
                     returns: FnReturn::None,
                 },
-                level: vec![DataLevel::InL4Conn(false)],
+                level: vec![StateTransition::InL4Conn(false)],
             }),
             ParsedInput::Callback(CallbackFnSpec {
                 filter: "ipv4 and tls and MyGroup".into(),
-                level: vec![DataLevel::InL4Conn(false)],
+                level: vec![StateTransition::InL4Conn(false)],
                 func: FnSpec {
                     name: "my_cb".into(),
                     datatypes: vec!["ConnRecord".into(), "TlsHandshake".into()],
@@ -788,9 +793,9 @@ mod tests {
             let pred = decoder.custom_preds.first().unwrap();
             let levels = pred.levels();
             levels.len() == 3
-                && levels.contains(&DataLevel::Packet)
-                && levels.contains(&DataLevel::InL4Conn(false))
-                && levels.contains(&DataLevel::L7EndHdrs)
+                && levels.contains(&StateTransition::Packet)
+                && levels.contains(&StateTransition::InL4Conn(false))
+                && levels.contains(&StateTransition::L7EndHdrs)
         });
         assert!({
             let sub = decoder.subscriptions.first().unwrap();
@@ -798,14 +803,14 @@ mod tests {
             datatypes.len() == 2
                 && datatypes
                     .iter()
-                    .any(|dt| dt.updates == vec![DataLevel::InL4Conn(false)])
+                    .any(|dt| dt.updates == vec![StateTransition::InL4Conn(false)])
                 && datatypes
                     .iter()
-                    .any(|dt| dt.updates == vec![DataLevel::L7EndHdrs])
+                    .any(|dt| dt.updates == vec![StateTransition::L7EndHdrs])
         });
 
         assert!(decoder.updates.len() == 1);
-        let entr = decoder.updates.get(&DataLevel::InL4Conn(false)).unwrap();
+        let entr = decoder.updates.get(&StateTransition::InL4Conn(false)).unwrap();
         assert!(
             entr.len() == 3,
             "Actual len: {} (value: {:?}",
@@ -814,7 +819,7 @@ mod tests {
         );
 
         // Build up some basic trees
-        let mut ptree = PTree::new_empty(DataLevel::L7OnDisc);
+        let mut ptree = PTree::new_empty(StateTransition::L7OnDisc);
         for s in &decoder.subscriptions {
             let filter = Filter::new(&s.filter, &decoder.custom_preds).unwrap();
             let patterns = filter.get_patterns_flat();
@@ -827,7 +832,7 @@ mod tests {
         let filter_matching = ptree.get_subtree(4).unwrap();
         assert!(!filter_matched.pred.is_matching() && filter_matching.pred.is_matching());
 
-        let mut ptree = PTree::new_empty(DataLevel::L7EndHdrs);
+        let mut ptree = PTree::new_empty(StateTransition::L7EndHdrs);
         for s in &decoder.subscriptions {
             let filter = Filter::new(&s.filter, &decoder.custom_preds).unwrap();
             let patterns = filter.get_patterns_flat();
@@ -836,7 +841,7 @@ mod tests {
         ptree.collapse();
         assert!(!ptree.deliver.is_empty());
 
-        let mut ptree = PTree::new_empty(DataLevel::InL4Conn(false));
+        let mut ptree = PTree::new_empty(StateTransition::InL4Conn(false));
         for s in &decoder.subscriptions {
             let filter = Filter::new(&s.filter, &decoder.custom_preds).unwrap();
             let patterns = filter.get_patterns_flat();

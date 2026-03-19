@@ -67,7 +67,7 @@ where
     /// flag if it has passed through the TCP reassembly module.
     pub(crate) fn new_packet(&mut self, pdu: &L4Pdu, subscription: &Subscription<T::Subscribed>) {
         if self.linfo.actions.needs_update()
-            && subscription.update(self, pdu, DataLevel::InL4Conn(pdu.ctxt.reassembled))
+            && subscription.update(self, pdu, StateTransition::InL4Conn(pdu.ctxt.reassembled))
         {
             self.exec_state_tx(
                 StateTransition::InL4Conn(pdu.ctxt.reassembled),

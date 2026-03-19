@@ -17,7 +17,7 @@ pub mod ptree;
 #[doc(hidden)]
 pub mod subscription;
 
-use crate::conntrack::{ConnInfo, DataLevel, StateTransition};
+use crate::conntrack::{ConnInfo, StateTransition};
 use crate::filter::ast::Predicate;
 use crate::filter::hardware::{flush_rules, HardwareFilter};
 use crate::filter::parser::FilterParser;
@@ -49,7 +49,7 @@ pub type StateTxFn<T> = fn(&mut ConnInfo<T>, &StateTransition);
 /// Invoked to update internal data on each new packet
 /// Returns `true` if something changed (CB unsubscribed, streaming filter matched/didn't match)
 #[doc(hidden)]
-pub type UpdateFn<T> = fn(&mut ConnInfo<T>, &L4Pdu, DataLevel) -> bool;
+pub type UpdateFn<T> = fn(&mut ConnInfo<T>, &L4Pdu, StateTransition) -> bool;
 
 #[doc(hidden)]
 pub struct FilterFactory<T>

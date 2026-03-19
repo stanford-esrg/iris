@@ -1,5 +1,5 @@
 use crate::conntrack::pdu::{L4Context, L4Pdu};
-use crate::conntrack::{ConnInfo, ConnTracker, DataLevel, StateTransition};
+use crate::conntrack::{ConnInfo, ConnTracker, StateTransition};
 use crate::filter::*;
 use crate::lcore::CoreId;
 use crate::memory::mbuf::Mbuf;
@@ -110,7 +110,7 @@ where
 
     /// Invoke "update" API, returning `true` if Actions may need
     /// to be refreshed (i.e., a subscription has gone out of scope).
-    pub fn update(&self, conn: &mut ConnInfo<S::Tracked>, pdu: &L4Pdu, state: DataLevel) -> bool {
+    pub fn update(&self, conn: &mut ConnInfo<S::Tracked>, pdu: &L4Pdu, state: StateTransition) -> bool {
         (self.update_fn)(conn, pdu, state)
     }
 }

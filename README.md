@@ -29,12 +29,12 @@ An Iris application consists of *one or more* traffic *subscriptions*, each of w
 Applications that analyze data across connections can be built on top of Iris, much like Iris is built on top of DPDK.
 
 * **State Machines.** To expose both common abstractions and low-level access to connection data, Iris presents connections to user code as a set of protocol-specific state machines that user-defined functions can hook into.
-Iris currently supports the states and state transitions described in [DataLevel](core/src/conntrack/conn/conn_state.rs#L29).
+Iris currently supports the states and state transitions described in [StateTransition](core/src/conntrack/conn/conn_state.rs#L29).
 Iris processes packets in a connection as they arrive, advancing the connection through its state machines. Note that some events carry data (e.g., observed packet, parsed application headers).
 
 ### Data Types
 
-Iris defines three primitive data types: raw packets, reassembled streams, and parsed fields available within any state transition (["DataLevel"](./core/src/conntrack/conn/conn_state.rs#L29)).
+Iris defines three primitive data types: raw packets, reassembled streams, and parsed fields available within any state transition (["StateTransition"](./core/src/conntrack/conn/conn_state.rs#L29)).
 User-defined Iris data types are defined in Rust and can access any of these primitive data types to create higher-level abstractions, which are then made available to filters and callbacks.
 
 A variety of default data types are provided in the [datatypes](./datatypes) crate.
@@ -89,8 +89,8 @@ impl OpenVPNOpcode {
 }
 ```
 
-Note: in some cases, Iris can infer the [DataLevel](core/src/conntrack/conn/conn_state.rs#L29) (e.g., a "tls" callback requesting a TLS handshake is delivered as soon as the TLS handshake is ready).
-The compiler will throw an error if a DataLevel is required and missing.
+Note: in some cases, Iris can infer the [StateTransition](core/src/conntrack/conn/conn_state.rs#L29) (e.g., a "tls" callback requesting a TLS handshake is delivered as soon as the TLS handshake is ready).
+The compiler will throw an error if a StateTransition is required and missing.
 
 ### Filters
 
