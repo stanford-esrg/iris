@@ -487,10 +487,6 @@ pub(crate) fn tracked_update_to_tokens(sub: &SubscriptionDecoder) -> proc_macro2
         }
         let updates = update_to_tokens(sub, level);
         let level_ident = Ident::new(&level.to_string(), Span::call_site());
-        let level_ident = match level {
-            StateTransition::L7InPayload(_) => quote! { #level_ident(_) },
-            _ => quote! { #level_ident },
-        };
         all_updates.push(quote! {
             StateTransition::#level_ident => {
                 #updates

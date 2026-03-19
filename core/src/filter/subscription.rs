@@ -419,50 +419,6 @@ impl StateTransitionSpec {
                         actions.push_action(a);
                     }
                 },
-                StateTransition::L7InPayload(reassembled) => {
-                    if matches!(cmp, StateTxOrd::Greater | StateTxOrd::Any) {
-                        continue;
-                    }
-
-                    // Case 1: at beginning of or in payload.
-                    let mut in_payload = DataActions::new();
-                    in_payload.transport.active |= Actions::PassThrough;
-                    in_payload.layers[l7_idx].active |= Actions::Update;
-                    if *reassembled {
-                        in_payload.layers[l7_idx].active |= Actions::Parse;
-                    }
-
-                    // Case 2: before end of L7 headers.
-                    let mut pre_payload = DataActions::new();
-                    pre_payload.transport.active |= Actions::PassThrough;
-                    pre_payload.transport.refresh_at[StateTransition::L7EndHdrs.as_usize()] |=
-                        Actions::PassThrough;
-                    pre_payload.layers[l7_idx].active |= Actions::Parse;
-                    pre_payload.layers[l7_idx].refresh_at[StateTransition::L7EndHdrs.as_usize()] |=
-                        Actions::Parse;
-
-                    // Beginning of or in payload: update
-                    if cmp == StateTxOrd::Equal || filter_layer == StateTransition::L7EndHdrs {
-                        actions.push_action(in_payload);
-                    }
-                    // Pre-payload (L7OnDisc, InHdrs)
-                    else if cmp == StateTxOrd::Less {
-                        actions.push_action(pre_payload);
-                    }
-                    // Different layer: depends on L7 state
-                    else if cmp == StateTxOrd::Unknown {
-                        pre_payload.if_matches = Some((SupportedLayer::L7, LayerState::Discovery));
-                        actions.push_action(pre_payload.clone());
-                        pre_payload.if_matches = Some((SupportedLayer::L7, LayerState::Headers));
-                        actions.push_action(pre_payload);
-                        in_payload.if_matches = Some((SupportedLayer::L7, LayerState::Payload));
-                        actions.push_action(in_payload);
-                    }
-                }
-                StateTransition::L7EndPayload => {
-                    // L7 payload parsing not yet implemented. Use L4Terminated instead.
-                    unimplemented!();
-                }
                 StateTransition::L4Terminated => {
                     let mut a = DataActions::new();
                     a.transport.active |= Actions::Track;

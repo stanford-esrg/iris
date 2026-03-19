@@ -569,18 +569,10 @@ impl InputKeys {
         }
         ret.levels.sort();
         ret.levels.dedup();
-        // L7InPayload currently broken
-        assert!(
-            !ret.levels.contains(&StateTransition::L7InPayload(false)),
-            "L7InPayload not yet supported"
-        );
         if reassembled {
             for l in &mut ret.levels {
                 if matches!(l, StateTransition::InL4Conn) {
                     *l = StateTransition::InL4Stream;
-                }
-                if matches!(l, StateTransition::L7InPayload(false)) {
-                    *l = StateTransition::L7InPayload(true);
                 }
             }
         }

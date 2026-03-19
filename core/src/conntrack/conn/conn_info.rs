@@ -156,7 +156,6 @@ where
             layer.layer_info_mut().actions.start_state_tx(tx);
         }
         match tx {
-            StateTransition::L7EndPayload => unimplemented!(),
             StateTransition::L4FirstPacket | StateTransition::Packet => {}
             _ => subscription.state_tx::<T>(self, &tx),
         }

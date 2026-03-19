@@ -298,22 +298,15 @@ impl Predicate {
                     LayerState::Payload => {
                         if let Predicate::Custom { levels, .. } = self {
                             return levels.iter().all(|fnlevel| {
-                                fnlevel.iter().any(|l| {
-                                    matches!(
-                                        l,
-                                        StateTransition::L7EndHdrs
-                                            | StateTransition::L7InPayload(_)
-                                    )
-                                })
+                                fnlevel
+                                    .iter()
+                                    .any(|l| matches!(l, StateTransition::L7EndHdrs))
                             });
                         }
                         // Requires payload or parsed session
-                        levels.iter().any(|l| {
-                            matches!(
-                                l,
-                                StateTransition::L7EndHdrs | StateTransition::L7InPayload(_)
-                            )
-                        })
+                        levels
+                            .iter()
+                            .any(|l| matches!(l, StateTransition::L7EndHdrs))
                     }
                     LayerState::None => panic!("Should not have LayerState::None predicate"),
                 }

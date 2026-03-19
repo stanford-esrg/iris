@@ -56,13 +56,6 @@ pub enum StateTransition {
     L7InHdrs,
     /// On L6/L7 headers parsed
     L7EndHdrs,
-    /// Streaming in L7 payload (after headers)
-    /// Note: not yet reliably supported by all parsers;
-    /// consider this work-in-progress.
-    L7InPayload(bool),
-    /// L7 payload end. TODO NOT YET SUPPORTED by parsers.
-    L7EndPayload,
-
     /// L4 connection terminated by FIN/ACK sequence or timeout
     L4Terminated,
 
@@ -85,7 +78,6 @@ impl std::fmt::Display for StateTransition {
         match self {
             Self::InL4Conn => write!(f, "InL4Conn"),
             Self::InL4Stream => write!(f, "InL4Stream"),
-            Self::L7InPayload(_) => write!(f, "L7InPayload"),
             _ => write!(f, "{:?}", self),
         }
     }
@@ -120,8 +112,6 @@ impl StateTransition {
             StateTransition::L7OnDisc => "L7OnDisc",
             StateTransition::L7InHdrs => "L7InHdrs",
             StateTransition::L7EndHdrs => "L7EndHdrs",
-            StateTransition::L7InPayload(_) => "L7InPayload",
-            StateTransition::L7EndPayload => "L7EndPayload",
             StateTransition::Packet => "L4Pdu",
         }
     }
@@ -207,7 +197,7 @@ impl StateTxOrd {
 /// a streaming callback or filter changed match state (i.e.,
 /// was and is no longer active).
 /// Number of variants; used to size the `refresh_at` array
-pub(crate) const NUM_STATE_TRANSITIONS: usize = 10;
+pub(crate) const NUM_STATE_TRANSITIONS: usize = 8;
 
 /// State Transitions with associated data, used as wrappers for users to subscribe to
 /// TODO which mod should these live in...
@@ -262,8 +252,6 @@ impl FromStr for StateTransition {
             "L7OnDisc" => Ok(StateTransition::L7OnDisc),
             "L7InHdrs" => Ok(StateTransition::L7InHdrs),
             "L7EndHdrs" => Ok(StateTransition::L7EndHdrs),
-            "L7InPayload" => Ok(StateTransition::L7InPayload(true)),
-            "L7EndPayload" => Ok(StateTransition::L7EndPayload),
             "Packet" => Ok(StateTransition::Packet),
             _ => Err(format!("Invalid StateTransition: {}", s)),
         }

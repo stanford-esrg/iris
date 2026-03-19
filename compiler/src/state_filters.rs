@@ -48,16 +48,9 @@ pub(crate) fn gen_state_filters(
         let fn_name = Ident::new(&(format!("tx_{}", tx).to_lowercase()), Span::call_site());
 
         let ident = Ident::new(&tx.to_string(), Span::call_site());
-        if matches!(tx, StateTransition::L7InPayload(_)) {
-            main.push(quote! {
-                StateTransition::#ident(_) => #fn_name(conn, &tx),
-            });
-        } else {
-            let ident = Ident::new(&tx.to_string(), Span::call_site());
-            main.push(quote! {
-                StateTransition::#ident => #fn_name(conn, &tx),
-            });
-        }
+        main.push(quote! {
+            StateTransition::#ident => #fn_name(conn, &tx),
+        });
 
         // Ensure that datatypes and custom filters that requested updates
         // at this state transition receive them.

@@ -131,7 +131,7 @@ impl TlsCbStreaming {
 /// These can return `false` to unsubscribe to a connection.
 #[callback("tls,level=InL4Conn")]
 fn tls_cb_streaming(tls: &TlsHandshake, record: &ConnRecord) -> bool {
-    println!("Received update in L7InPayload: {:?} {:?}", tls, record);
+    println!("Received streaming update: {:?} {:?}", tls, record);
     record.orig.nb_pkts < 100
 }
 

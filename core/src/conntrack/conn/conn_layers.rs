@@ -278,11 +278,8 @@ impl TrackableLayer for L7Session {
             LayerState::None | LayerState::Discovery => [StateTransition::Packet; 2],
             LayerState::Headers => [StateTransition::L7InHdrs, StateTransition::Packet],
             LayerState::Payload => match pdu.app_body_offset() {
-                Some(_) => [
-                    StateTransition::L7InHdrs,
-                    StateTransition::L7InPayload(false),
-                ],
-                None => [StateTransition::L7InPayload(false), StateTransition::Packet],
+                Some(_) => [StateTransition::L7InHdrs, StateTransition::Packet],
+                None => [StateTransition::Packet; 2], // None
             },
         }
     }
@@ -306,7 +303,6 @@ impl TrackableLayer for L7Session {
         }
         self.sessions.push(self.pending_sessions.pop().unwrap());
         Some(StateTransition::L7EndHdrs)
-        // L7EndPayload not yet supported
     }
 
     fn process_stream(&mut self, pdu: &mut L4Pdu, registry: &ParserRegistry) -> StateTransition {
