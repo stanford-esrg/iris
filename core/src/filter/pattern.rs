@@ -527,7 +527,7 @@ mod tests {
     lazy_static! {
         static ref CUSTOM_FILTERS: Vec<Predicate> = vec![Predicate::Custom {
             name: filterfunc!("my_filter"),
-            levels: vec![vec![StateTransition::InL4Conn(false)]],
+            levels: vec![vec![StateTransition::InL4Conn]],
             matched: true,
         }];
     }

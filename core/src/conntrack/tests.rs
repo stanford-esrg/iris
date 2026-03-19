@@ -164,8 +164,8 @@ fn core_state_tx() {
             .expect("Connection should exist");
         let info = &entry.info;
         assert!(
-            info.tracked.invoked[StateTransition::InL4Conn(true).as_usize()] == 2,
-            "Tracked should have invoked InL4Conn after duplicate SYN packet."
+            info.tracked.invoked[StateTransition::InL4Stream.as_usize()] == 2,
+            "Tracked should have invoked InL4Stream after duplicate SYN packet."
         );
         assert!(
             info.linfo.actions.active == Actions::Update | Actions::PassThrough,
@@ -184,7 +184,7 @@ fn core_state_tx() {
             .get(&conn_id)
             .expect("Connection should exist");
         let info = &entry.info;
-        assert!(info.tracked.invoked[StateTransition::InL4Conn(true).as_usize()] == 3);
+        assert!(info.tracked.invoked[StateTransition::InL4Stream.as_usize()] == 3);
         let l7 = match info.layers.get(0).unwrap() {
             Layer::L7(layer) => layer,
         };

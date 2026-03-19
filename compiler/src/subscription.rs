@@ -735,7 +735,7 @@ mod tests {
                 expl_parsers: vec![],
             }),
             ParsedInput::FilterGroupFn(FilterGroupFnSpec {
-                level: vec![StateTransition::InL4Conn(false)],
+                level: vec![StateTransition::InL4Conn],
                 group_name: "MyGroup".into(),
                 func: FnSpec {
                     name: "update".into(),
@@ -774,11 +774,11 @@ mod tests {
                     datatypes: vec!["L4Pdu".into()],
                     returns: FnReturn::None,
                 },
-                level: vec![StateTransition::InL4Conn(false)],
+                level: vec![StateTransition::InL4Conn],
             }),
             ParsedInput::Callback(CallbackFnSpec {
                 filter: "ipv4 and tls and MyGroup".into(),
-                level: vec![StateTransition::InL4Conn(false)],
+                level: vec![StateTransition::InL4Conn],
                 func: FnSpec {
                     name: "my_cb".into(),
                     datatypes: vec!["ConnRecord".into(), "TlsHandshake".into()],
@@ -794,7 +794,7 @@ mod tests {
             let levels = pred.levels();
             levels.len() == 3
                 && levels.contains(&StateTransition::Packet)
-                && levels.contains(&StateTransition::InL4Conn(false))
+                && levels.contains(&StateTransition::InL4Conn)
                 && levels.contains(&StateTransition::L7EndHdrs)
         });
         assert!({
@@ -803,14 +803,14 @@ mod tests {
             datatypes.len() == 2
                 && datatypes
                     .iter()
-                    .any(|dt| dt.updates == vec![StateTransition::InL4Conn(false)])
+                    .any(|dt| dt.updates == vec![StateTransition::InL4Conn])
                 && datatypes
                     .iter()
                     .any(|dt| dt.updates == vec![StateTransition::L7EndHdrs])
         });
 
         assert!(decoder.updates.len() == 1);
-        let entr = decoder.updates.get(&StateTransition::InL4Conn(false)).unwrap();
+        let entr = decoder.updates.get(&StateTransition::InL4Conn).unwrap();
         assert!(
             entr.len() == 3,
             "Actual len: {} (value: {:?}",
@@ -841,7 +841,7 @@ mod tests {
         ptree.collapse();
         assert!(!ptree.deliver.is_empty());
 
-        let mut ptree = PTree::new_empty(StateTransition::InL4Conn(false));
+        let mut ptree = PTree::new_empty(StateTransition::InL4Conn);
         for s in &decoder.subscriptions {
             let filter = Filter::new(&s.filter, &decoder.custom_preds).unwrap();
             let patterns = filter.get_patterns_flat();

@@ -340,14 +340,16 @@ impl StateTransitionSpec {
                         _ => continue,
                     }
                 }
-                StateTransition::InL4Conn(reassembled) => {
-                    // "In" suggests an update is required
-                    // InL4Conn datatype by itself can't "unsubscribe"
+                StateTransition::InL4Conn => {
+                    // "In" suggests an update is required.
+                    // By itself, an L4 "In" datatype doesn't "unsubscribe".
                     a.transport.active |= Actions::Update;
-                    if *reassembled {
-                        // Require reassembly if requested
-                        a.transport.active |= Actions::Parse;
-                    }
+                    actions.push_action(a);
+                }
+                StateTransition::InL4Stream => {
+                    // Same as InL4Conn, but also requires TCP reassembly parsing.
+                    a.transport.active |= Actions::Update;
+                    a.transport.active |= Actions::Parse;
                     actions.push_action(a);
                 }
                 StateTransition::L7OnDisc => {
@@ -664,18 +666,18 @@ mod tests {
         // L7 headers with a customized fingerprint that requires
         // analyzing payload metadata.
         static ref l7_fingerprint: StateTransitionSpec = StateTransitionSpec {
-            updates: vec![StateTransition::InL4Conn(false), StateTransition::L7EndHdrs],
+            updates: vec![StateTransition::InL4Conn, StateTransition::L7EndHdrs],
             name: "l7_fingerprint".into(),
         };
         // Basic connection metadata, delivered at end of connection
         static ref conn_data: StateTransitionSpec = StateTransitionSpec {
-            updates: vec![StateTransition::InL4Conn(false), StateTransition::L4Terminated],
+            updates: vec![StateTransition::InL4Conn, StateTransition::L4Terminated],
             name: "conn_data".into(),
         };
         // Basic connection metadata, delivered in streaming fashion.
         // Also requests update when handshake completes.
         static ref conn_streamdata: StateTransitionSpec = StateTransitionSpec {
-            updates: vec![StateTransition::InL4Conn(false), StateTransition::L4EndHshk],
+            updates: vec![StateTransition::InL4Conn, StateTransition::L4EndHshk],
             name: "conn_streamdata".into(),
         };
     );
@@ -740,7 +742,7 @@ mod tests {
 
         // Ambiguous: may be pre- or post-payload
         let actions = l7_fingerprint
-            .to_actions(StateTransition::InL4Conn(false))
+            .to_actions(StateTransition::InL4Conn)
             .actions;
         // Added "nodes" for LayerState checks: L7 disc, headers, payload
         assert!(actions.len() == 3);
@@ -767,9 +769,9 @@ mod tests {
                 == Actions::Update | Actions::PassThrough | Actions::Track
         );
         // Indicate that this will be in a streaming callback
-        node.push_cb(StateTransition::InL4Conn(false));
+        node.push_cb(StateTransition::InL4Conn);
         assert!(
-            node.actions[0].transport.refresh_at[StateTransition::InL4Conn(false).as_usize()]
+            node.actions[0].transport.refresh_at[StateTransition::InL4Conn.as_usize()]
                 == Actions::Update | Actions::PassThrough | Actions::Track
         );
     }

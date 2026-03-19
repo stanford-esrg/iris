@@ -578,8 +578,8 @@ impl InputKeys {
         );
         if reassembled {
             for l in &mut ret.levels {
-                if matches!(l, StateTransition::InL4Conn(false)) {
-                    *l = StateTransition::InL4Conn(true);
+                if matches!(l, StateTransition::InL4Conn) {
+                    *l = StateTransition::InL4Stream;
                 }
                 if matches!(l, StateTransition::L7InPayload(false)) {
                     *l = StateTransition::L7InPayload(true);

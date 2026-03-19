@@ -1082,7 +1082,7 @@ mod tests {
         assert!(node.deliver.len() == 1);
 
         // "Maintenance"
-        let mut tree = PTree::new_empty(StateTransition::InL4Conn(false));
+        let mut tree = PTree::new_empty(StateTransition::InL4Conn);
         tree.add_subscription(&patterns, &TLS_SUB, &TLS_SUB[0].as_str);
         // eth
         // -> ipv4 -> tcp
@@ -1104,15 +1104,15 @@ mod tests {
     lazy_static! {
         static ref CUSTOM_FILTERS: Vec<Predicate> = vec![Predicate::Custom {
             name: filterfunc!("my_filter"),
-            levels: vec![vec![StateTransition::InL4Conn(false)]],
+            levels: vec![vec![StateTransition::InL4Conn]],
             matched: true,
         }];
         static ref SESS_RECORD_DATATYPE: StateTransitionSpec = StateTransitionSpec {
-            updates: vec![StateTransition::InL4Conn(false), StateTransition::L7EndHdrs],
+            updates: vec![StateTransition::InL4Conn, StateTransition::L7EndHdrs],
             name: "ConnAndSession".into(),
         };
         static ref STREAMING_SUB: Vec<CallbackSpec> = vec![CallbackSpec {
-            expl_level: Some(StateTransition::InL4Conn(false)),
+            expl_level: Some(StateTransition::InL4Conn),
             datatypes: vec![TLS_DATATYPE.clone(), SESS_RECORD_DATATYPE.clone()],
             must_deliver: false,
             invoke_once: false,
@@ -1135,7 +1135,7 @@ mod tests {
         assert!(node.actions.transport.active == Actions::PassThrough | Actions::Update);
         let l7_actions = &node.actions.layers[0];
         assert!(
-            l7_actions.refresh_at[StateTransition::InL4Conn(false).as_usize()] == Actions::Parse
+            l7_actions.refresh_at[StateTransition::InL4Conn.as_usize()] == Actions::Parse
                 && l7_actions.refresh_at[StateTransition::L7OnDisc.as_usize()] == Actions::Parse
         );
 
@@ -1203,7 +1203,7 @@ mod tests {
         let filter = Filter::new("ipv4 and tls and my_filter", &CUSTOM_FILTERS).unwrap();
         let patterns = filter.get_patterns_flat();
 
-        let mut tree = PTree::new_empty(StateTransition::InL4Conn(false));
+        let mut tree = PTree::new_empty(StateTransition::InL4Conn);
         tree.add_subscription(&patterns, &FIVETUPLE_SUB, &FIVETUPLE_SUB[0].as_str);
         tree.collapse(); // Remove ipv4/tcp
                          // eth -> my filter (matched) -> L7 Disc (Actions - parse)
@@ -1214,7 +1214,7 @@ mod tests {
         let filter =
             Filter::new("ipv4 and tls.sni = \'abc\' and my_filter", &CUSTOM_FILTERS).unwrap();
         let patterns = filter.get_patterns_flat();
-        let mut tree = PTree::new_empty(StateTransition::InL4Conn(false));
+        let mut tree = PTree::new_empty(StateTransition::InL4Conn);
         tree.add_subscription(&patterns, &FIVETUPLE_SUB, &FIVETUPLE_SUB[0].as_str);
         tree.collapse();
         // Similar to above. Added:
@@ -1227,7 +1227,7 @@ mod tests {
         static ref CUSTOM_FILTERS_GROUPED: Vec<Predicate> = vec![Predicate::Custom {
             name: filterfunc!("GroupedFil"),
             levels: vec![
-                vec![StateTransition::InL4Conn(false)],
+                vec![StateTransition::InL4Conn],
                 vec![StateTransition::L7EndHdrs]
             ],
             matched: true,
@@ -1235,7 +1235,7 @@ mod tests {
         static ref CUSTOM_FILTERS_GROUPED_TERM: Vec<Predicate> = vec![Predicate::Custom {
             name: filterfunc!("GroupedFil"),
             levels: vec![
-                vec![StateTransition::InL4Conn(false)],
+                vec![StateTransition::InL4Conn],
                 vec![StateTransition::L4Terminated]
             ],
             matched: true,
@@ -1255,7 +1255,7 @@ mod tests {
     fn test_ptree_grouped() {
         let filter = Filter::new("ipv4 and tls and GroupedFil", &CUSTOM_FILTERS_GROUPED).unwrap();
         let patterns = filter.get_patterns_flat();
-        let mut tree = PTree::new_empty(StateTransition::InL4Conn(false));
+        let mut tree = PTree::new_empty(StateTransition::InL4Conn);
         tree.add_subscription(&patterns, &FIVETUPLE_SUB, &FIVETUPLE_SUB[0].as_str);
         tree.collapse();
         assert!(tree.size == 10, "Action size: {}", tree.size);
@@ -1326,7 +1326,7 @@ mod tests {
             name: "SessionProto".into(),
         };
         static ref SESSION_PROTO_SUB: Vec<CallbackSpec> = vec![CallbackSpec {
-            expl_level: Some(StateTransition::InL4Conn(false)),
+            expl_level: Some(StateTransition::InL4Conn),
             datatypes: vec![FIRST_PKT.clone(), SESSION_PROTO.clone()],
             must_deliver: false,
             invoke_once: false,
@@ -1340,7 +1340,7 @@ mod tests {
     fn test_ptree_proto_stream() {
         let filter = Filter::new("ipv4 and tcp", &CUSTOM_FILTERS_GROUPED_TERM).unwrap();
         let patterns = filter.get_patterns_flat();
-        let mut tree = PTree::new_empty(StateTransition::InL4Conn(false));
+        let mut tree = PTree::new_empty(StateTransition::InL4Conn);
         tree.add_subscription(&patterns, &SESSION_PROTO_SUB, &SESSION_PROTO_SUB[0].as_str);
         tree.collapse();
         let node = tree.get_subtree(1).unwrap(); // checks if CB is active

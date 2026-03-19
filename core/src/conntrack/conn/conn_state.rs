@@ -43,9 +43,12 @@ pub enum StateTransition {
     /// of payload, as payload may overlap with the handshake.
     L4EndHshk,
     /// Streaming anywhere in L4 connection, including TCP handshake.
-    /// Must specify in associated data whether the packets must be
-    /// reassembled (true) or not (false).
-    InL4Conn(bool),
+    /// Streaming anywhere in TCP or UDP connection, including TCP handshake. 
+    // Packets are not TCP-reassembled.
+    InL4Conn,
+    /// Streaming anywhere in TCP or UDP connection, including TCP handshake.
+    /// Packets are TCP-reassembled.
+    InL4Stream,
 
     /// On L7 protocol identification
     L7OnDisc,
@@ -80,7 +83,8 @@ pub enum StateTransition {
 impl std::fmt::Display for StateTransition {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::InL4Conn(_) => write!(f, "InL4Conn"), // hide encap value
+            Self::InL4Conn => write!(f, "InL4Conn"),
+            Self::InL4Stream => write!(f, "InL4Stream"),
             Self::L7InPayload(_) => write!(f, "L7InPayload"),
             _ => write!(f, "{:?}", self),
         }
@@ -110,7 +114,8 @@ impl StateTransition {
         match self {
             StateTransition::L4FirstPacket => "L4FirstPacket",
             StateTransition::L4EndHshk => "L4EndHshk",
-            StateTransition::InL4Conn(_) => "InL4Conn",
+            StateTransition::InL4Conn => "InL4Conn",
+            StateTransition::InL4Stream => "InL4Stream",
             StateTransition::L4Terminated => "L4Terminated",
             StateTransition::L7OnDisc => "L7OnDisc",
             StateTransition::L7InHdrs => "L7InHdrs",
@@ -204,7 +209,7 @@ impl StateTxOrd {
 /// a streaming callback or filter changed match state (i.e.,
 /// was and is no longer active).
 /// Number of variants; used to size the `refresh_at` array
-pub(crate) const NUM_STATE_TRANSITIONS: usize = 9;
+pub(crate) const NUM_STATE_TRANSITIONS: usize = 10;
 
 /// State Transitions with associated data, used as wrappers for users to subscribe to
 /// TODO which mod should these live in...
@@ -251,9 +256,10 @@ impl FromStr for StateTransition {
         match s {
             "L4FirstPacket" => Ok(StateTransition::L4FirstPacket),
             "L4EndHshk" => Ok(StateTransition::L4EndHshk),
-            // New API name.
-            "InL4Conn" => Ok(StateTransition::InL4Conn(false)),
-            "InL4Conn(reassemble)" => Ok(StateTransition::InL4Conn(true)),
+            "InL4Conn" => Ok(StateTransition::InL4Conn),
+            "InL4Stream" => Ok(StateTransition::InL4Stream),
+            // Backward compat: old API used `InL4Conn(reassemble)` to request TCP reassembly.
+            "InL4Conn(reassemble)" => Ok(StateTransition::InL4Stream),
             "L4Terminated" => Ok(StateTransition::L4Terminated),
             "L7OnDisc" => Ok(StateTransition::L7OnDisc),
             "L7InHdrs" => Ok(StateTransition::L7InHdrs),
@@ -273,9 +279,5 @@ mod tests {
     #[test]
     fn test_data_level_raw() {
         assert_eq!(StateTransition::Packet.as_usize(), NUM_STATE_TRANSITIONS);
-        assert_eq!(
-            StateTransition::InL4Conn(true).as_usize(),
-            StateTransition::InL4Conn(false).as_usize()
-        );
     }
 }
