@@ -42,6 +42,7 @@ pub enum StateTransition {
     /// Note that this should not be used to indicate the beginning
     /// of payload, as payload may overlap with the handshake.
     L4EndHshk,
+
     /// Streaming anywhere in L4 connection, including TCP handshake.
     /// Streaming anywhere in TCP or UDP connection, including TCP handshake.
     // Packets are not TCP-reassembled.
@@ -134,6 +135,9 @@ impl StateTransition {
     /// Returns Greater if self > Other, Less if self < Other, Equal if self == Other,
     /// and Unknown if the two cannot be compared (different layers).
     pub fn compare(&self, other: &StateTransition) -> StateTxOrd {
+        if self == other {
+            return StateTxOrd::Equal;
+        }
         // L4Pdu is any
         if matches!(self, StateTransition::Packet) || matches!(other, StateTransition::Packet) {
             if self != other {
@@ -165,6 +169,13 @@ impl StateTransition {
 
         // Exceptions to the ordering rule
         if matches!(self, StateTransition::L4EndHshk) {
+            return StateTxOrd::Unknown;
+        }
+
+        // Streaming states throughout connection
+        if matches!(self, StateTransition::InL4Conn | StateTransition::InL4Stream) ||
+           matches!(self, StateTransition::InL4Stream | StateTransition::InL4Conn)
+        {
             return StateTxOrd::Unknown;
         }
 
