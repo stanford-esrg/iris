@@ -1015,11 +1015,7 @@ impl fmt::Display for PTree {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        conntrack::Actions,
-        filter::subscription::StateTransitionSpec,
-        filter::Filter,
-    };
+    use crate::{conntrack::Actions, filter::subscription::StateTransitionSpec, filter::Filter};
 
     use super::*;
 
@@ -1060,7 +1056,8 @@ mod tests {
         );
         assert!(node.actions.layers[0].needs_parse());
         assert!(
-            node.actions.layers[0].refresh_at[StateTransition::L7OnDisc.as_usize()] == Actions::Parse
+            node.actions.layers[0].refresh_at[StateTransition::L7OnDisc.as_usize()]
+                == Actions::Parse
         );
 
         // On protocol discovery: continue parsing until end of headers

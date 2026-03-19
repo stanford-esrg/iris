@@ -98,10 +98,7 @@ impl Tracked for PktCount {
     fn clear(&mut self) {}
 
     #[inline]
-    #[cfg_attr(
-        not(feature = "skip_expand"),
-        datatype_fn("PktCount,level=InL4Conn")
-    )]
+    #[cfg_attr(not(feature = "skip_expand"), datatype_fn("PktCount,level=InL4Conn"))]
     fn update(&mut self, pdu: &L4Pdu) {
         if pdu.dir {
             self.orig += 1;
@@ -146,10 +143,7 @@ impl Tracked for ByteCount {
     fn clear(&mut self) {}
 
     #[inline]
-    #[cfg_attr(
-        not(feature = "skip_expand"),
-        datatype_fn("ByteCount,level=InL4Conn")
-    )]
+    #[cfg_attr(not(feature = "skip_expand"), datatype_fn("ByteCount,level=InL4Conn"))]
     fn update(&mut self, pdu: &L4Pdu) {
         if pdu.dir {
             self.orig += pdu.length();

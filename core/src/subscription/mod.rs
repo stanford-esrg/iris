@@ -110,7 +110,12 @@ where
 
     /// Invoke "update" API, returning `true` if Actions may need
     /// to be refreshed (i.e., a subscription has gone out of scope).
-    pub fn update(&self, conn: &mut ConnInfo<S::Tracked>, pdu: &L4Pdu, state: StateTransition) -> bool {
+    pub fn update(
+        &self,
+        conn: &mut ConnInfo<S::Tracked>,
+        pdu: &L4Pdu,
+        state: StateTransition,
+    ) -> bool {
         (self.update_fn)(conn, pdu, state)
     }
 }

@@ -165,7 +165,10 @@ impl PredPTree {
         let callback = if callbacks.len() == 1
             && callbacks[0].datatypes.iter().all(|dt| {
                 dt.updates.len() == 1
-                    && matches!(dt.updates[0], StateTransition::Packet | StateTransition::L4FirstPacket)
+                    && matches!(
+                        dt.updates[0],
+                        StateTransition::Packet | StateTransition::L4FirstPacket
+                    )
             }) {
             match callbacks[0].expl_level {
                 Some(StateTransition::Packet) => Some(callbacks[0].clone()),

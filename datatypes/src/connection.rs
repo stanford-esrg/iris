@@ -241,10 +241,7 @@ impl Tracked for ConnRecord {
     // packets. This either needs to be changed in the framework or
     // handled by the datatype (if ctxt.reassembled = true, we need to
     // handle things differently).
-    #[cfg_attr(
-        not(feature = "skip_expand"),
-        datatype_fn("ConnRecord,level=InL4Conn")
-    )]
+    #[cfg_attr(not(feature = "skip_expand"), datatype_fn("ConnRecord,level=InL4Conn"))]
     fn update(&mut self, pdu: &L4Pdu) {
         self.update_data(pdu);
     }

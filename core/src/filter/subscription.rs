@@ -741,9 +741,7 @@ mod tests {
         }
 
         // Ambiguous: may be pre- or post-payload
-        let actions = l7_fingerprint
-            .to_actions(StateTransition::InL4Conn)
-            .actions;
+        let actions = l7_fingerprint.to_actions(StateTransition::InL4Conn).actions;
         // Added "nodes" for LayerState checks: L7 disc, headers, payload
         assert!(actions.len() == 3);
         assert!(actions[0].if_matches.is_some() || actions[1].if_matches.is_some());

@@ -72,10 +72,7 @@ where
             StateTransition::InL4Conn
         };
         if self.linfo.actions.needs_update() && subscription.update(self, pdu, tx) {
-            self.exec_state_tx(
-                tx,
-                subscription,
-            );
+            self.exec_state_tx(tx, subscription);
         }
     }
 

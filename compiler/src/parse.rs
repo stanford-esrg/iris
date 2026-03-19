@@ -535,11 +535,9 @@ impl InputKeys {
                 ret.first = Some(v);
             } else if k.contains("level") {
                 for l in v.split("&") {
-                    ret.levels
-                        .push(
-                            StateTransition::from_str(l.trim())
-                                .expect("`level` key without values"),
-                        );
+                    ret.levels.push(
+                        StateTransition::from_str(l.trim()).expect("`level` key without values"),
+                    );
                 }
             } else if k.contains("reassembled") {
                 reassembled = bool::from_str(&v)
@@ -639,10 +637,7 @@ impl InputKeys {
         Ok(expanded)
     }
 
-    fn grouped_fn(
-        args: Option<String>,
-        name: &String,
-    ) -> Result<(String, Vec<StateTransition>)> {
+    fn grouped_fn(args: Option<String>, name: &String) -> Result<(String, Vec<StateTransition>)> {
         let mut ret = (String::new(), Vec::new());
         match args {
             Some(args) => {

@@ -827,7 +827,12 @@ mod tests {
         }
         ptree.collapse();
         // eth -> tls -> [MyGroup.matched -> my_cb.active] ; [MyGroup.matching]
-        assert!(ptree.size == 5, "Actual size: {} (value: {}", ptree.size, ptree);
+        assert!(
+            ptree.size == 5,
+            "Actual size: {} (value: {}",
+            ptree.size,
+            ptree
+        );
         let filter_matched = ptree.get_subtree(2).unwrap();
         let filter_matching = ptree.get_subtree(4).unwrap();
         assert!(!filter_matched.pred.is_matching() && filter_matching.pred.is_matching());

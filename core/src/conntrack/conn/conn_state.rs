@@ -43,7 +43,7 @@ pub enum StateTransition {
     /// of payload, as payload may overlap with the handshake.
     L4EndHshk,
     /// Streaming anywhere in L4 connection, including TCP handshake.
-    /// Streaming anywhere in TCP or UDP connection, including TCP handshake. 
+    /// Streaming anywhere in TCP or UDP connection, including TCP handshake.
     // Packets are not TCP-reassembled.
     InL4Conn,
     /// Streaming anywhere in TCP or UDP connection, including TCP handshake.
@@ -154,10 +154,8 @@ impl StateTransition {
         }
 
         // End of connection is always greatest
-        if matches!(
-            self,
-            StateTransition::L4Terminated
-        ) || matches!(other, StateTransition::L4Terminated)
+        if matches!(self, StateTransition::L4Terminated)
+            || matches!(other, StateTransition::L4Terminated)
         {
             return StateTxOrd::from_ord(self.cmp(other));
         }
