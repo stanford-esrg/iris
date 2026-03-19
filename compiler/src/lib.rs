@@ -80,7 +80,7 @@ use subscription::SubscriptionDecoder;
 ///
 /// Example usage:
 ///
-/// ```rust,no_run
+/// ```rust,ignore
 /// #[datatype("L7EndHdrs,parsers=dns"))]
 /// pub type DnsTransaction = Box<Dns>;
 /// ```
@@ -103,7 +103,7 @@ pub fn datatype(args: TokenStream, input: TokenStream) -> TokenStream {
 ///
 /// Example usage (in an `impl` block for `ConnRecord`)
 ///
-/// ```rust,no_run
+/// ```rust,ignore
 /// #[datatype_fn("ConnRecord,level=InL4Conn")]
 /// fn update(&mut self, pdu: &L4Pdu) {
 ///    self.update_data(pdu);
@@ -128,7 +128,7 @@ pub fn datatype_fn(args: TokenStream, input: TokenStream) -> TokenStream {
 ///
 /// Example usage:
 ///
-/// ```rust,no_run
+/// ```rust,ignore
 /// #[callback("tcp or udp,level=InL4Conn")]
 /// fn update(&mut self, conn: &ConnRecord) -> bool {
 ///     if conn.total_pkts() > 100 {
@@ -141,7 +141,7 @@ pub fn datatype_fn(args: TokenStream, input: TokenStream) -> TokenStream {
 ///
 /// Or, as a stateful callback with a custom filter:
 ///
-/// ```rust,no_run
+/// ```rust,ignore
 /// #[callback("drop_high_vol_conn,level=InL4Conn")]
 /// struct MyCallback {
 ///     /* ... */
@@ -170,7 +170,7 @@ pub fn callback(args: TokenStream, input: TokenStream) -> TokenStream {
 ///
 /// Example usage (in an `impl` block for `Predictor`)
 ///
-/// ```rust,no_run
+/// ```rust,ignore
 /// #[datatype_fn("Predictor,level=InL4Conn")]
 /// fn update(&mut self, tracked: &FeatureChunk) -> bool {
 ///    if self.last.elapsed().as_secs() < INTERVAL_TS {
@@ -199,7 +199,7 @@ pub fn callback_fn(args: TokenStream, input: TokenStream) -> TokenStream {
 ///
 /// Example usage:
 ///
-/// ```rust,no_run
+/// ```rust,ignore
 /// #[filter("level=L4FirstPacket")]
 /// pub fn drop_high_vol_conn(ft: &FiveTuple) -> FilterResult {
 ///     if PORTS.contains(&ft.resp.port()) {
@@ -227,7 +227,7 @@ pub fn filter(args: TokenStream, input: TokenStream) -> TokenStream {
 ///
 /// Example usage (in an `impl` block for `ShortConnLen`):
 ///
-/// ```rust,no_run
+/// ```rust,ignore
 /// #[filter_fn("ShortConnLen,level=L4InPayload")]
 ///   fn update(&mut self, _: &L4Pdu) -> FilterResult {
 ///       self.len += 1;

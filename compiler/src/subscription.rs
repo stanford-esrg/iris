@@ -773,7 +773,7 @@ mod tests {
             }),
             ParsedInput::Callback(CallbackFnSpec {
                 filter: "ipv4 and tls and MyGroup".into(),
-                level: vec![DataLevel::L4Terminated],
+                level: vec![DataLevel::L4InPayload(false)],
                 func: FnSpec {
                     name: "my_cb".into(),
                     datatypes: vec!["ConnRecord".into(), "TlsHandshake".into()],
@@ -807,7 +807,7 @@ mod tests {
         assert!(decoder.updates.len() == 1);
         let entr = decoder.updates.get(&DataLevel::L4InPayload(false)).unwrap();
         assert!(
-            entr.len() == 2,
+            entr.len() == 3,
             "Actual len: {} (value: {:?}",
             entr.len(),
             entr
@@ -821,11 +821,11 @@ mod tests {
             ptree.add_subscription(&patterns, &s.callbacks, &s.as_str);
         }
         ptree.collapse();
-        assert!(ptree.size == 4); // eth -> tls -> [MyGroup matched, matching]
-        let node1 = ptree.get_subtree(2).unwrap();
-        let node2 = ptree.get_subtree(3).unwrap();
-        assert!(node1.pred.is_matching() || node2.pred.is_matching());
-        assert!(!node1.pred.is_matching() || !node2.pred.is_matching());
+        // eth -> tls -> [MyGroup.matched -> my_cb.active] ; [MyGroup.matching]
+        assert!(ptree.size == 5, "Actual size: {} (value: {}", ptree.size, ptree);
+        let filter_matched = ptree.get_subtree(2).unwrap();
+        let filter_matching = ptree.get_subtree(4).unwrap();
+        assert!(!filter_matched.pred.is_matching() && filter_matching.pred.is_matching());
 
         let mut ptree = PTree::new_empty(DataLevel::L7EndHdrs);
         for s in &decoder.subscriptions {
