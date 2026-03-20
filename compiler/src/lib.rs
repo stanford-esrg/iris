@@ -19,15 +19,14 @@
 //!
 //! Other optional arguments:
 //! * `level`: Explicitly indicate the state transition that a function should be invoked at.
-//!    This
-//! * `parsers`: Explicitly specify session-level protocol parsers, using `&` as a separator
-//!    (e.g., "http&tls").
-//!         - Iris will infer and register protocol parsers based on data types
-//!           and filters; for example, if a function requests a TLS handshake or
-//!           filters for "tls", then Iris will register the "tls" parser.
-//!         - Developers should use this to explicitly register additional parsers.
-//!           For example, the "Session", "StateTxData", and "SessionProto" types
-//!           do not register any parsers.
+//! * `parsers`: Explicitly specify session-level protocol parsers, using `&` as a separator (e.g., "http&tls").
+//!
+//! - Iris will infer and register protocol parsers based on data types
+//!   and filters; for example, if a function requests a TLS handshake or
+//!   filters for "tls", then Iris will register the "tls" parser.
+//! - Developers should use this to explicitly register additional parsers.
+//!   For example, the "Session", "StateTxData", and "SessionProto" types
+//!   do not register any parsers.
 //!
 //! ## Return values
 //!

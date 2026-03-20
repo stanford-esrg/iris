@@ -87,8 +87,7 @@ pub(crate) fn set_input_files(fps: Vec<&str>) {
 }
 
 fn parse_filepath(fp: &str) -> String {
-    if fp.starts_with("$") {
-        let env_var = &fp[1..];
+    if let Some(env_var) = fp.strip_prefix("$") {
         let (home, path) = env_var
             .split_once('/')
             .map(|(v, r)| (v, Some(r)))

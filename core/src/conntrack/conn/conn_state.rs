@@ -1,5 +1,4 @@
-#![doc(hidden)]
-/// Internal management for per-connection state machines.
+///! Management for per-connection state machines.
 use serde::{Deserialize, Serialize};
 use std::{cmp::Ordering, str::FromStr};
 use strum::IntoEnumIterator;
@@ -10,6 +9,7 @@ use crate::{
     protocols::{stream::SessionProto, Session},
 };
 
+#[doc(hidden)]
 /// Current state of the Layer in per-connection state machine.
 /// Based on what it has seen so far in the connection.
 #[derive(PartialEq, Eq, Debug, Copy, Clone, Ord, PartialOrd, Hash, EnumIter)]
@@ -29,8 +29,8 @@ pub enum LayerState {
 }
 
 /// The possible state transitions that a data type, filter, or callback
-/// can be associated with.
-/// NOTE: for the same layer, enums must be listed in order.
+/// (function and/or struct) can be associated with.
+/// Developers should refer to these in macros.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, EnumIter, Serialize, Deserialize,
 )]
@@ -86,10 +86,12 @@ impl std::fmt::Display for StateTransition {
 
 // https://doc.rust-lang.org/reference/items/enumerations.html#casting
 impl StateTransition {
+    #[doc(hidden)]
     pub fn as_usize(&self) -> usize {
-        self.raw() as usize
+        *self as u8 as usize
     }
 
+    #[doc(hidden)]
     pub fn from_usize(i: usize) -> Self {
         for level in StateTransition::iter() {
             if level.as_usize() == i {
@@ -99,10 +101,7 @@ impl StateTransition {
         panic!("Cannot build StateTransition from {}", i);
     }
 
-    pub fn raw(&self) -> u8 {
-        unsafe { *(self as *const Self as *const u8) }
-    }
-
+    #[doc(hidden)]
     pub fn name(&self) -> &str {
         match self {
             StateTransition::L4FirstPacket => "L4FirstPacket",
@@ -117,14 +116,17 @@ impl StateTransition {
         }
     }
 
+    #[doc(hidden)]
     pub fn in_transport(&self) -> bool {
         self.name().contains("L4")
     }
 
+    #[doc(hidden)]
     pub fn is_streaming(&self) -> bool {
         self.name().contains("In")
     }
 
+    #[doc(hidden)]
     pub fn layer_idx(&self) -> Option<usize> {
         if self.name().contains("L7") {
             return Some(0);
@@ -134,6 +136,7 @@ impl StateTransition {
 
     /// Returns Greater if self > Other, Less if self < Other, Equal if self == Other,
     /// and Unknown if the two cannot be compared (different layers).
+    #[doc(hidden)]
     pub fn compare(&self, other: &StateTransition) -> StateTxOrd {
         if self == other {
             return StateTxOrd::Equal;
@@ -188,12 +191,21 @@ impl StateTransition {
     }
 }
 
+/// Ordering of State Transitions in connection processing lifetime.
+/// Used to insert filter predicates in trees.
+/// Note: within a Layer, the StateTransitions have to be listed in order.
+#[doc(hidden)]
 #[derive(Debug, Eq, PartialEq)]
 pub enum StateTxOrd {
+    /// No ordering guaranteed (e.g., L4InPayload + L7OnDisc)
     Unknown,
+    /// Not applicable
     Any,
+    /// `self` > `other`
     Greater,
+    /// `self` < `other`
     Less,
+    /// `self`` == `other`
     Equal,
 }
 
@@ -214,8 +226,8 @@ impl StateTxOrd {
 /// Number of variants; used to size the `refresh_at` array
 pub(crate) const NUM_STATE_TRANSITIONS: usize = 8;
 
-/// State Transitions with associated data, used as wrappers for users to subscribe to
-/// TODO which mod should these live in...
+/// State Transitions with associated data,
+/// used as wrappers for users to request as a parameter to a function.
 #[derive(Debug)]
 pub enum StateTxData<'a> {
     L4EndHshk,
@@ -226,6 +238,7 @@ pub enum StateTxData<'a> {
 }
 
 impl<'a> StateTxData<'a> {
+    #[doc(hidden)]
     pub fn from_tx(state: &StateTransition, layer: &'a Layer) -> Self {
         match layer {
             Layer::L7(layer) => match state {
@@ -253,6 +266,7 @@ impl<'a> StateTxData<'a> {
     }
 }
 
+#[doc(hidden)]
 impl FromStr for StateTransition {
     type Err = String;
     fn from_str(s: &str) -> Result<Self, String> {
