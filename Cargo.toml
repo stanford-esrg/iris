@@ -11,6 +11,7 @@ members = [
     "examples/combined",
     "examples/websites",
     "tests/functionality/basic_test",
+    "tests/functionality/basic_streaming",
 ]
 resolver = "2"
 
