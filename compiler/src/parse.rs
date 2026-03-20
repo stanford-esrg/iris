@@ -513,7 +513,6 @@ impl InputKeys {
             })
             .collect();
         let mut ret = Self::default();
-        let mut reassembled = false;
         for (k, v) in parsed {
             let k = k.to_lowercase();
             if k.is_empty() {
@@ -539,9 +538,6 @@ impl InputKeys {
                         StateTransition::from_str(l.trim()).expect("`level` key without values"),
                     );
                 }
-            } else if k.contains("reassembled") {
-                reassembled = bool::from_str(&v)
-                    .unwrap_or_else(|_| panic!("{}", ParserError::InvalidValue(k, v)));
             } else if k.contains("name") {
                 assert!(
                     ret.first.is_none(),
@@ -569,13 +565,6 @@ impl InputKeys {
         }
         ret.levels.sort();
         ret.levels.dedup();
-        if reassembled {
-            for l in &mut ret.levels {
-                if matches!(l, StateTransition::InL4Conn) {
-                    *l = StateTransition::InL4Stream;
-                }
-            }
-        }
 
         Ok(ret)
     }
@@ -584,7 +573,6 @@ impl InputKeys {
         filter.contains("filter=")
             || filter.contains("group=")
             || filter.contains("level=")
-            || filter.contains("reassembled=")
             || filter.contains("name=")
             || filter.contains("parsers=")
     }

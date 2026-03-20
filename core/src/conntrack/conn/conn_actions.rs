@@ -9,10 +9,13 @@ pub enum Actions {
     /// to users' subscribed datatype(s).
     Update,
     /// Indicates that some Layer-specific stateful parsing is required.
-    /// For L4, this is TCP reassembly. For L6/L7, this indicates a
-    /// stateful application-layer protocol parser should be invoked.
+    /// For L4, this means that some subscription requires reassembled updates
+    /// (separate from protocol parsing, which is handled by PassThrough).
+    /// For L6/L7, this indicates a stateful application-layer protocol
+    /// parser should be invoked.
     Parse,
     /// Indicates that some child layer(s) require actions.
+    /// For TCP connections, this will trigger reassembly.
     PassThrough,
     /// Track the connection, updating with state transitions.
     Track,

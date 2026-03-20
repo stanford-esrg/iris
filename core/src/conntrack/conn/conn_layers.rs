@@ -58,11 +58,6 @@ pub(crate) trait TrackableLayer {
     /// TCP reassemly is expected if applicable.
     fn needs_stream(&self) -> bool;
 
-    /// "State" that should be passed into an `update` function.
-    /// May have two if the PDU includes data from, e.g., both header and payload.
-    /// Should be called AFTER process_stream.
-    fn needs_update_at(&self, pdu: &L4Pdu) -> [StateTransition; 2];
-
     /// Used to remove any actions that are invalid at this layer.
     /// For example: an L4 Update may trigger an L7 "parse" action, which
     /// would be invalid once in payload if another session is not expected.
@@ -152,12 +147,6 @@ impl TrackableLayer for Layer {
     fn needs_stream(&self) -> bool {
         match self {
             Layer::L7(session) => session.needs_stream(),
-        }
-    }
-
-    fn needs_update_at(&self, pdu: &L4Pdu) -> [StateTransition; 2] {
-        match self {
-            Layer::L7(session) => session.needs_update_at(pdu),
         }
     }
 
@@ -271,17 +260,6 @@ impl TrackableLayer for L7Session {
 
     fn needs_stream(&self) -> bool {
         self.linfo.actions.needs_parse()
-    }
-
-    fn needs_update_at(&self, pdu: &L4Pdu) -> [StateTransition; 2] {
-        match self.linfo.state {
-            LayerState::None | LayerState::Discovery => [StateTransition::Packet; 2],
-            LayerState::Headers => [StateTransition::L7InHdrs, StateTransition::Packet],
-            LayerState::Payload => match pdu.app_body_offset() {
-                Some(_) => [StateTransition::L7InHdrs, StateTransition::Packet],
-                None => [StateTransition::Packet; 2], // None
-            },
-        }
     }
 
     /// If some subscription is waiting for sessions, drain

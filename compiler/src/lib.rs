@@ -28,9 +28,6 @@
 //!         - Developers should use this to explicitly register additional parsers.
 //!           For example, the "Session", "StateTxData", and "SessionProto" types
 //!           do not register any parsers.
-//! * `reassembled`: Explicitly request that a function receive data after reassembly.
-//!   By default, functions that request data in a streaming state (L4Conn) receive
-//!   these updates before TCP reassembly.
 //!
 //! ## Return values
 //!

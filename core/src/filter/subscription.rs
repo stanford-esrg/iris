@@ -347,8 +347,7 @@ impl StateTransitionSpec {
                     actions.push_action(a);
                 }
                 StateTransition::InL4Stream => {
-                    // Same as InL4Conn, but also requires TCP reassembly parsing.
-                    a.transport.active |= Actions::Update;
+                    // For L4, `Actions::Parse` indicates update post-reassembly
                     a.transport.active |= Actions::Parse;
                     actions.push_action(a);
                 }

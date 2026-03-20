@@ -105,14 +105,8 @@ where
                     return;
                 }
                 let dir = conn.packet_dir(&ctxt);
-                let pdu = L4Pdu::new(
-                    mbuf,
-                    ctxt,
-                    dir,
-                    conn.last_seen_ts,
-                    conn.flow_len(dir),
-                    conn.total_len(),
-                );
+                let pdu = L4Pdu::new(mbuf, ctxt, dir, conn.last_seen_ts);
+
                 // Consume PDU for update, reassembly, and/or parsing
                 conn.update(pdu, subscription, &self.registry);
 
@@ -137,7 +131,7 @@ where
             }
             RawEntryMut::Vacant(_) => {
                 if self.size() < self.config.max_connections {
-                    let mut pdu = L4Pdu::new(mbuf, ctxt, true, Instant::now(), Some(0), Some(0));
+                    let mut pdu = L4Pdu::new(mbuf, ctxt, true, Instant::now());
                     let conn = match ctxt.proto {
                         TCP_PROTOCOL => Conn::<T>::new_tcp(
                             self.config.tcp_establish_timeout,
@@ -145,24 +139,24 @@ where
                             &pdu,
                             self.core_id,
                         ),
-                        UDP_PROTOCOL => {
-                            pdu.flow_ord = None;
-                            pdu.conn_ord = None;
-                            Conn::<T>::new_udp(
-                                self.config.udp_inactivity_timeout,
-                                &pdu,
-                                self.core_id,
-                            )
-                        }
+                        UDP_PROTOCOL => Conn::<T>::new_udp(
+                            self.config.udp_inactivity_timeout,
+                            &pdu,
+                            self.core_id,
+                        ),
                         _ => Err(anyhow!("Invalid L4 Protocol")),
                     };
                     if let Ok(mut conn) = conn {
                         conn.info.filter_first_packet(subscription);
+                        // Pre-reassembly update
+                        if conn.info.needs_update() {
+                            conn.info.new_packet(&pdu, subscription);
+                        }
+                        // Post-reassembly update
                         if conn.info.needs_reassembly() {
+                            pdu.ctxt.reassembled = true;
                             conn.info
                                 .consume_stream(&mut pdu, subscription, &self.registry);
-                        } else {
-                            conn.info.new_packet(&pdu, subscription);
                         }
                         if !conn.remove_from_table() {
                             self.timerwheel.insert(

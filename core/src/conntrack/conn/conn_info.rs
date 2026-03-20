@@ -62,16 +62,18 @@ where
     }
 
     /// Update tracked data when new packet is observed.
-    /// For TCP connections, this is invoked either pre-reassembly OR post-
-    /// reassembly (not both). The L4Pdu will be marked with the `reassembled`
-    /// flag if it has passed through the TCP reassembly module.
+    /// This is invoked up to twice:
+    /// - InL4Conn (pre-reassembly, if applicable) by `conn`
+    /// - InL4Stream (post-reassembly, if applicable) by `consume_stream`
     pub(crate) fn new_packet(&mut self, pdu: &L4Pdu, subscription: &Subscription<T::Subscribed>) {
+        let mut needs_update = self.linfo.actions.needs_update();
         let tx = if pdu.ctxt.reassembled {
+            needs_update = self.linfo.actions.needs_parse();
             StateTransition::InL4Stream
         } else {
             StateTransition::InL4Conn
         };
-        if self.linfo.actions.needs_update() && subscription.update(self, pdu, tx) {
+        if needs_update && subscription.update(self, pdu, tx) {
             self.exec_state_tx(tx, subscription);
         }
     }
@@ -100,19 +102,7 @@ where
             }
         }
 
-        // Update if needed (can be in payload)
-        if self.layers[0].layer_info().actions.needs_update() {
-            for update in self.layers[0].needs_update_at(pdu) {
-                if subscription.update(self, pdu, update) {
-                    self.exec_state_tx(update, subscription);
-                }
-            }
-        }
-
-        // Update tracked data
-        // This should happen after after stream processing so that `update`
-        // functions see the most up-to-date connection data (e.g.,
-        // parsed sessions).
+        // Update tracked data post-reassembly if needed
         self.new_packet(pdu, subscription);
     }
 
@@ -177,5 +167,9 @@ where
 
     pub(crate) fn needs_reassembly(&self) -> bool {
         self.linfo.actions.needs_parse() || self.layers.iter().any(|l| l.needs_stream())
+    }
+
+    pub(crate) fn needs_update(&self) -> bool {
+        self.linfo.actions.needs_update()
     }
 }

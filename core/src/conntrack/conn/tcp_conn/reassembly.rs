@@ -107,7 +107,6 @@ impl TcpFlow {
                     next_seq
                 );
                 segment.mark_no_payload();
-                info.new_packet(&segment, subscription);
                 drop(segment);
             }
         } else {
@@ -270,7 +269,6 @@ impl OutOfOrderBuffer {
                 } else {
                     log::debug!("Dropping old segment during flush.");
                     segment.mark_no_payload();
-                    info.new_packet(&segment, subscription);
                     drop(segment);
                     index += 1;
                 }

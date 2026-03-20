@@ -26,30 +26,15 @@ pub struct L4Pdu {
     pub dir: bool,
     /// Time observed from timerwheel.
     pub ts: Instant,
-    /// Order received in unidirectional flow (i.e., packets in connection
-    /// with same `dir`). None for UDP.
-    pub flow_ord: Option<usize>,
-    /// Order received in connection (bidirectional).
-    /// None for UDP
-    pub conn_ord: Option<usize>,
 }
 
 impl L4Pdu {
-    pub(crate) fn new(
-        mbuf: Mbuf,
-        ctxt: L4Context,
-        dir: bool,
-        ts: Instant,
-        flow_ord: Option<usize>,
-        conn_ord: Option<usize>,
-    ) -> Self {
+    pub(crate) fn new(mbuf: Mbuf, ctxt: L4Context, dir: bool, ts: Instant) -> Self {
         L4Pdu {
             mbuf,
             ctxt,
             dir,
             ts,
-            flow_ord,
-            conn_ord,
         }
     }
 

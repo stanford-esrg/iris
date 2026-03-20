@@ -97,6 +97,7 @@ where
         })
     }
 
+    #[allow(dead_code)]
     pub(super) fn flow_len(&self, dir: bool) -> Option<usize> {
         match &self.l4conn {
             L4Conn::Tcp(tcp_conn) => Some(tcp_conn.flow_len(dir)),
@@ -104,6 +105,7 @@ where
         }
     }
 
+    #[allow(dead_code)]
     pub(super) fn total_len(&self) -> Option<usize> {
         match &self.l4conn {
             L4Conn::Tcp(tcp_conn) => Some(tcp_conn.total_len()),
@@ -118,13 +120,14 @@ where
         subscription: &Subscription<T::Subscribed>,
         registry: &ParserRegistry,
     ) {
+        // Pre-reassembly update
+        if self.info.linfo.actions.needs_update() {
+            self.info.new_packet(&pdu, subscription);
+        }
+
         // Case 1: no need to pass through parsing/reassembly infrastructure,
-        // but still may need update and still need to track for termination.
+        // but still may need to track for termination.
         if !self.info.needs_reassembly() {
-            // Update without reassembly
-            if self.info.linfo.actions.needs_update() {
-                self.info.new_packet(&pdu, subscription);
-            }
             self.update_tcp_flags(pdu.flags(), pdu.dir);
             return;
         }

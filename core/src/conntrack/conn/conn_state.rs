@@ -173,9 +173,13 @@ impl StateTransition {
         }
 
         // Streaming states throughout connection
-        if matches!(self, StateTransition::InL4Conn | StateTransition::InL4Stream) ||
-           matches!(self, StateTransition::InL4Stream | StateTransition::InL4Conn)
-        {
+        if matches!(
+            self,
+            StateTransition::InL4Conn | StateTransition::InL4Stream
+        ) || matches!(
+            self,
+            StateTransition::InL4Stream | StateTransition::InL4Conn
+        ) {
             return StateTxOrd::Unknown;
         }
 

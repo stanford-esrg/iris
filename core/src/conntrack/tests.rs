@@ -20,7 +20,6 @@ impl Subscribable for TestSubscribable {
 
 pub(crate) struct TestTrackable {
     pub(crate) invoked: [usize; NUM_STATE_TRANSITIONS],
-    pub(crate) state_tx: [usize; NUM_STATE_TRANSITIONS],
     pub(crate) packets: Vec<Mbuf>,
     pub(crate) core_id: CoreId,
 }
@@ -31,7 +30,6 @@ impl Trackable for TestTrackable {
     fn new(_first_pkt: &L4Pdu, core_id: CoreId) -> Self {
         Self {
             invoked: [0; NUM_STATE_TRANSITIONS],
-            state_tx: [0; NUM_STATE_TRANSITIONS],
             packets: vec![],
             core_id,
         }
@@ -60,14 +58,20 @@ fn filter() -> FilterFactory<TestTrackable> {
     }
     fn state_tx(conn: &mut ConnInfo<TestTrackable>, tx: &StateTransition) {
         if matches!(tx, StateTransition::L4FirstPacket) {
-            conn.linfo.actions.active |= Actions::Update;
-            conn.linfo.actions.active |= Actions::PassThrough;
-            conn.layers[0].layer_info_mut().actions.active |= Actions::Update;
+            conn.linfo.actions.active |= Actions::Update; // "update" pre-reassembly
+            conn.linfo.actions.active |= Actions::Parse; // "update" post-reassembly
+            conn.linfo.actions.active |= Actions::PassThrough; // next layer
+            conn.linfo.actions.refresh_at[StateTransition::L4Terminated.as_usize()] |=
+                conn.linfo.actions.active;
+            conn.layers[0].layer_info_mut().actions.active |= Actions::Parse; // protocol parsing
+            conn.layers[0].layer_info_mut().actions.refresh_at
+                [StateTransition::L7OnDisc.as_usize()] |= Actions::Parse;
         }
+        conn.tracked.invoked[tx.as_usize()] += 1;
     }
     fn update(conn: &mut ConnInfo<TestTrackable>, _pdu: &L4Pdu, state: StateTransition) -> bool {
         conn.tracked.invoked[state.as_usize()] += 1;
-        conn.tracked.invoked[state.as_usize()] % 2 == 0
+        true
     }
     FilterFactory::new("", packet_filter, state_tx, update)
 }
@@ -141,17 +145,18 @@ fn core_state_tx() {
             .expect("Connection should exist");
         let info = &entry.info;
         assert!(
-            info.linfo.state == LayerState::Payload,
-            "ConnTracker should be in InL4Conn state after SYN packet."
+            info.linfo.state == LayerState::Headers,
+            "ConnTracker should be in `headers` (pre-handshake) after SYN packet. In: {:?}",
+            info.linfo.state
         );
         assert!(
-            info.linfo.actions.active == Actions::Update | Actions::PassThrough,
-            "ConnTracker should have Update and PassThrough actions after first_packet filter."
+            info.linfo.actions.active == Actions::Update | Actions::PassThrough | Actions::Parse,
+            "ConnTracker has incorrect actions actions after first_packet filter."
         );
         let l7 = match info.layers.get(0).unwrap() {
             Layer::L7(layer) => layer,
         };
-        assert!(l7.linfo.actions.active == Actions::Update);
+        assert!(l7.linfo.actions.active == Actions::Parse);
     }
 
     // Process duplicate packet
@@ -164,13 +169,22 @@ fn core_state_tx() {
             .expect("Connection should exist");
         let info = &entry.info;
         assert!(
-            info.tracked.invoked[StateTransition::InL4Stream.as_usize()] == 2,
-            "Tracked should have invoked InL4Stream after duplicate SYN packet."
+            info.tracked.invoked[StateTransition::InL4Conn.as_usize()] == 2,
+            "Tracked should invoke InL4Conn twice on duplicate SYN packet."
         );
         assert!(
-            info.linfo.actions.active == Actions::Update | Actions::PassThrough,
+            info.tracked.invoked[StateTransition::InL4Stream.as_usize()] == 1,
+            "Tracked should invoke InL4Stream once on duplicate SYN packet (invoked: {}).",
+            info.tracked.invoked[StateTransition::InL4Stream.as_usize()]
+        );
+        assert!(
+            info.linfo.actions.active == Actions::Update | Actions::PassThrough | Actions::Parse,
             "ConnTracker should have Update and PassThrough actions after InUpdate filter."
         );
+        let l7 = match info.layers.get(0).unwrap() {
+            Layer::L7(layer) => layer,
+        };
+        assert!(l7.linfo.actions.active == Actions::Parse);
     }
 
     // Process new packet - make parser fail to match
@@ -184,14 +198,20 @@ fn core_state_tx() {
             .get(&conn_id)
             .expect("Connection should exist");
         let info = &entry.info;
-        assert!(info.tracked.invoked[StateTransition::InL4Stream.as_usize()] == 3);
+        assert!(
+            info.tracked.invoked[StateTransition::InL4Stream.as_usize()] == 2,
+            "InL4Stream invoked: {}",
+            info.tracked.invoked[StateTransition::InL4Stream.as_usize()]
+        );
+        assert!(info.tracked.invoked[StateTransition::InL4Conn.as_usize()] == 3);
         let l7 = match info.layers.get(0).unwrap() {
             Layer::L7(layer) => layer,
         };
         assert!(l7.linfo.drop()); // Parser should have failed to match
         assert!(
-            info.tracked.state_tx[StateTransition::L7OnDisc.as_usize()] == 1,
-            "Tracked should have state tx after parser failure."
+            info.tracked.invoked[StateTransition::L7OnDisc.as_usize()] == 1,
+            "Invoked: {:?}",
+            info.tracked.invoked
         );
         // 3 packets observed total
         assert!(
