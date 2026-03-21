@@ -53,8 +53,6 @@ pub enum StateTransition {
 
     /// On L7 protocol identification
     L7OnDisc,
-    /// Streaming in L7 headers
-    L7InHdrs,
     /// On L6/L7 headers parsed
     L7EndHdrs,
     /// L4 connection terminated by FIN/ACK sequence or timeout
@@ -110,7 +108,6 @@ impl StateTransition {
             StateTransition::InL4Stream => "InL4Stream",
             StateTransition::L4Terminated => "L4Terminated",
             StateTransition::L7OnDisc => "L7OnDisc",
-            StateTransition::L7InHdrs => "L7InHdrs",
             StateTransition::L7EndHdrs => "L7EndHdrs",
             StateTransition::Packet => "L4Pdu",
         }
@@ -143,11 +140,7 @@ impl StateTransition {
         }
         // L4Pdu is any
         if matches!(self, StateTransition::Packet) || matches!(other, StateTransition::Packet) {
-            if self != other {
-                return StateTxOrd::Any;
-            } else {
-                return StateTxOrd::Equal;
-            };
+            return StateTxOrd::Any;
         }
 
         // End of connection is always greatest
@@ -161,6 +154,17 @@ impl StateTransition {
             || matches!(other, StateTransition::L4FirstPacket)
         {
             return StateTxOrd::from_ord(self.cmp(other));
+        }
+
+        // TCP handshake must complete before anything
+        // that requires data from both endpoints
+        if matches!(self, StateTransition::L4EndHshk) || matches!(other, StateTransition::L4EndHshk)
+        {
+            if matches!(self, StateTransition::L7EndHdrs)
+                || matches!(other, StateTransition::L7EndHdrs)
+            {
+                return StateTxOrd::from_ord(self.cmp(other));
+            }
         }
 
         // Different layers
@@ -230,10 +234,8 @@ pub(crate) const NUM_STATE_TRANSITIONS: usize = 8;
 /// used as wrappers for users to request as a parameter to a function.
 #[derive(Debug)]
 pub enum StateTxData<'a> {
-    L4EndHshk,
     L7OnDisc(SessionProto),
     L7EndHdrs(&'a Session),
-    L4Terminated,
     Null,
 }
 
@@ -242,12 +244,10 @@ impl<'a> StateTxData<'a> {
     pub fn from_tx(state: &StateTransition, layer: &'a Layer) -> Self {
         match layer {
             Layer::L7(layer) => match state {
-                StateTransition::L4EndHshk => Self::L4EndHshk,
                 StateTransition::L7OnDisc => Self::L7OnDisc(layer.get_protocol()),
                 StateTransition::L7EndHdrs => {
                     Self::L7EndHdrs(layer.sessions.last().expect("L7EndHdrs without session"))
                 }
-                StateTransition::L4Terminated => Self::L4Terminated,
                 _ => Self::Null,
             },
         }
@@ -257,10 +257,8 @@ impl<'a> StateTxData<'a> {
     #[allow(dead_code)]
     pub(crate) fn as_usize(&self) -> usize {
         match self {
-            StateTxData::L4EndHshk => StateTransition::L4EndHshk.as_usize(),
             StateTxData::L7OnDisc(_) => StateTransition::L7OnDisc.as_usize(),
             StateTxData::L7EndHdrs(_) => StateTransition::L7EndHdrs.as_usize(),
-            StateTxData::L4Terminated => StateTransition::L4Terminated.as_usize(),
             StateTxData::Null => panic!("Invalid StateTxData"),
         }
     }
@@ -279,7 +277,6 @@ impl FromStr for StateTransition {
             "InL4Conn(reassemble)" => Ok(StateTransition::InL4Stream),
             "L4Terminated" => Ok(StateTransition::L4Terminated),
             "L7OnDisc" => Ok(StateTransition::L7OnDisc),
-            "L7InHdrs" => Ok(StateTransition::L7InHdrs),
             "L7EndHdrs" => Ok(StateTransition::L7EndHdrs),
             "Packet" => Ok(StateTransition::Packet),
             _ => Err(format!("Invalid StateTransition: {}", s)),

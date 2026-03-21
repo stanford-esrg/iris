@@ -370,38 +370,6 @@ impl StateTransitionSpec {
                         }
                     }
                 }
-                StateTransition::L7InHdrs => {
-                    match cmp {
-                        StateTxOrd::Greater | StateTxOrd::Any => continue,
-                        StateTxOrd::Equal | StateTxOrd::Less | StateTxOrd::Unknown => {
-                            // Must pass to L7 and parse
-                            // - If before protocol discovery: to get to start of L7 headers
-                            // - If at or in headers: to update and (eventually) identify end of headers
-                            a.transport.active |= Actions::PassThrough;
-                            a.transport.refresh_at[StateTransition::L7EndHdrs.as_usize()] |=
-                                Actions::PassThrough;
-                            // Parse to get to end of headers
-                            if matches!(cmp, StateTxOrd::Less | StateTxOrd::Equal) {
-                                a.layers[l7_idx].active |= Actions::Parse;
-                                a.layers[l7_idx].refresh_at
-                                    [StateTransition::L7EndHdrs.as_usize()] |= Actions::Parse;
-                            }
-                            // Update at start of and in headers
-                            if matches!(
-                                filter_layer,
-                                StateTransition::L7OnDisc | StateTransition::L7InHdrs
-                            ) {
-                                a.layers[l7_idx].active |= Actions::Update;
-                                a.layers[l7_idx].refresh_at
-                                    [StateTransition::L7EndHdrs.as_usize()] |= Actions::Update;
-                            }
-                            if matches!(cmp, StateTxOrd::Unknown) {
-                                a.if_matches = Some((SupportedLayer::L7, LayerState::Headers));
-                            }
-                            actions.push_action(a);
-                        }
-                    }
-                }
                 StateTransition::L7EndHdrs => match cmp {
                     StateTxOrd::Equal | StateTxOrd::Greater | StateTxOrd::Any => continue,
                     StateTxOrd::Less | StateTxOrd::Unknown => {
