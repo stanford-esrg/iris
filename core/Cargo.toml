@@ -56,6 +56,7 @@ aes-gcm = "0.10.3"
 memchr = "2.7.4"
 crossbeam = "0.8"
 nix = { version = "0.30", features = ["sched", "process"] }
+bitvec = "1.0.1"
 
 # Statistics
 tokio = { version = "1.42.0", features = ["full"] }

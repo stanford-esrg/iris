@@ -1,15 +1,18 @@
-use crate::L4Pdu;
+use crate::{L4Pdu, StateTransition};
+use bitvec::{array::BitArray, order::Lsb0};
 use quote::quote;
 
 /// Interface for datatypes that must be "tracked" throughout
 /// all or part of a connection.
+/// Datatypes tagged with "track" must implement this trait.
 ///
-/// The datatype can optionally be tagged as #[expensive], which
+/// Each tracked datatype can optionally be tagged as "track", which
 /// indicates that the runtime should track which subscriptions require
 /// it and drop the Tracked data if all of those subscriptions go out
 /// of scope. This may limit how much the compiler can optimize the
 /// filter predicates, but it is generally valuable if the datatype is memory-
-/// or computationally-intensive (e.g., a list of packets).
+/// or computationally-intensive (e.g., a list of packets) and is only needed
+/// for a small subset of connections.
 pub trait Tracked {
     /// Initialize internal data. Invoked on first PDU in connection.
     /// Note that this first PDU will also be received in `update`.
@@ -30,6 +33,7 @@ pub type FilterStr<'a> = &'a str;
 pub trait StringToTokens {
     fn from_string(filter: &str) -> proc_macro2::TokenStream;
 }
+
 impl StringToTokens for FilterStr<'_> {
     /// Convert a filter string into a token representation at compile-time.
     #[doc(hidden)]
@@ -39,9 +43,21 @@ impl StringToTokens for FilterStr<'_> {
     }
 }
 
+type RefreshAtState = BitArray<[u8; 1], Lsb0>;
+
+#[derive(Debug)]
+#[doc(hidden)]
+pub enum DatatypeState {
+    /// Should be updated
+    Active,
+    /// Pending (in state transition)
+    Pending,
+    /// No longer active at all
+    Inactive,
+}
+
 /// If a datatype is specified as "expensive", it is wrapped in this
 /// so that we can track when it's still needed by active subscriptions.
-/// TODO need to redo this; currently dead code.
 #[doc(hidden)]
 pub struct TrackedDataWrapper<T>
 where
@@ -49,9 +65,56 @@ where
 {
     /// The wrapped tracked data.
     pub data: T,
-    /// Has terminally matched some subscription; continue
-    /// tracking until the datatype has reached its ending point.
-    pub term: bool,
-    /// Count of subscriptions that have matched non-terminally.
-    pub nonterm: Option<u32>,
+    /// Whether and until when to continue updating.
+    state: DatatypeState,
+    /// States to "refresh at"
+    refresh_at: RefreshAtState,
+}
+
+impl<T> TrackedDataWrapper<T>
+where
+    T: Tracked + std::fmt::Debug,
+{
+    pub fn new(pdu: &L4Pdu) -> Self {
+        Self {
+            data: T::new(pdu),
+            state: DatatypeState::Active,
+            refresh_at: BitArray::ZERO,
+        }
+    }
+
+    pub fn start_state_tx(&mut self, tx: &StateTransition) {
+        if matches!(self.state, DatatypeState::Active) &&
+           self.refresh_at[tx.as_usize()]
+        {
+            self.state = DatatypeState::Pending;
+        }
+    }
+
+    pub fn set_match_until(&mut self, txs: usize) {
+        self.state = DatatypeState::Active;
+        self.refresh_at.as_raw_mut_slice()[0] |= txs as u8;
+    }
+
+    pub fn is_active(&self) -> bool {
+        matches!(self.state, DatatypeState::Active)
+    }
+
+    pub fn end_state_tx(&mut self) {
+        if matches!(self.state, DatatypeState::Pending) {
+            self.data.clear();
+            self.state = DatatypeState::Inactive;
+            self.refresh_at.fill(false);
+        }
+    }
+}
+
+mod tests {
+    #[test]
+    fn test_num_state_tx() {
+        assert!(
+            crate::conntrack::conn::conn_state::NUM_STATE_TRANSITIONS <=
+            u8::BITS as usize
+        );
+    }
 }
