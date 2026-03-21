@@ -99,6 +99,9 @@ pub enum Predicate {
         levels: Vec<Vec<StateTransition>>,
         /// Predicate for `partial match` (Continue) or `matched` (Accept)
         matched: bool,
+        /// Filter function may be associated with "expensive" datatypes that
+        /// need to be tracked in PTrees.
+        filtered_data: Vec<String>,
     },
     /// Streaming callback, which may need to be checked for "unsubscribe"
     /// to determine Actions. This will only be used in filter sub-trees.

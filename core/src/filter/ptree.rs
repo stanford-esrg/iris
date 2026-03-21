@@ -541,6 +541,7 @@ impl PTree {
                 self.add_pattern_int(pattern_ref, action, callback, truncated);
             }
         }
+
         if !contains_nonterminal && (!full_pattern_added || node_actions.actions.is_empty()) {
             for callback in callbacks {
                 let level =
@@ -659,9 +660,13 @@ impl PTree {
             self.matched.insert(callback.clone());
         }
         node.actions.merge(actions);
-        node.datatypes.extend(callback.tracked_data.iter().cloned());
+        node.datatypes
+            .extend(callback.filtered_data.iter().cloned());
+        node.datatypes
+            .extend(pattern.get_filtered_datatypes().into_iter());
         self.actions.push_action(actions.clone());
-        self.datatypes.extend(callback.tracked_data.iter().cloned());
+        self.datatypes
+            .extend(callback.filtered_data.iter().cloned());
     }
 
     // modified from https://vallentin.dev/2019/05/14/pretty-print-tree
@@ -1034,7 +1039,7 @@ mod tests {
             invoke_once: false,
             as_str: "basic_tls".into(),
             subscription_id: String::new(),
-            tracked_data: vec![],
+            filtered_data: vec![],
         }];
     }
 
@@ -1098,6 +1103,7 @@ mod tests {
             name: filterfunc!("my_filter"),
             levels: vec![vec![StateTransition::InL4Conn]],
             matched: true,
+            filtered_data: vec![],
         }];
         static ref SESS_RECORD_DATATYPE: StateTransitionSpec = StateTransitionSpec {
             updates: vec![StateTransition::InL4Conn, StateTransition::L7EndHdrs],
@@ -1110,7 +1116,7 @@ mod tests {
             invoke_once: false,
             as_str: "basic_streaming".into(),
             subscription_id: String::new(),
-            tracked_data: vec![],
+            filtered_data: vec![],
         }];
     }
 
@@ -1155,7 +1161,7 @@ mod tests {
             invoke_once: false,
             as_str: "basic_static".into(),
             subscription_id: String::new(),
-            tracked_data: vec![],
+            filtered_data: vec![],
         }];
     }
 
@@ -1223,6 +1229,7 @@ mod tests {
                 vec![StateTransition::L7EndHdrs]
             ],
             matched: true,
+            filtered_data: vec![],
         }];
         static ref CUSTOM_FILTERS_GROUPED_TERM: Vec<Predicate> = vec![Predicate::Custom {
             name: filterfunc!("GroupedFil"),
@@ -1231,6 +1238,7 @@ mod tests {
                 vec![StateTransition::L4Terminated]
             ],
             matched: true,
+            filtered_data: vec![],
         }];
         static ref TERM_SUB: Vec<CallbackSpec> = vec![CallbackSpec {
             expl_level: Some(StateTransition::L4Terminated),
@@ -1239,7 +1247,7 @@ mod tests {
             invoke_once: false,
             as_str: "basic_term".into(),
             subscription_id: String::new(),
-            tracked_data: vec![],
+            filtered_data: vec![],
         }];
     }
 
@@ -1281,7 +1289,7 @@ mod tests {
             invoke_once: false,
             as_str: "term_streaming".into(),
             subscription_id: String::new(),
-            tracked_data: vec![],
+            filtered_data: vec![],
         }];
     }
 
@@ -1324,7 +1332,7 @@ mod tests {
             invoke_once: false,
             as_str: "callback".into(),
             subscription_id: "callback".into(),
-            tracked_data: vec![],
+            filtered_data: vec![],
         }];
     }
 

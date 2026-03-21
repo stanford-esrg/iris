@@ -166,6 +166,7 @@ impl FilterParser {
                         name: filterfunc!(predicate.name()),
                         levels: vec![], // Temp value; will be filled in later.
                         matched: true,  // Temp
+                        filtered_data: vec![], // Temp
                     })]),
                 }
             }

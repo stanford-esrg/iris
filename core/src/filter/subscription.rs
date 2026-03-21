@@ -81,6 +81,7 @@ impl DataActions {
             name,
             levels,
             matched,
+            filtered_data: _,
         } = pred
         {
             assert!(!*matched);
@@ -430,7 +431,7 @@ pub struct CallbackSpec {
     /// Used to indicate that a tree should track the match state of the
     /// datatype in order to `clear` it if it goes out of scope.
     /// This may limit filter optimizations.
-    pub tracked_data: Vec<String>,
+    pub filtered_data: Vec<String>,
 }
 
 impl Hash for CallbackSpec {

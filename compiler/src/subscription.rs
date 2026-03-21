@@ -17,31 +17,37 @@ lazy_static! {
             name: "L4Pdu".into(),
             level: Some(StateTransition::Packet),
             expl_parsers: vec![],
+            filtered: false,
         }),
         ParsedInput::Datatype(DatatypeSpec {
             name: "FilterStr".into(),
             level: Some(StateTransition::Packet),
             expl_parsers: vec![],
+            filtered: false,
         }),
         ParsedInput::Datatype(DatatypeSpec {
             name: "StateTxData".into(),
             level: Some(StateTransition::Packet),
             expl_parsers: vec![], // Must be provided by application
+            filtered: false,
         }),
         ParsedInput::Datatype(DatatypeSpec {
             name: "Session".into(),
             level: Some(StateTransition::L7EndHdrs),
             expl_parsers: vec![], // Must be provided by application
+            filtered: false,
         }),
         ParsedInput::Datatype(DatatypeSpec {
             name: "SessionProto".into(),
             level: Some(StateTransition::L7OnDisc),
             expl_parsers: vec![], // Must be provided by application
+            filtered: false,
         }),
         ParsedInput::Datatype(DatatypeSpec {
             name: "CoreId".into(),
             level: Some(StateTransition::Packet),
             expl_parsers: vec![],
+            filtered: false,
         }),
         // TODO StateTx (without data?)
     ];
@@ -122,6 +128,10 @@ pub(crate) struct SubscriptionDecoder {
     /// Datatype name -> Datatype Spec with all updates
     /// Used to derive levels for callbacks and custom filters
     pub(crate) datatypes: HashMap<String, StateTransitionSpec>,
+    /// Datatypes marked explicitly as `tracked`; these are wrapped at runtime
+    /// to discard if the associated subscriptions go out of scope, under the assumption
+    /// that they are computationally and/or memory intensive.
+    pub(crate) filtered_datatypes: HashSet<String>,
     /// Full subscriptions
     pub(crate) subscriptions: Vec<SubscriptionSpec>,
 
@@ -141,6 +151,7 @@ impl SubscriptionDecoder {
             parsers: HashSet::new(),
             custom_preds: Vec::new(),
             datatypes: HashMap::new(),
+            filtered_datatypes: HashSet::new(),
             subscriptions: Vec::new(),
             updates: HashMap::new(),
             tracked: HashSet::new(),
@@ -219,6 +230,12 @@ impl SubscriptionDecoder {
                 updates: inp.iter().cloned().flat_map(|l| l.levels()).collect(),
             };
             self.datatypes.insert(dt.clone(), spec);
+            if inp.iter().any(|i| match i {
+                ParsedInput::Datatype(d) => d.filtered,
+                _ => false,
+            }) {
+                self.filtered_datatypes.insert(dt.clone());
+            }
         }
     }
 
@@ -239,6 +256,7 @@ impl SubscriptionDecoder {
             // TODO this breaks if filter is trying to
             // request multiple datatypes like a callback
             let mut levels = vec![];
+            let mut filtered_data = vec![];
             for inp in v {
                 let mut lvls = vec![];
                 // Levels of the datatypes in the function(s)
@@ -266,11 +284,30 @@ impl SubscriptionDecoder {
                 if !lvls.is_empty() {
                     levels.push(lvls);
                 }
+                // Filtered ("expensive") datatypes that require tracking in PTree
+                match inp {
+                    ParsedInput::Filter(f) => {
+                        filtered_data.extend(
+                            f.func.datatypes.iter().filter(|dt| {
+                                self.filtered_datatypes.contains(*dt)
+                            }).cloned(),
+                        );
+                    }
+                    ParsedInput::FilterGroupFn(f) => {
+                        filtered_data.extend(
+                            f.func.datatypes.iter().filter(|dt| {
+                                self.filtered_datatypes.contains(*dt)
+                            }).cloned(),
+                        );
+                    }
+                    _ => continue,
+                }
             }
             self.custom_preds.push(Predicate::Custom {
                 name: FuncIdent(name.clone()),
                 levels,
                 matched: true,
+                filtered_data,
             });
         }
     }
@@ -344,6 +381,12 @@ impl SubscriptionDecoder {
                     .clone()
             })
             .collect::<Vec<_>>();
+        let filtered_data = spec
+            .datatypes
+            .iter()
+            .filter(|dt| self.filtered_datatypes.contains(*dt))
+            .cloned()
+            .collect::<Vec<_>>();
         if datatypes
             .iter()
             .any(|dt| dt.updates.iter().any(|l| l.is_streaming()))
@@ -361,7 +404,7 @@ impl SubscriptionDecoder {
             invoke_once: false, // Filled in when patterns are built
             as_str,
             subscription_id,
-            tracked_data: vec![],
+            filtered_data,
         }
     }
 
@@ -756,16 +799,19 @@ mod tests {
                 level: Some(StateTransition::Packet),
                 name: "L4Pdu".into(),
                 expl_parsers: vec![],
+                filtered: false,
             }),
             ParsedInput::Datatype(DatatypeSpec {
                 level: Some(StateTransition::L7EndHdrs),
                 name: "TlsHandshake".into(),
                 expl_parsers: vec![],
+                filtered: false,
             }),
             ParsedInput::Datatype(DatatypeSpec {
                 level: None,
                 name: "ConnRecord".into(),
                 expl_parsers: vec![],
+                filtered: false,
             }),
             ParsedInput::DatatypeFn(DatatypeFnSpec {
                 group_name: "ConnRecord".into(),

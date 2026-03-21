@@ -84,9 +84,7 @@ where
     }
 
     pub fn start_state_tx(&mut self, tx: &StateTransition) {
-        if matches!(self.state, DatatypeState::Active) &&
-           self.refresh_at[tx.as_usize()]
-        {
+        if matches!(self.state, DatatypeState::Active) && self.refresh_at[tx.as_usize()] {
             self.state = DatatypeState::Pending;
         }
     }
@@ -112,9 +110,6 @@ where
 mod tests {
     #[test]
     fn test_num_state_tx() {
-        assert!(
-            crate::conntrack::conn::conn_state::NUM_STATE_TRANSITIONS <=
-            u8::BITS as usize
-        );
+        assert!(crate::conntrack::conn::conn_state::NUM_STATE_TRANSITIONS <= u8::BITS as usize);
     }
 }

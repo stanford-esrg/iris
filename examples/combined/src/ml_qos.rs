@@ -180,7 +180,6 @@ impl Tracked for FeatureChunk {
 }
 
 impl FeatureChunk {
-
     #[cfg_attr(
         not(feature = "skip_expand"),
         datatype_fn("FeatureChunk,level=InL4Conn")

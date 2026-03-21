@@ -261,15 +261,15 @@ impl FlatPattern {
         all_patterns
     }
 
-    // `true` if this filter contains a custom filter that may not have
-    // fully matched
+    /// `true` if this filter contains a custom filter that may not have
+    /// fully matched
     pub(super) fn contains_nonterminal(&self) -> bool {
         self.predicates
             .iter()
             .any(|p| p.is_custom() && p.is_matching())
     }
 
-    // This layer is the first time that this could match
+    /// This layer is the first time that this could match
     pub(super) fn is_first_match(&self, filter_layer: &StateTransition) -> bool {
         for pred in self.predicates.iter().rev() {
             let levels = pred.levels();
@@ -292,12 +292,27 @@ impl FlatPattern {
         false
     }
 
-    // Get datatypes from the pattern in order to build up `actions`
-    // Note: this skips filter predicates that have already matched
+    /// Get datatypes from the pattern in order to build up `actions`
+    /// Note: this skips filter predicates that have already matched
     pub(super) fn get_datatypes(&self) -> Vec<StateTransitionSpec> {
         self.predicates
             .iter()
             .filter_map(StateTransitionSpec::from_pred)
+            .collect()
+    }
+
+    /// Get explicitly-tracked and filtered datatypes
+    pub(super) fn get_filtered_datatypes(&self) -> HashSet<String> {
+        self.predicates
+            .iter()
+            .filter_map(|p| {
+                if let Predicate::Custom { filtered_data, .. } = p {
+                    Some(filtered_data.clone())
+                } else {
+                    None
+                }
+            })
+            .flatten()
             .collect()
     }
 
@@ -529,6 +544,7 @@ mod tests {
             name: filterfunc!("my_filter"),
             levels: vec![vec![StateTransition::InL4Conn]],
             matched: true,
+            filtered_data: vec![],
         }];
     }
 
