@@ -103,6 +103,16 @@ impl PktStream for BidirPktStream {
     }
 }
 
+impl BidirPktStream {
+    #[cfg_attr(
+        not(feature = "skip_expand"),
+        datatype_fn("BidirPktStream,level=InL4Conn")
+    )]
+    pub fn update(&mut self, pdu: &L4Pdu) {
+        self.push(pdu);
+    }
+}
+
 impl Tracked for BidirPktStream {
     fn new(_first_pkt: &L4Pdu) -> Self {
         Self {
@@ -110,16 +120,6 @@ impl Tracked for BidirPktStream {
             mbufs: Vec::new(),
         }
     }
-
-    #[cfg_attr(
-        not(feature = "skip_expand"),
-        datatype_fn("BidirPktStream,level=InL4Conn")
-    )]
-    fn update(&mut self, pdu: &L4Pdu) {
-        self.push(pdu);
-    }
-
-    fn phase_tx(&mut self, _: &iris_core::StateTxData) {}
 
     fn clear(&mut self) {
         self.packets.clear();
@@ -154,6 +154,18 @@ impl PktStream for OrigPktStream {
     }
 }
 
+impl OrigPktStream {
+    #[cfg_attr(
+        not(feature = "skip_expand"),
+        datatype_fn("OrigPktStream,level=InL4Conn")
+    )]
+    pub fn update(&mut self, pdu: &L4Pdu) {
+        if pdu.dir {
+            self.push(pdu);
+        }
+    }
+}
+
 impl Tracked for OrigPktStream {
     fn new(_first_pkt: &L4Pdu) -> Self {
         Self {
@@ -162,22 +174,10 @@ impl Tracked for OrigPktStream {
         }
     }
 
-    #[cfg_attr(
-        not(feature = "skip_expand"),
-        datatype_fn("OrigPktStream,level=InL4Conn")
-    )]
-    fn update(&mut self, pdu: &L4Pdu) {
-        if pdu.dir {
-            self.push(pdu);
-        }
-    }
-
     fn clear(&mut self) {
         self.packets.clear();
         self.mbufs.clear();
     }
-
-    fn phase_tx(&mut self, _: &iris_core::StateTxData) {}
 }
 
 /// For a connection, a responder's (unidirectional) stream of packets
@@ -208,6 +208,20 @@ impl PktStream for RespPktStream {
     }
 }
 
+impl RespPktStream {
+    #[cfg_attr(
+        not(feature = "skip_expand"),
+        datatype_fn("RespPktStream,level=InL4Conn")
+    )]
+    pub fn update(&mut self, pdu: &L4Pdu) {
+        if !pdu.dir {
+            self.push(pdu);
+        }
+    }
+
+    pub fn phase_tx(&mut self, _: &iris_core::StateTxData) {}
+}
+
 impl Tracked for RespPktStream {
     fn new(_first_pkt: &L4Pdu) -> Self {
         Self {
@@ -216,20 +230,8 @@ impl Tracked for RespPktStream {
         }
     }
 
-    #[cfg_attr(
-        not(feature = "skip_expand"),
-        datatype_fn("RespPktStream,level=InL4Conn")
-    )]
-    fn update(&mut self, pdu: &L4Pdu) {
-        if !pdu.dir {
-            self.push(pdu);
-        }
-    }
-
     fn clear(&mut self) {
         self.packets.clear();
         self.mbufs.clear();
     }
-
-    fn phase_tx(&mut self, _: &iris_core::StateTxData) {}
 }

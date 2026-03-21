@@ -3,7 +3,6 @@ use iris_compiler::{callback, datatype, datatype_fn, input_files, iris_end_macro
 use iris_core::protocols::packet::tcp::TCP_PROTOCOL;
 use iris_core::protocols::stream::SessionProto;
 use iris_core::subscription::Tracked;
-use iris_core::StateTxData;
 use iris_core::{config::load_config, L4Pdu, Runtime};
 use std::path::PathBuf;
 use std::sync::atomic::AtomicUsize;
@@ -79,13 +78,9 @@ struct FirstPayloadPkt {
     pub(crate) payload: Option<Vec<u8>>,
 }
 
-impl Tracked for FirstPayloadPkt {
-    fn new(_first_pkt: &L4Pdu) -> Self {
-        Self { payload: None }
-    }
-
+impl FirstPayloadPkt {
     #[datatype_fn("FirstPayloadPkt,level=InL4Conn")]
-    fn update(&mut self, pdu: &L4Pdu) {
+    pub fn update(&mut self, pdu: &L4Pdu) {
         // Tracking TCP packets only
         if pdu.ctxt.proto != TCP_PROTOCOL {
             return;
@@ -104,8 +99,12 @@ impl Tracked for FirstPayloadPkt {
             self.payload = Some(data.to_vec());
         }
     }
+}
 
-    fn phase_tx(&mut self, _tx: &StateTxData) {}
+impl Tracked for FirstPayloadPkt {
+    fn new(_first_pkt: &L4Pdu) -> Self {
+        Self { payload: None }
+    }
 
     fn clear(&mut self) {
         self.payload = None;

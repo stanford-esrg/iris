@@ -85,18 +85,19 @@ impl Tracked for FeatureChunk {
         self.last_10_avg_seg_size = 0.0;
         self.welford_seg_size_last_10 = Welford::<f64>::new();
     }
+}
 
-    fn phase_tx(&mut self, _tx: &StateTxData) {}
+impl FeatureChunk {
+    pub fn phase_tx(&mut self, _tx: &StateTxData) {}
+
     #[cfg_attr(
         not(feature = "skip_expand"),
         datatype_fn("FeatureChunk,level=InL4Conn")
     )]
-    fn update(&mut self, pdu: &L4Pdu) {
+    pub fn update(&mut self, pdu: &L4Pdu) {
         self.new_packet(pdu);
     }
-}
 
-impl FeatureChunk {
     pub fn new_packet(&mut self, pdu: &L4Pdu) {
         // Wait until after initial handshake
         // if !self.start {

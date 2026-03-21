@@ -1,7 +1,6 @@
 use clap::Parser;
 use iris_compiler::*;
 use iris_core::subscription::{FilterResult, StreamingCallback, StreamingFilter};
-use iris_core::StateTxData;
 use iris_core::{config::load_config, L4Pdu, Runtime};
 use iris_datatypes::{ConnRecord, PktCount, TlsHandshake};
 use std::path::PathBuf;
@@ -120,8 +119,7 @@ impl TlsCbStreaming {
     }
 
     #[callback_fn("TlsCbStreaming,level=L7EndHdrs")]
-    fn state_tx(&mut self, tx: &StateTxData) -> bool {
-        assert!(matches!(tx, StateTxData::L7EndHdrs(_)));
+    fn state_tx(&mut self) -> bool {
         self.in_payload = true;
         true
     }

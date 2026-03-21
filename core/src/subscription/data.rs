@@ -1,4 +1,3 @@
-use crate::conntrack::conn::conn_state::StateTxData;
 use crate::L4Pdu;
 use quote::quote;
 
@@ -15,13 +14,6 @@ pub trait Tracked {
     /// Initialize internal data. Invoked on first PDU in connection.
     /// Note that this first PDU will also be received in `update`.
     fn new(first_pkt: &L4Pdu) -> Self;
-    /// Invoked for each newly received PDU.
-    /// Update phases of interest must be specified as attributes, e.g.
-    /// #[invoke(InL4Conn)]
-    fn update(&mut self, pdu: &L4Pdu);
-    /// Invoked for phase transitions of interest, which must be specified
-    /// as attributes.
-    fn phase_tx(&mut self, tx: &StateTxData);
     /// Utility method to clear internal data.
     /// Recommended to implement for memory-intensive datatypes.
     fn clear(&mut self);

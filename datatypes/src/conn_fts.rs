@@ -4,7 +4,7 @@
 #[allow(unused_imports)]
 use iris_compiler::{datatype, datatype_fn};
 use iris_core::L4Pdu;
-use iris_core::{subscription::Tracked, StateTxData};
+use iris_core::subscription::Tracked;
 use serde::ser::{Serialize, SerializeSeq, SerializeStruct, Serializer};
 use std::time::{Duration, Instant};
 
@@ -42,6 +42,17 @@ impl ConnDuration {
     }
 }
 
+impl ConnDuration {
+    #[inline]
+    #[cfg_attr(
+        not(feature = "skip_expand"),
+        datatype_fn("ConnDuration,level=InL4Conn")
+    )]
+    pub fn update(&mut self, pdu: &L4Pdu) {
+        self.last_ts = pdu.ts;
+    }
+}
+
 impl Tracked for ConnDuration {
     fn new(_first_pkt: &L4Pdu) -> Self {
         let now = Instant::now();
@@ -53,18 +64,6 @@ impl Tracked for ConnDuration {
 
     #[inline]
     fn clear(&mut self) {}
-
-    #[inline]
-    #[cfg_attr(
-        not(feature = "skip_expand"),
-        datatype_fn("ConnDuration,level=InL4Conn")
-    )]
-    fn update(&mut self, pdu: &L4Pdu) {
-        self.last_ts = pdu.ts;
-    }
-
-    #[inline]
-    fn phase_tx(&mut self, _: &StateTxData) {}
 }
 
 /// The number of packets observed in a connection
@@ -89,6 +88,18 @@ impl PktCount {
     }
 }
 
+impl PktCount {
+    #[inline]
+    #[cfg_attr(not(feature = "skip_expand"), datatype_fn("PktCount,level=InL4Conn"))]
+    pub fn update(&mut self, pdu: &L4Pdu) {
+        if pdu.dir {
+            self.orig += 1;
+        } else {
+            self.resp += 1;
+        }
+    }
+}
+
 impl Tracked for PktCount {
     fn new(_first_pkt: &L4Pdu) -> Self {
         Self { orig: 0, resp: 0 }
@@ -96,19 +107,6 @@ impl Tracked for PktCount {
 
     #[inline]
     fn clear(&mut self) {}
-
-    #[inline]
-    #[cfg_attr(not(feature = "skip_expand"), datatype_fn("PktCount,level=InL4Conn"))]
-    fn update(&mut self, pdu: &L4Pdu) {
-        if pdu.dir {
-            self.orig += 1;
-        } else {
-            self.resp += 1;
-        }
-    }
-
-    #[inline]
-    fn phase_tx(&mut self, _: &StateTxData) {}
 }
 
 /// The number of bytes, excluding packet headers, in each
@@ -134,6 +132,18 @@ impl ByteCount {
     }
 }
 
+impl ByteCount {
+    #[inline]
+    #[cfg_attr(not(feature = "skip_expand"), datatype_fn("ByteCount,level=InL4Conn"))]
+    pub fn update(&mut self, pdu: &L4Pdu) {
+        if pdu.dir {
+            self.orig += pdu.length();
+        } else {
+            self.resp += pdu.length();
+        }
+    }
+}
+
 impl Tracked for ByteCount {
     fn new(_first_pkt: &L4Pdu) -> Self {
         Self { orig: 0, resp: 0 }
@@ -141,19 +151,6 @@ impl Tracked for ByteCount {
 
     #[inline]
     fn clear(&mut self) {}
-
-    #[inline]
-    #[cfg_attr(not(feature = "skip_expand"), datatype_fn("ByteCount,level=InL4Conn"))]
-    fn update(&mut self, pdu: &L4Pdu) {
-        if pdu.dir {
-            self.orig += pdu.length();
-        } else {
-            self.resp += pdu.length();
-        }
-    }
-
-    #[inline]
-    fn phase_tx(&mut self, _: &StateTxData) {}
 }
 
 /// Tracked data for packet inter-arrival times
@@ -183,23 +180,13 @@ impl InterArrivals {
     }
 }
 
-impl Tracked for InterArrivals {
-    fn new(_first_pkt: &L4Pdu) -> Self {
-        Self::new_empty()
-    }
-
-    #[inline]
-    fn clear(&mut self) {
-        self.interarrivals_ctos.clear();
-        self.interarrivals_stoc.clear();
-    }
-
+impl InterArrivals {
     #[inline]
     #[cfg_attr(
         not(feature = "skip_expand"),
         datatype_fn("InterArrivals,level=InL4Conn")
     )]
-    fn update(&mut self, pdu: &L4Pdu) {
+    pub fn update(&mut self, pdu: &L4Pdu) {
         let now = Instant::now();
         if pdu.dir {
             self.pkt_count_ctos += 1;
@@ -215,9 +202,18 @@ impl Tracked for InterArrivals {
             self.last_pkt_stoc = now;
         }
     }
+}
+
+impl Tracked for InterArrivals {
+    fn new(_first_pkt: &L4Pdu) -> Self {
+        Self::new_empty()
+    }
 
     #[inline]
-    fn phase_tx(&mut self, _: &StateTxData) {}
+    fn clear(&mut self) {
+        self.interarrivals_ctos.clear();
+        self.interarrivals_stoc.clear();
+    }
 }
 
 struct DurationVec<'a>(&'a Vec<Duration>);
@@ -269,6 +265,21 @@ pub struct ConnHistory {
     pub history: Vec<u8>,
 }
 
+impl ConnHistory {
+    #[inline]
+    #[cfg_attr(
+        not(feature = "skip_expand"),
+        datatype_fn("ConnHistory,level=InL4Conn")
+    )]
+    pub fn update(&mut self, pdu: &L4Pdu) {
+        if pdu.dir {
+            update_history(&mut self.history, pdu, 0x0);
+        } else {
+            update_history(&mut self.history, pdu, 0x20);
+        }
+    }
+}
+
 impl Tracked for ConnHistory {
     fn new(_first_pkt: &L4Pdu) -> Self {
         Self {
@@ -278,20 +289,4 @@ impl Tracked for ConnHistory {
 
     #[inline]
     fn clear(&mut self) {}
-
-    #[inline]
-    #[cfg_attr(
-        not(feature = "skip_expand"),
-        datatype_fn("ConnHistory,level=InL4Conn")
-    )]
-    fn update(&mut self, pdu: &L4Pdu) {
-        if pdu.dir {
-            update_history(&mut self.history, pdu, 0x0);
-        } else {
-            update_history(&mut self.history, pdu, 0x20);
-        }
-    }
-
-    #[inline]
-    fn phase_tx(&mut self, _: &StateTxData) {}
 }

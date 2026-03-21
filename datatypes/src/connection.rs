@@ -8,7 +8,6 @@ use iris_core::conntrack::conn_id::FiveTuple;
 use iris_core::conntrack::pdu::L4Pdu;
 use iris_core::protocols::packet::tcp::{ACK, FIN, RST, SYN};
 use iris_core::subscription::Tracked;
-use iris_core::StateTxData;
 
 use serde::ser::{SerializeStruct, Serializer};
 use serde::Serialize;
@@ -210,6 +209,15 @@ impl ConnRecord {
             self.second_seen_ts = now;
         }
     }
+
+    // TODO currently we don't guarantee reassembly order for payload
+    // packets. This either needs to be changed in the framework or
+    // handled by the datatype (if ctxt.reassembled = true, we need to
+    // handle things differently).
+    #[cfg_attr(not(feature = "skip_expand"), datatype_fn("ConnRecord,level=InL4Conn"))]
+    pub fn update(&mut self, pdu: &L4Pdu) {
+        self.update_data(pdu);
+    }
 }
 
 impl Tracked for ConnRecord {
@@ -236,17 +244,6 @@ impl Tracked for ConnRecord {
         self.resp.gaps = HashMap::with_capacity(0);
         self.history = Vec::with_capacity(0);
     }
-
-    // TODO currently we don't guarantee reassembly order for payload
-    // packets. This either needs to be changed in the framework or
-    // handled by the datatype (if ctxt.reassembled = true, we need to
-    // handle things differently).
-    #[cfg_attr(not(feature = "skip_expand"), datatype_fn("ConnRecord,level=InL4Conn"))]
-    fn update(&mut self, pdu: &L4Pdu) {
-        self.update_data(pdu);
-    }
-
-    fn phase_tx(&mut self, _: &StateTxData) {}
 }
 
 /// Default value for maximum chunk capacity.
