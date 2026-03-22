@@ -164,8 +164,8 @@ impl FilterParser {
                     })]),
                     false => Ok(vec![Node::Predicate(Predicate::Custom {
                         name: filterfunc!(predicate.name()),
-                        levels: vec![], // Temp value; will be filled in later.
-                        matched: true,  // Temp
+                        levels: vec![],        // Temp value; will be filled in later.
+                        matched: true,         // Temp
                         filtered_data: vec![], // Temp
                     })]),
                 }

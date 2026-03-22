@@ -1,9 +1,9 @@
 use core::fmt;
 use std::cmp::{Ordering, PartialOrd};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use crate::conntrack::StateTransition;
-use crate::filter::subscription::DataActions;
+use crate::filter::subscription::{DataActions, FilteredDatatype};
 
 use super::{
     ast::{Predicate, ProtocolName},
@@ -45,8 +45,7 @@ pub struct PNode {
 
     // Datatypes that remain "in scope" at this node
     // Only tracked for "expensive" datatypes
-    // TODO - this is currently dead code - not implemented yet
-    pub datatypes: HashSet<String>,
+    pub filtered_datatypes: HashMap<String, FilteredDatatype>,
 
     // Identifier
     pub id: usize,
@@ -61,7 +60,7 @@ impl PNode {
             actions: DataActions::new(),
             deliver: HashSet::new(),
             matched: HashSet::new(),
-            datatypes: HashSet::new(),
+            filtered_datatypes: HashMap::new(),
             id,
         }
     }
@@ -220,7 +219,7 @@ impl PNode {
         !self.actions.drop()
             || !self.deliver.is_empty()
             || !self.matched.is_empty()
-            || !self.datatypes.is_empty()
+            || !self.filtered_datatypes.is_empty()
     }
 
     // Populates `paths` with all root-to-leaf paths originating
@@ -253,6 +252,14 @@ impl PNode {
         other.get_paths(&mut curr, &mut peer_paths);
         peer_paths == paths
     }
+
+    pub(super) fn insert_filtered_data(&mut self, data: FilteredDatatype) {
+        if let Some(dt) = self.filtered_datatypes.get_mut(&data.name) {
+            dt.extend(&data);
+        } else {
+            self.filtered_datatypes.insert(data.name.clone(), data);
+        }
+    }
 }
 
 impl fmt::Display for PNode {
@@ -265,9 +272,17 @@ impl fmt::Display for PNode {
         active.sort_unstable();
         let active_s = active.join(",");
 
-        let mut data: Vec<&str> = self.datatypes.iter().map(|d| d.as_str()).collect();
-        data.sort_unstable();
-        let data_s = data.join(",");
+        let mut data_pairs: Vec<_> = self
+            .filtered_datatypes
+            .iter()
+            .map(|(name, dt)| (name.as_str(), dt))
+            .collect();
+        data_pairs.sort_by_key(|(name, _)| *name);
+        let data_s = data_pairs
+            .into_iter()
+            .map(|(_, dt)| dt.to_string())
+            .collect::<Vec<_>>()
+            .join(",");
 
         let actions_s = if self.actions.drop() {
             String::new()
@@ -320,7 +335,7 @@ impl PartialEq for PNode {
             && self.actions == other.actions
             && self.deliver == other.deliver
             && self.matched == other.matched
-            && self.datatypes == other.datatypes
+            && self.filtered_datatypes == other.filtered_datatypes
     }
 }
 
@@ -398,7 +413,7 @@ pub struct PTree {
     pub actions: NodeActions,
     pub deliver: HashSet<CallbackSpec>,
     pub matched: HashSet<CallbackSpec>,
-    pub datatypes: HashSet<String>,
+    pub filtered_datatypes: HashSet<String>,
 }
 
 impl PTree {
@@ -411,7 +426,7 @@ impl PTree {
             actions: NodeActions::new(filter_layer),
             deliver: HashSet::new(),
             matched: HashSet::new(),
-            datatypes: HashSet::new(),
+            filtered_datatypes: HashSet::new(),
         }
     }
 
@@ -660,13 +675,23 @@ impl PTree {
             self.matched.insert(callback.clone());
         }
         node.actions.merge(actions);
-        node.datatypes
-            .extend(callback.filtered_data.iter().cloned());
-        node.datatypes
-            .extend(pattern.get_filtered_datatypes().into_iter());
+        let filtered_data_names: Vec<String> = pattern
+            .get_filtered_data()
+            .iter()
+            .chain(callback.filtered_data.iter())
+            .cloned()
+            .collect();
+
+        if !filtered_data_names.is_empty() {
+            self.filtered_datatypes
+                .extend(filtered_data_names.iter().cloned());
+            for dt in filtered_data_names {
+                let data = FilteredDatatype::new(dt.clone(), actions.refresh_at());
+                node.insert_filtered_data(data);
+            }
+        }
+
         self.actions.push_action(actions.clone());
-        self.datatypes
-            .extend(callback.filtered_data.iter().cloned());
     }
 
     // modified from https://vallentin.dev/2019/05/14/pretty-print-tree
@@ -1355,5 +1380,58 @@ mod tests {
         // that's not ipv4 -> tcp would have been filtered out at the previous stage.
         assert!(tree.size == 1);
         assert!(tree.root.matched.len() == 1);
+    }
+
+    lazy_static! {
+        static ref TERM_SUB_STREAM_DATA: Vec<CallbackSpec> = vec![CallbackSpec {
+            expl_level: Some(StateTransition::L4Terminated),
+            datatypes: vec![SESS_RECORD_DATATYPE.clone()],
+            must_deliver: false,
+            invoke_once: false,
+            as_str: "term_streaming".into(),
+            subscription_id: String::new(),
+            filtered_data: vec!["ConnAndSession".into()],
+        }];
+    }
+
+    #[test]
+    fn test_ptree_filtered_dts() {
+        let filter = Filter::new("ipv4 and tls", &CUSTOM_FILTERS_GROUPED_TERM).unwrap();
+        let patterns = filter.get_patterns_flat();
+        let mut tree = PTree::new_empty(StateTransition::L7OnDisc);
+        tree.add_subscription(
+            &patterns,
+            &TERM_SUB_STREAM_DATA,
+            &TERM_SUB_STREAM_DATA[0].as_str,
+        );
+        tree.collapse();
+        assert!(tree.filtered_datatypes.contains("ConnAndSession"));
+        let filtered_dts = &tree.get_subtree(1).unwrap().filtered_datatypes;
+        let value = filtered_dts
+            .get("ConnAndSession")
+            .expect("ConnAndSession not present");
+        assert!(
+            value.refresh_at.contains(&StateTransition::L4Terminated)
+                && value.refresh_at.contains(&StateTransition::L7EndHdrs),
+            "Actual refresh_at: {:?}",
+            value.refresh_at
+        );
+
+        let mut tree = PTree::new_empty(StateTransition::L7EndHdrs);
+        tree.add_subscription(
+            &patterns,
+            &TERM_SUB_STREAM_DATA,
+            &TERM_SUB_STREAM_DATA[0].as_str,
+        );
+        tree.collapse();
+        let filtered_dts = &tree.get_subtree(1).unwrap().filtered_datatypes;
+        let value = filtered_dts
+            .get("ConnAndSession")
+            .expect("ConnAndSession not present");
+        assert!(
+            value.refresh_at.contains(&StateTransition::L4Terminated),
+            "Actual refresh_at: {:?}",
+            value.refresh_at
+        );
     }
 }

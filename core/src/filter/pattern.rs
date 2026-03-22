@@ -302,8 +302,9 @@ impl FlatPattern {
     }
 
     /// Get explicitly-tracked and filtered datatypes
-    pub(super) fn get_filtered_datatypes(&self) -> HashSet<String> {
-        self.predicates
+    pub(super) fn get_filtered_data(&self) -> Vec<String> {
+        let mut ret: Vec<String> = self
+            .predicates
             .iter()
             .filter_map(|p| {
                 if let Predicate::Custom { filtered_data, .. } = p {
@@ -313,7 +314,10 @@ impl FlatPattern {
                 }
             })
             .flatten()
-            .collect()
+            .collect();
+        ret.sort();
+        ret.dedup();
+        ret
     }
 
     pub(super) fn with_l7_state(&self) -> Self {

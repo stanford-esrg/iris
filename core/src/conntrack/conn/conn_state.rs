@@ -228,7 +228,7 @@ impl StateTxOrd {
 /// a streaming callback or filter changed match state (i.e.,
 /// was and is no longer active).
 /// Number of variants; used to size the `refresh_at` array
-pub(crate) const NUM_STATE_TRANSITIONS: usize = 8;
+pub(crate) const NUM_STATE_TRANSITIONS: usize = 7;
 
 /// State Transitions with associated data,
 /// used as wrappers for users to request as a parameter to a function.
@@ -290,6 +290,12 @@ mod tests {
 
     #[test]
     fn test_data_level_raw() {
-        assert_eq!(StateTransition::Packet.as_usize(), NUM_STATE_TRANSITIONS);
+        assert_eq!(
+            StateTransition::Packet.as_usize(),
+            NUM_STATE_TRANSITIONS,
+            "{} != {}",
+            StateTransition::Packet.as_usize(),
+            NUM_STATE_TRANSITIONS
+        );
     }
 }

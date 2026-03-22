@@ -288,16 +288,20 @@ impl SubscriptionDecoder {
                 match inp {
                     ParsedInput::Filter(f) => {
                         filtered_data.extend(
-                            f.func.datatypes.iter().filter(|dt| {
-                                self.filtered_datatypes.contains(*dt)
-                            }).cloned(),
+                            f.func
+                                .datatypes
+                                .iter()
+                                .filter(|dt| self.filtered_datatypes.contains(*dt))
+                                .cloned(),
                         );
                     }
                     ParsedInput::FilterGroupFn(f) => {
                         filtered_data.extend(
-                            f.func.datatypes.iter().filter(|dt| {
-                                self.filtered_datatypes.contains(*dt)
-                            }).cloned(),
+                            f.func
+                                .datatypes
+                                .iter()
+                                .filter(|dt| self.filtered_datatypes.contains(*dt))
+                                .cloned(),
                         );
                     }
                     _ => continue,

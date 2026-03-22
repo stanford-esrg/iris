@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 
 use crate::conntrack::conn::conn_layers::{SupportedLayer, NUM_LAYERS};
-use crate::conntrack::conn::conn_state::StateTxOrd;
+use crate::conntrack::conn::conn_state::{StateTxOrd, NUM_STATE_TRANSITIONS};
 use crate::conntrack::{Actions, LayerState, StateTransition, TrackedActions};
 
 use super::ast::Predicate;
@@ -109,6 +109,19 @@ impl DataActions {
             return DataActions::new();
         }
         panic!("From_stream_pred called on {:?}", pred);
+    }
+
+    pub(crate) fn refresh_at(&self) -> Vec<StateTransition> {
+        let mut ret: Vec<StateTransition> = (0..NUM_STATE_TRANSITIONS)
+            .filter(|&i| {
+                self.transport.refresh_at[i] != 0
+                    || self.layers.iter().any(|layer| layer.refresh_at[i] != 0)
+            })
+            .map(StateTransition::from_usize)
+            .collect();
+        ret.sort();
+        ret.dedup();
+        ret
     }
 
     // --PSEUDOCODE-- for what the actual code will look like
@@ -573,6 +586,50 @@ impl SubscriptionLevel {
         for d in pred {
             self.filter_preds.insert(*d);
         }
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub struct FilteredDatatype {
+    pub name: String,
+    pub refresh_at: Vec<StateTransition>,
+}
+
+impl std::fmt::Display for FilteredDatatype {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.refresh_at.is_empty() {
+            return write!(f, "{}", self.name);
+        }
+        let state_tx_list = self
+            .refresh_at
+            .iter()
+            .map(|tx| tx.to_string())
+            .collect::<Vec<_>>()
+            .join(",");
+        write!(f, "{}->({})", self.name, state_tx_list)
+    }
+}
+
+impl FilteredDatatype {
+    pub fn new(name: String, mut refresh_at: Vec<StateTransition>) -> Self {
+        refresh_at.sort_by_key(|tx| tx.as_usize());
+        refresh_at.dedup();
+        Self { name, refresh_at }
+    }
+
+    pub fn extend(&mut self, other: &FilteredDatatype) {
+        assert!(self.name == other.name);
+        self.refresh_at.extend(other.refresh_at.iter().cloned());
+        self.refresh_at.sort_by_key(|tx| tx.as_usize());
+        self.refresh_at.dedup();
+    }
+}
+
+impl Hash for FilteredDatatype {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        assert!(self.refresh_at.is_sorted());
+        self.name.hash(state);
+        self.refresh_at.hash(state);
     }
 }
 
