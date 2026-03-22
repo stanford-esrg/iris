@@ -89,9 +89,9 @@ where
         }
     }
 
-    pub fn set_match_until(&mut self, txs: usize) {
+    pub fn set_active_until(&mut self, txs: u8) {
         self.state = DatatypeState::Active;
-        self.refresh_at.as_raw_mut_slice()[0] |= txs as u8;
+        self.refresh_at.as_raw_mut_slice()[0] |= txs;
     }
 
     pub fn is_active(&self) -> bool {
@@ -99,6 +99,7 @@ where
     }
 
     pub fn end_state_tx(&mut self) {
+        // Was not set to be "active"
         if matches!(self.state, DatatypeState::Pending) {
             self.data.clear();
             self.state = DatatypeState::Inactive;

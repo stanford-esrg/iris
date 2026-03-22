@@ -640,7 +640,7 @@ impl SubscriptionDecoder {
                 }
                 ParsedInput::Datatype(group) => {
                     return Some(TrackedType {
-                        kind: TrackedKind::Datatype,
+                        kind: TrackedKind::Datatype(group.filtered),
                         name: group.name.clone(),
                     })
                 }
@@ -732,7 +732,8 @@ pub(crate) enum TrackedKind {
     StaticCallback,
     StreamFilter,
     StatelessFilter,
-    Datatype,
+    // True if the datatype is filtered (requires tracking in PTree)
+    Datatype(bool),
     // Stored in struct but does not require updates
     StaticData,
 }

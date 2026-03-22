@@ -305,7 +305,6 @@ impl ParsedInput {
                         }
                         match args {
                             Some(args) => {
-                                dt.filtered = args.contains("tracked");
                                 let mut keys = InputKeys::from_string(args)?;
                                 match keys.first {
                                     Some(name) => dt.name = name,
@@ -388,6 +387,16 @@ impl ParsedInput {
                         fil.expl_parsers = struct_def.1;
                     }
                     Self::Datatype(dt) => {
+                        // Handle explicitly tracked and filtered data
+                        let mut args = args.clone();
+                        if let Some(args_) = &mut args {
+                            if args_.contains("tracked") {
+                                dt.filtered = true;
+                                args = Some(args_.replace("tracked", "")
+                                    .trim()
+                                    .to_string());
+                            }
+                        }
                         let struct_def = InputKeys::struct_def(args, &name)?;
                         dt.level = struct_def.0;
                         dt.name = name;
@@ -580,7 +589,6 @@ impl InputKeys {
             || input.contains("level=")
             || input.contains("name=")
             || input.contains("parsers=")
-            || input.contains("tracked")
     }
 
     fn parse_filters_from_file(filter: &String) -> Result<String> {
@@ -670,6 +678,7 @@ impl InputKeys {
     ) -> Result<(Option<StateTransition>, Vec<String>)> {
         let mut ret = (None, Vec::new());
         if let Some(args) = args {
+            if args.is_empty() { return Ok(ret); }
             let mut keys = InputKeys::from_string(args)?;
             if let Some(l) = keys.first {
                 let level = match StateTransition::from_str(&l) {

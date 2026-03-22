@@ -6,7 +6,7 @@ use iris_core::conntrack::{
 };
 use iris_core::filter::{
     ast::{BinOp, FieldName, ProtocolName, Value},
-    subscription::{CallbackSpec, DataActions},
+    subscription::{CallbackSpec, DataActions, FilteredDatatype},
 };
 use proc_macro2::{Ident, Span};
 use quote::quote;
@@ -14,6 +14,7 @@ use quote::quote;
 use heck::CamelCase;
 use regex::{bytes::Regex as BytesRegex, Regex};
 use std::collections::HashMap;
+use syn::LitInt;
 use syn::LitStr;
 
 pub(crate) fn cb_to_tokens(
@@ -187,7 +188,10 @@ pub(crate) fn filter_func_to_tokens(
     invoke
 }
 
-pub(crate) fn datatype_func_to_tokens(dt: &DatatypeFnSpec) -> proc_macro2::TokenStream {
+pub(crate) fn datatype_func_to_tokens(
+    dt: &DatatypeFnSpec,
+    filtered: bool,
+) -> proc_macro2::TokenStream {
     let param = dt
         .func
         .datatypes
@@ -197,7 +201,12 @@ pub(crate) fn datatype_func_to_tokens(dt: &DatatypeFnSpec) -> proc_macro2::Token
     let fname = Ident::new(&dt.func.name, Span::call_site());
     if BUILTIN_TYPES.iter().any(|inp| inp.name() == param) {
         let builtin = builtin_to_tokens(param);
-        return quote! { conn.tracked.#dt_name.#fname(#builtin); };
+        if filtered {
+            // Wrapped in `TrackedDataWrapper`
+            return quote! { conn.tracked.#dt_name.data.#fname(#builtin); };
+        } else {
+            return quote! { conn.tracked.#dt_name.#fname(#builtin); };
+        }
     }
     panic!("Unknown param for {}: {}", dt.func.name, param);
 }
@@ -224,6 +233,11 @@ pub(crate) fn params_to_tokens(
             .get(dt)
             .unwrap_or_else(|| panic!("Cannot find {} in known datatypes", dt));
         let dt_name_ident = Ident::new(&dt.to_lowercase(), Span::call_site());
+        let dt_name_ident = if sub.filtered_datatypes.contains(dt) {
+            quote! { #dt_name_ident.data }
+        } else {
+            quote! { #dt_name_ident }
+        };
 
         // Extract directly from tracked data
         if sub.tracked.iter().any(|tracked| &tracked.name == dt) {
@@ -257,7 +271,7 @@ pub(crate) fn constr_to_tokens(
     conditions: &mut Vec<proc_macro2::TokenStream>,
     cond_match: &mut Vec<proc_macro2::TokenStream>,
     params: &mut Vec<proc_macro2::TokenStream>,
-    name_ident: &Ident,
+    name_ident: &proc_macro2::TokenStream,
 ) {
     let returns = match spec.func.returns {
         FnReturn::Constructor(Constructor::Opt) => Constructor::Opt,
@@ -383,7 +397,8 @@ pub(crate) fn update_to_tokens(
                 ret.push(filter_func_to_tokens(sub, upd, curr.is_streaming()));
             }
             ParsedInput::DatatypeFn(dt) => {
-                ret.push(datatype_func_to_tokens(dt));
+                let filtered = sub.filtered_datatypes.contains(&dt.group_name);
+                ret.push(datatype_func_to_tokens(dt, filtered));
             }
             _ => panic!("Invalid input in update list: {:?}", upd),
         }
@@ -449,7 +464,12 @@ fn tracked_to_type_tokens(tracked: &TrackedType) -> proc_macro2::TokenStream {
                 iris_core::subscription::filter::StatelessFilterWrapper
             }
         }
-        TrackedKind::Datatype | TrackedKind::StaticData => quote! { #type_raw }, // No wrapper
+        TrackedKind::Datatype(true) => {
+            quote! {
+                iris_core::subscription::data::TrackedDataWrapper::<#type_raw>
+            }
+        }
+        TrackedKind::Datatype(false) | TrackedKind::StaticData => quote! { #type_raw }, // No wrapper
     }
 }
 
@@ -538,6 +558,15 @@ pub(crate) fn fil_callback_to_tokens(
     }
 
     invoke
+}
+
+pub(crate) fn filtered_dt_to_tokens(dt: &FilteredDatatype) -> proc_macro2::TokenStream {
+    let as_u8 = dt.refresh_as_u8();
+    let lit = LitInt::new(&format!("{}u8", as_u8), proc_macro2::Span::call_site());
+    let dt_ident = Ident::new(&dt.name.to_lowercase(), Span::call_site());
+    quote! {
+        conn.tracked.#dt_ident.set_active_until(#lit);
+    }
 }
 
 pub(crate) fn cb_set_active_to_tokens(spec: &CallbackSpec) -> proc_macro2::TokenStream {

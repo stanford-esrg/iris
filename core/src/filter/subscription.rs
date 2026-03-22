@@ -623,6 +623,14 @@ impl FilteredDatatype {
         self.refresh_at.sort_by_key(|tx| tx.as_usize());
         self.refresh_at.dedup();
     }
+
+    pub fn refresh_as_u8(&self) -> u8 {
+        let mut ret = 0;
+        for tx in &self.refresh_at {
+            ret |= 1 << tx.as_usize();
+        }
+        ret
+    }
 }
 
 impl Hash for FilteredDatatype {

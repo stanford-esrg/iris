@@ -64,9 +64,26 @@ pub(crate) fn gen_state_filters(
             }
         }
 
+        // Start/end for filtered/tracked data
+        let mut start_tracked = quote! {};
+        let mut end_tracked = quote! {};
+        for dt in ptree.filtered_datatypes {
+            let dt_ident = Ident::new(&dt.to_lowercase(), Span::call_site());
+            start_tracked = quote! {
+                #start_tracked
+                conn.tracked.#dt_ident.start_state_tx(&tx);
+            };
+            end_tracked = quote! {
+                #end_tracked
+                conn.tracked.#dt_ident.end_state_tx();
+            };
+        }
+
+        // Complete state transition handler
         fns.push(quote! {
             fn #fn_name(conn: &mut ConnInfo<TrackedWrapper>, tx: &StateTransition) {
                 let mut ret = false; // unused in state_tx filters
+                #start_tracked
                 let tx = iris_core::StateTxData::from_tx(tx, &conn.layers[0]);
                 // Some callbacks/filters may require immutable borrow of `conn`;
                 // it's easiest to just limit the body of the function to immutable
@@ -78,6 +95,7 @@ pub(crate) fn gen_state_filters(
                 #( #body )*
                 conn.linfo.actions.extend(&transport_actions);
                 conn.layers[0].extend_actions(&layer0_actions);
+                #end_tracked
             }
         });
     }
@@ -339,9 +357,12 @@ fn update_body(body: &mut Vec<proc_macro2::TokenStream>, node: &PNode, sub: &Sub
         let cb = fil_callback_to_tokens(sub, deliver);
         body.push(quote! { #cb });
     }
+    for (_, dt) in &node.filtered_datatypes {
+        let dt = filtered_dt_to_tokens(dt);
+        body.push(quote! { #dt });
+    }
     for matched in &node.matched {
         let cb = cb_set_active_to_tokens(matched);
         body.push(quote! { #cb });
     }
-    // TODO datatypes
 }
