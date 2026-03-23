@@ -270,15 +270,19 @@ impl TrackableLayer for L7Session {
         if !self.linfo.actions.needs_parse() {
             return None;
         }
-        if matches!(self.linfo.state, LayerState::None | LayerState::Discovery) {
+        if matches!(self.linfo.state, LayerState::None) {
             return None;
         }
-        if self.pending_sessions.is_empty() {
-            self.pending_sessions = self.parser.drain_sessions();
+        // Discovery failed
+        if matches!(self.linfo.state, LayerState::Discovery) {
+            return Some(StateTransition::L7OnDisc);
         }
+        self.pending_sessions.extend(self.parser.drain_sessions());
+        // Parsing failed
         if self.pending_sessions.is_empty() {
-            return None;
+            return Some(StateTransition::L7EndHdrs);
         }
+        // New session ready
         self.sessions.push(self.pending_sessions.pop().unwrap());
         Some(StateTransition::L7EndHdrs)
     }

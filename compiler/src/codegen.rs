@@ -203,7 +203,11 @@ pub(crate) fn datatype_func_to_tokens(
         let builtin = builtin_to_tokens(param);
         if filtered {
             // Wrapped in `TrackedDataWrapper`
-            return quote! { conn.tracked.#dt_name.data.#fname(#builtin); };
+            return quote! {
+                if conn.tracked.#dt_name.is_active() {
+                    conn.tracked.#dt_name.data.#fname(#builtin);
+                }
+            };
         } else {
             return quote! { conn.tracked.#dt_name.#fname(#builtin); };
         }

@@ -95,7 +95,9 @@ where
     }
 
     pub fn is_active(&self) -> bool {
-        matches!(self.state, DatatypeState::Active)
+        // Include `pending` so that functions can still be invoked within State TX
+        // handlers, even as data may be filtered out
+        matches!(self.state, DatatypeState::Active | DatatypeState::Pending)
     }
 
     pub fn end_state_tx(&mut self) {

@@ -121,8 +121,13 @@ where
     pub(crate) fn handle_terminate(&mut self, subscription: &Subscription<T::Subscribed>) {
         while let Some(tx) = self.layers[0].handle_terminate() {
             self.exec_state_tx(tx, subscription);
+            if self.drop() {
+                break;
+            }
         }
-        self.exec_state_tx(StateTransition::L4Terminated, subscription);
+        if !self.drop() {
+            self.exec_state_tx(StateTransition::L4Terminated, subscription);
+        }
     }
 
     /// Update subscription data and current state, including actions,
