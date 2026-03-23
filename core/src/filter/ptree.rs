@@ -810,21 +810,6 @@ impl PTree {
         mark_mutual_exclusion(&mut self.root);
     }
 
-    // After collapsing the tree, make sure node IDs and sizes are correct.
-    fn update_size(&mut self) {
-        fn count_nodes(node: &mut PNode, id: &mut usize) -> usize {
-            node.id = *id;
-            *id += 1;
-            let mut count = 1;
-            for child in &mut node.children {
-                count += count_nodes(child, id);
-            }
-            count
-        }
-        let mut id = 0;
-        self.size = count_nodes(&mut self.root, &mut id);
-    }
-
     // Removes some patterns that are covered by others
     fn prune_branches(&mut self) {
         fn prune(
@@ -832,6 +817,7 @@ impl PTree {
             on_path_actions: &DataActions,
             on_path_deliver: &HashSet<String>,
             on_path_matched: &HashSet<String>,
+            on_path_data: &HashMap<String, FilteredDatatype>,
         ) {
             // 1. Remove callbacks that would have already been invoked on this path
             let mut my_deliver = on_path_deliver.clone();
@@ -864,12 +850,39 @@ impl PTree {
             }
             node.matched = new_ids;
 
-            // 4. Repeat for each child
-            node.children
-                .iter_mut()
-                .for_each(|child| prune(child, &my_actions, &my_deliver, &my_matched));
+            // 4. ...and for filtered data
+            let mut my_filtered_data = on_path_data.clone();
+            let mut new_data = HashMap::new();
+            for (_, dt) in &node.filtered_datatypes {
+                match my_filtered_data.get(&dt.name) {
+                    Some(on_path_dt) => {
+                        // Datatype already present on path
+                        if !dt.is_contained_in(&on_path_dt) {
+                            // ...but has different `refresh_at` fields
+                            my_filtered_data.insert(dt.name.clone(), dt.clone());
+                            new_data.insert(dt.name.clone(), dt.clone());
+                        }
+                    }
+                    None => {
+                        my_filtered_data.insert(dt.name.clone(), dt.clone());
+                        new_data.insert(dt.name.clone(), dt.clone());
+                    }
+                }
+            }
+            node.filtered_datatypes = new_data;
 
-            // 5. Remove empty children
+            // 5. Repeat for each child
+            node.children.iter_mut().for_each(|child| {
+                prune(
+                    child,
+                    &my_actions,
+                    &my_deliver,
+                    &my_matched,
+                    &my_filtered_data,
+                )
+            });
+
+            // 6. Remove empty children
             let children = std::mem::take(&mut node.children);
             node.children = children
                 .into_iter()
@@ -880,11 +893,13 @@ impl PTree {
         let on_path_actions = DataActions::new();
         let on_path_deliver = HashSet::new();
         let on_path_matched = HashSet::new();
+        let on_path_data = HashMap::new();
         prune(
             &mut self.root,
             &on_path_actions,
             &on_path_deliver,
             &on_path_matched,
+            &on_path_data,
         );
     }
 
@@ -930,6 +945,8 @@ impl PTree {
                 }
                 node.actions.merge(&child.actions);
                 node.deliver.extend(child.deliver.iter().cloned());
+                node.filtered_datatypes =
+                    FilteredDatatype::concat(&node.filtered_datatypes, &child.filtered_datatypes);
                 node.matched.extend(child.matched.iter().cloned());
                 node.children = std::mem::take(&mut child.children);
             }
@@ -1003,6 +1020,52 @@ impl PTree {
         prune_redundant_branches(&mut self.root, self.filter_layer, can_prune_next);
     }
 
+    // After collapsing the tree, make sure node IDs and sizes are correct.
+    fn update_size(&mut self) {
+        fn count_nodes(node: &mut PNode, id: &mut usize) -> usize {
+            node.id = *id;
+            *id += 1;
+            let mut count = 1;
+            for child in &mut node.children {
+                count += count_nodes(child, id);
+            }
+            count
+        }
+        let mut id = 0;
+        self.size = count_nodes(&mut self.root, &mut id);
+    }
+
+    // Update tree actions, filtered datatypes, callbacks, and size based on children
+    fn update_metadata(&mut self) {
+        fn update_metadata(
+            node: &PNode,
+            actions: &mut NodeActions,
+            deliver: &mut HashSet<CallbackSpec>,
+            matched: &mut HashSet<CallbackSpec>,
+            filtered_datatypes: &mut HashSet<String>,
+        ) {
+            for child in &node.children {
+                update_metadata(child, actions, deliver, matched, filtered_datatypes);
+            }
+            actions.push_action(node.actions.clone());
+            deliver.extend(node.deliver.iter().cloned());
+            matched.extend(node.matched.iter().cloned());
+            filtered_datatypes.extend(node.filtered_datatypes.keys().cloned());
+        }
+        self.update_size();
+        self.actions = NodeActions::new(self.filter_layer);
+        self.deliver.clear();
+        self.matched.clear();
+        self.filtered_datatypes.clear();
+        update_metadata(
+            &self.root,
+            &mut self.actions,
+            &mut self.deliver,
+            &mut self.matched,
+            &mut self.filtered_datatypes,
+        );
+    }
+
     // Apply all filter tree optimizations.
     // This must only be invoked AFTER the tree is completely built.
     pub fn collapse(&mut self) {
@@ -1032,7 +1095,7 @@ impl PTree {
         self.prune_branches();
         self.sort();
         self.mark_mutual_exclusion(); // Must be last
-        self.update_size();
+        self.update_metadata();
     }
 }
 
@@ -1380,6 +1443,32 @@ mod tests {
         // that's not ipv4 -> tcp would have been filtered out at the previous stage.
         assert!(tree.size == 1);
         assert!(tree.root.matched.len() == 1);
+    }
+
+    lazy_static! {
+        static ref TERM_SUB_TRACKED: Vec<CallbackSpec> = vec![CallbackSpec {
+            expl_level: Some(StateTransition::L4Terminated),
+            datatypes: vec![StateTransitionSpec {
+                updates: vec![StateTransition::InL4Conn],
+                name: "ConnData".into(),
+            }],
+            must_deliver: false,
+            invoke_once: false,
+            as_str: "basic_term".into(),
+            subscription_id: String::new(),
+            filtered_data: vec!["ConnData".into()],
+        }];
+    }
+
+    #[test]
+    fn test_ptree_terminated() {
+        let filter = Filter::new("tls", &CUSTOM_FILTERS_GROUPED_TERM).unwrap();
+        let patterns = filter.get_patterns_flat();
+        println!("Patterns: {:?}", patterns);
+        let mut tree = PTree::new_empty(StateTransition::L4FirstPacket);
+        tree.add_subscription(&patterns, &TERM_SUB_TRACKED, &TERM_SUB_TRACKED[0].as_str);
+        tree.collapse();
+        println!("{}", tree);
     }
 
     lazy_static! {

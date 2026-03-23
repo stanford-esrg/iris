@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 
 use crate::conntrack::conn::conn_layers::{SupportedLayer, NUM_LAYERS};
@@ -630,6 +630,28 @@ impl FilteredDatatype {
             ret |= 1 << tx.as_usize();
         }
         ret
+    }
+
+    pub fn concat(
+        l: &HashMap<String, FilteredDatatype>,
+        r: &HashMap<String, FilteredDatatype>,
+    ) -> HashMap<String, FilteredDatatype> {
+        let mut ret: HashMap<String, FilteredDatatype> = HashMap::new();
+        for (k, v) in l.iter().chain(r.iter()) {
+            if let Some(existing) = ret.get_mut(k) {
+                existing.extend(v);
+            } else {
+                ret.insert(k.clone(), v.clone());
+            }
+        }
+        ret
+    }
+
+    pub fn is_contained_in(&self, other: &FilteredDatatype) -> bool {
+        assert!(self.name == other.name);
+        self.refresh_at
+            .iter()
+            .all(|tx| other.refresh_at.contains(tx))
     }
 }
 
