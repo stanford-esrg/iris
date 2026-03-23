@@ -1,8 +1,8 @@
 use super::parse::*;
 use super::subscription::*;
 use iris_core::conntrack::{
-    conn::conn_layers::SupportedLayer, conn::conn_state::LayerState, Actions, StateTransition,
-    TrackedActions,
+    Actions, StateTransition, TrackedActions, conn::conn_layers::SupportedLayer,
+    conn::conn_state::LayerState,
 };
 use iris_core::filter::{
     ast::{BinOp, FieldName, ProtocolName, Value},
@@ -12,7 +12,7 @@ use proc_macro2::{Ident, Span};
 use quote::quote;
 
 use heck::CamelCase;
-use regex::{bytes::Regex as BytesRegex, Regex};
+use regex::{Regex, bytes::Regex as BytesRegex};
 use std::collections::HashMap;
 use syn::LitInt;
 use syn::LitStr;

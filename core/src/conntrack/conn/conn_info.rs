@@ -39,7 +39,7 @@ where
     T: Trackable,
 {
     pub(super) fn new(pdu: &L4Pdu, core_id: CoreId) -> Self {
-        let five_tuple = FiveTuple::from_ctxt(pdu.ctxt);
+        let five_tuple = FiveTuple::from_ctxt(&pdu.ctxt);
         ConnInfo {
             linfo: LayerInfo {
                 state: if pdu.ctxt.proto == TCP_PROTOCOL {

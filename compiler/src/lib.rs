@@ -60,7 +60,7 @@
 use proc_macro::TokenStream;
 use quote::quote;
 use std::collections::HashMap;
-use syn::{parse_macro_input, Item};
+use syn::{Item, parse_macro_input};
 
 mod parse;
 use parse::*;

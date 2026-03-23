@@ -1,12 +1,12 @@
 use crate::parse::*;
 use iris_core::conntrack::StateTransition;
 use iris_core::filter::{
+    Filter,
     ast::{FuncIdent, Predicate},
     pattern::FlatPattern,
     pred_ptree::PredPTree,
     ptree::PTree,
     subscription::{CallbackSpec, StateTransitionSpec, SubscriptionLevel},
-    Filter,
 };
 use lazy_static::lazy_static;
 use std::collections::{HashMap, HashSet};
@@ -642,7 +642,7 @@ impl SubscriptionDecoder {
                     return Some(TrackedType {
                         kind: TrackedKind::Datatype(group.filtered),
                         name: group.name.clone(),
-                    })
+                    });
                 }
                 ParsedInput::Callback(cb) => {
                     return Some(TrackedType {
@@ -755,7 +755,7 @@ impl Hash for TrackedType {
 #[cfg(test)]
 mod tests {
     use iris_core::conntrack::StateTransition;
-    use iris_core::filter::{ptree::*, Filter};
+    use iris_core::filter::{Filter, ptree::*};
 
     use super::*;
 

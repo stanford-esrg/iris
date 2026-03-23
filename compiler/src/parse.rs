@@ -1,4 +1,4 @@
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use iris_core::conntrack::StateTransition;
 use iris_core::protocols::stream::IMPLEMENTED_PROTOCOLS;
 use quote::ToTokens;
@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 use std::io::BufRead;
 use std::str::FromStr;
 use syn::{
-    parse::{Parse, ParseStream},
     Item, ItemFn, LitStr, TypePath,
+    parse::{Parse, ParseStream},
 };
 use thiserror::Error;
 
@@ -392,9 +392,7 @@ impl ParsedInput {
                         if let Some(args_) = &mut args {
                             if args_.contains("tracked") {
                                 dt.filtered = true;
-                                args = Some(args_.replace("tracked", "")
-                                    .trim()
-                                    .to_string());
+                                args = Some(args_.replace("tracked", "").trim().to_string());
                             }
                         }
                         let struct_def = InputKeys::struct_def(args, &name)?;
@@ -678,7 +676,9 @@ impl InputKeys {
     ) -> Result<(Option<StateTransition>, Vec<String>)> {
         let mut ret = (None, Vec::new());
         if let Some(args) = args {
-            if args.is_empty() { return Ok(ret); }
+            if args.is_empty() {
+                return Ok(ret);
+            }
             let mut keys = InputKeys::from_string(args)?;
             if let Some(l) = keys.first {
                 let level = match StateTransition::from_str(&l) {
