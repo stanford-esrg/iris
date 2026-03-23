@@ -4,14 +4,14 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 use std::collections::HashMap;
-use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::{AtomicBool, AtomicUsize};
 
 use iris_compiler::{callback, callback_fn, filter, input_files, iris_end_macros};
 use iris_core::config::default_config;
 use iris_core::protocols::packet::tcp::TCP_PROTOCOL;
 use iris_core::subscription::StreamingCallback;
 use iris_core::{FiveTuple, protocols::stream::SessionProto};
-use iris_core::{L4Pdu, Runtime, StateTxData};
+use iris_core::{L4Pdu, Runtime, StateTransition, StateTxData};
 
 lazy_static::lazy_static! {
     static ref SESSIONS: Mutex<HashMap<String, (usize, Vec<FiveTuple>)>> = Mutex::new(HashMap::new());
@@ -23,6 +23,7 @@ lazy_static::lazy_static! {
     static ref SSH: Mutex<(usize, Vec<FiveTuple>)> = Mutex::new((0, vec![]));
     static ref HANDSHAKES_STRUCT: AtomicUsize = AtomicUsize::new(0);
     static ref HANDSHAKES_FN: AtomicUsize = AtomicUsize::new(0);
+    static ref STATE_TX_FN: AtomicBool = AtomicBool::new(false);
 }
 
 // Need to explicitly register parsers
@@ -91,6 +92,14 @@ impl TcpUdpCallback {
             "L4Terminated invoked (should have unsubscribed): {:?}",
             self.ft
         );
+    }
+
+    #[callback_fn("TcpUdpCallback,level=L4FirstPacket&L7EndHdrs")]
+    fn state_tx(&mut self, tx: &StateTransition) -> bool {
+        assert!(matches!(tx, StateTransition::L4FirstPacket));
+        // L7EndHdrs shouldn't have been invoked, since we unsubscribed at L7OnDisc
+        STATE_TX_FN.store(true, std::sync::atomic::Ordering::SeqCst);
+        true
     }
 }
 
@@ -194,4 +203,8 @@ fn check_outputs() {
     });
     assert!({ sessions.get("Quic").is_none() && quic.0 == 0 && quic.1.is_empty() });
     assert!({ sessions.get("Ssh").is_none() && ssh.0 == 0 && ssh.1.is_empty() });
+    assert!(
+        STATE_TX_FN.load(std::sync::atomic::Ordering::SeqCst),
+        "State transition callback not invoked"
+    );
 }

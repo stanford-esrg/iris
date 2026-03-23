@@ -338,26 +338,18 @@ impl SubscriptionDecoder {
                 match inp {
                     ParsedInput::Callback(cb) => {
                         assert!(v.len() == 1);
-                        assert!(
-                            cb.level.len() <= 1, // TODO fix this??
-                            "Cannot specify >1 explicit level per callback"
-                        );
-                        let expl_level = cb.level.last().cloned();
-                        let cb_spec = self.spec_to_cbs(
+                        self.specs_to_cb(
                             &cb.func,
-                            cb.func.name.clone(),
-                            cb.func.name.clone(),
-                            expl_level,
+                            cb_name.clone(),
+                            cb_name.clone(),
+                            &cb.level,
+                            &mut callbacks,
                         );
-                        callbacks.push(cb_spec);
                     }
                     ParsedInput::CallbackGroupFn(cb) => {
-                        // TODO fix this to allow multiple levels
-                        let expl_level = cb.level.last().cloned();
                         let sub_id = cb.group_name.clone();
                         let as_str = format!("{}::{}", sub_id, cb.func.name);
-                        let cb_spec = self.spec_to_cbs(&cb.func, as_str, sub_id, expl_level);
-                        callbacks.push(cb_spec);
+                        self.specs_to_cb(&cb.func, as_str, sub_id, &cb.level, &mut callbacks);
                     }
                     ParsedInput::CallbackGroup(_) => continue,
                     _ => panic!("Unknown ParsedInput in callback list"),
@@ -372,7 +364,33 @@ impl SubscriptionDecoder {
         }
     }
 
-    fn spec_to_cbs(
+    fn specs_to_cb(
+        &self,
+        spec: &FnSpec,
+        as_str: String,
+        subscription_id: String,
+        levels: &Vec<StateTransition>,
+        callbacks: &mut Vec<CallbackSpec>,
+    ) {
+        if levels.len() <= 1 {
+            let cb_spec =
+                self.spec_to_cbs_int(spec, as_str, subscription_id, levels.last().cloned());
+            callbacks.push(cb_spec);
+        } else {
+            // Break up into multiple callbacks for multiple different levels.
+            // REFACTOR: might be simpler in the future to change CallbackSpec to take multiple levels?
+            let mut levels = levels.clone();
+            levels.sort();
+            levels.dedup();
+            for l in levels {
+                let cb_spec =
+                    self.spec_to_cbs_int(spec, as_str.clone(), subscription_id.clone(), Some(l));
+                callbacks.push(cb_spec);
+            }
+        }
+    }
+
+    fn spec_to_cbs_int(
         &self,
         spec: &FnSpec,
         as_str: String,

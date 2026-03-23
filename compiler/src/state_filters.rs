@@ -353,6 +353,11 @@ fn update_body(body: &mut Vec<proc_macro2::TokenStream>, node: &PNode, sub: &Sub
         let actions = data_actions_to_tokens(&node.actions);
         body.push(quote! { #actions });
     }
+    for matched in &node.matched {
+        // Note: setting `matched` to active must come before `deliver`
+        let cb = cb_set_active_to_tokens(matched);
+        body.push(quote! { #cb });
+    }
     for deliver in &node.deliver {
         let cb = fil_callback_to_tokens(sub, deliver);
         body.push(quote! { #cb });
@@ -360,9 +365,5 @@ fn update_body(body: &mut Vec<proc_macro2::TokenStream>, node: &PNode, sub: &Sub
     for (_, dt) in &node.filtered_datatypes {
         let dt = filtered_dt_to_tokens(dt);
         body.push(quote! { #dt });
-    }
-    for matched in &node.matched {
-        let cb = cb_set_active_to_tokens(matched);
-        body.push(quote! { #cb });
     }
 }

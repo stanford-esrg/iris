@@ -560,8 +560,8 @@ pub(crate) fn fil_callback_to_tokens(
         group = Some(&spec.subscription_id);
     }
 
-    // Streaming CBs invoked in "update" methods only.
-    // NICE-TO-HAVE: caching past data and streaming it on first match
+    // For now, streaming CBs are invoked in "update" methods only.
+    // NICE-TO-HAVE: cache past data and stream it on first match, if applicable.
     // (In general, callback won't be invoked until filter matches)
     let mut invoke = quote! {};
     if match spec.expl_level {
@@ -571,15 +571,7 @@ pub(crate) fn fil_callback_to_tokens(
         invoke = cb_to_tokens(sub, &dts, name, group, spec.invoke_once);
     }
 
-    // "try set active" will set the CB as "matched" unless it has
-    // already unsubscribed
-    if let Some(grp) = group {
-        let wrapper = Ident::new(&grp.to_lowercase(), Span::call_site());
-        invoke = quote! {
-            conn.tracked.#wrapper.try_set_active();
-            #invoke
-        };
-    }
+    // Note: CB is set as "active" (i.e., matched) based on presence in "matched" data of PTree
 
     invoke
 }
@@ -593,12 +585,8 @@ pub(crate) fn filtered_dt_to_tokens(dt: &FilteredDatatype) -> proc_macro2::Token
     }
 }
 
-pub(crate) fn cb_set_active_to_tokens(spec: &CallbackSpec) -> proc_macro2::TokenStream {
-    assert!(
-        spec.is_streaming() || spec.subscription_id != spec.as_str,
-        "Setting CB as matched should only happen for streaming or multi-function CBs"
-    );
-    let wrapper = Ident::new(&spec.subscription_id.to_lowercase(), Span::call_site());
+pub(crate) fn cb_set_active_to_tokens(cb_group: &String) -> proc_macro2::TokenStream {
+    let wrapper = Ident::new(&cb_group.to_lowercase(), Span::call_site());
     quote! { conn.tracked.#wrapper.try_set_active(); }
 }
 

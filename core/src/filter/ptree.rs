@@ -32,16 +32,8 @@ pub struct PNode {
     // returned true.
     pub deliver: HashSet<CallbackSpec>,
 
-    // Extra tracker of subscriptions that need timers started
-    // (i.e., set_active) at this node, but cannot yet be invoked.
-    // That is, a pattern has terminally matched for a streaming
-    // subscription.
-    // TODO this is a temporary workaround. In the future, we should
-    // have a different method for CBs in this state
-    // vs. just "try_set_active" (e.g., "try_set_matched"?).
-    // We should only set_active (and the accompanying actions)
-    // for callbacks that are actually ready to be delivered
-    pub matched: HashSet<CallbackSpec>,
+    // Callback groups that should be marked "active" (filter matched).
+    pub matched: HashSet<String>,
 
     // Datatypes that remain "in scope" at this node
     // Only tracked for "expensive" datatypes
@@ -268,7 +260,7 @@ impl fmt::Display for PNode {
         invoke.sort_unstable();
         let invoke_s = invoke.join(",");
 
-        let mut active: Vec<&str> = self.matched.iter().map(|m| m.as_str.as_str()).collect();
+        let mut active: Vec<&str> = self.matched.iter().map(|m| m.as_str()).collect();
         active.sort_unstable();
         let active_s = active.join(",");
 
@@ -412,7 +404,7 @@ pub struct PTree {
     // All actions, callbacks, tracked datatypes across all nodes in the tree
     pub actions: NodeActions,
     pub deliver: HashSet<CallbackSpec>,
-    pub matched: HashSet<CallbackSpec>,
+    pub matched: HashSet<String>,
     pub filtered_datatypes: HashSet<String>,
 }
 
@@ -671,8 +663,8 @@ impl PTree {
         {
             // Can't deliver, but this might be the first time this pattern
             // has matched, so we need to mark the callback as active
-            node.matched.insert(callback.clone());
-            self.matched.insert(callback.clone());
+            node.matched.insert(callback.subscription_id.clone());
+            self.matched.insert(callback.subscription_id.clone());
         }
         node.actions.merge(actions);
         let filtered_data_names: Vec<String> = pattern
@@ -843,8 +835,8 @@ impl PTree {
             let mut my_matched = on_path_matched.clone();
             let mut new_ids = HashSet::new();
             for i in &node.matched {
-                if !my_matched.contains(&i.as_str) {
-                    my_matched.insert(i.as_str.clone());
+                if !my_matched.contains(i) {
+                    my_matched.insert(i.clone());
                     new_ids.insert(i.clone());
                 }
             }
@@ -1041,7 +1033,7 @@ impl PTree {
             node: &PNode,
             actions: &mut NodeActions,
             deliver: &mut HashSet<CallbackSpec>,
-            matched: &mut HashSet<CallbackSpec>,
+            matched: &mut HashSet<String>,
             filtered_datatypes: &mut HashSet<String>,
         ) {
             for child in &node.children {
