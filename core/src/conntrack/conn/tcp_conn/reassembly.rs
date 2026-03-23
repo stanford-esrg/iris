@@ -19,8 +19,6 @@ pub(crate) struct TcpFlow {
     pub(super) consumed_flags: u8,
     /// Out-of-order buffer
     pub(crate) ooo_buf: OutOfOrderBuffer,
-    /// Is this the flow originator ("client")
-    pub(crate) orig: bool,
     /// Number observed (not necessarily reassembled) packets
     pub(crate) observed: usize,
 }
@@ -34,7 +32,6 @@ impl TcpFlow {
             last_ack: None,
             consumed_flags: 0,
             ooo_buf: OutOfOrderBuffer::new(capacity),
-            orig: false,
             observed: 0,
         }
     }
@@ -42,13 +39,12 @@ impl TcpFlow {
     /// Creates a new TCP flow with given next sequence number, flags,
     /// and out-of-order buffer
     #[inline]
-    pub(super) fn new(capacity: usize, next_seq: u32, flags: u8, ack: u32, orig: bool) -> Self {
+    pub(super) fn new(capacity: usize, next_seq: u32, flags: u8, ack: u32) -> Self {
         TcpFlow {
             next_seq: Some(next_seq),
             last_ack: Some(ack),
             consumed_flags: flags,
             ooo_buf: OutOfOrderBuffer::new(capacity),
-            orig,
             observed: 1,
         }
     }
@@ -82,9 +78,6 @@ impl TcpFlow {
                     expected_seq = cur_seq.wrapping_add(1);
                 }
                 info.consume_stream(&mut segment, subscription, registry);
-                if Self::handshake_done(self.orig, &self.last_ack) {
-                    info.handshake_done(subscription);
-                }
                 self.last_ack = Some(segment.ack_no());
                 self.flush_ooo_buffer::<T>(expected_seq, info, subscription, registry);
             } else if wrapping_lt(next_seq, cur_seq) {
@@ -94,9 +87,6 @@ impl TcpFlow {
                 // Segment starts before the next expected segment but has new data
                 self.consumed_flags |= segment.flags();
                 info.consume_stream(&mut segment, subscription, registry);
-                if Self::handshake_done(self.orig, &self.last_ack) {
-                    info.handshake_done(subscription);
-                }
                 self.last_ack = Some(segment.ack_no());
                 self.flush_ooo_buffer::<T>(expected_seq, info, subscription, registry);
             } else {
@@ -123,15 +113,6 @@ impl TcpFlow {
                 self.buffer_ooo_seg(segment, info);
             }
         }
-    }
-
-    /// Returns true if the PDU currently being processed is the last
-    /// packet in the TCP handshake. We consider this as the first in-order
-    /// ACK sent by the flow originator (client).
-    #[inline]
-    fn handshake_done(orig: bool, last_ack: &Option<u32>) -> bool {
-        // TODO may need to "re-consume" PDU if there's data in the segment
-        orig && last_ack.is_none()
     }
 
     /// Insert packet into ooo buffer and handle overflow
@@ -161,7 +142,6 @@ impl TcpFlow {
         let next_seq = self.ooo_buf.flush_ordered::<T>(
             expected_seq,
             &mut self.last_ack,
-            self.orig,
             &mut self.consumed_flags,
             info,
             subscription,
@@ -219,7 +199,6 @@ impl OutOfOrderBuffer {
         &mut self,
         expected_seq: u32,
         last_ack: &mut Option<u32>,
-        orig: bool,
         consumed_flags: &mut u8,
         info: &mut ConnInfo<T>,
         subscription: &Subscription<T::Subscribed>,
@@ -248,9 +227,6 @@ impl OutOfOrderBuffer {
                     next_seq = next_seq.wrapping_add(1);
                 }
                 info.consume_stream(&mut segment, subscription, registry);
-                if TcpFlow::handshake_done(orig, last_ack) {
-                    info.handshake_done(subscription);
-                }
                 *last_ack = Some(segment.ack_no());
                 index = 0;
             } else if wrapping_lt(next_seq, cur_seq) {
@@ -261,9 +237,6 @@ impl OutOfOrderBuffer {
                     next_seq = update_seq;
                     *consumed_flags |= segment.flags();
                     info.consume_stream(&mut segment, subscription, registry);
-                    if TcpFlow::handshake_done(orig, last_ack) {
-                        info.handshake_done(subscription);
-                    }
                     *last_ack = Some(segment.ack_no());
                     index = 0;
                 } else {

@@ -38,8 +38,9 @@ pub enum LayerState {
 pub enum StateTransition {
     /// On first packet in connection
     L4FirstPacket = 0,
-    /// Complete TCP handshake has been observed.
-    /// Note that this should not be used to indicate the beginning
+    /// Observed and reassembled SYNs and ACKs from both sides.
+    /// Note that this does not validate sequence numbers of these SYNs/ACKs.
+    /// Additionally, this should not be used to indicate the beginning
     /// of payload, as payload may overlap with the handshake.
     L4EndHshk,
 

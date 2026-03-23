@@ -26,11 +26,12 @@ pub(crate) fn gen_packet_filter(ptree: &PredPTree) -> proc_macro2::TokenStream {
 
     gen_packet_filter_util(&mut body, &ptree.root, ptree);
 
-    // Return value
-    body.push(match ptree.deliver.is_empty() {
-        true => quote! { return false; },
-        false => quote! { return matched; },
-    });
+    // Default value at end of function
+    let ret = if ptree.deliver.is_empty() {
+        quote! { return false; } // Reaches end if nothing already returned `true`
+    } else {
+        quote! { return matched; } // Had to traverse tree to deliver; return match found
+    };
 
     // Extract outer protocol (ethernet)
     let outer = Ident::new("ethernet", Span::call_site());
@@ -40,7 +41,7 @@ pub(crate) fn gen_packet_filter(ptree: &PredPTree) -> proc_macro2::TokenStream {
         if let Ok(#outer) = &iris_core::protocols::packet::Packet::parse_to::<iris_core::protocols::packet::#outer::#outer_type>(mbuf) {
             #( #body )*
         }
-        false
+        #ret
     }
 }
 

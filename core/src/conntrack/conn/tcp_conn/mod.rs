@@ -3,6 +3,7 @@ pub mod reassembly;
 use self::reassembly::TcpFlow;
 use crate::conntrack::conn::conn_info::ConnInfo;
 use crate::conntrack::pdu::{L4Context, L4Pdu};
+use crate::protocols::packet::tcp::{ACK, SYN};
 use crate::protocols::packet::tcp::{FIN, RST};
 use crate::protocols::stream::ParserRegistry;
 use crate::subscription::{Subscription, Trackable};
@@ -10,6 +11,7 @@ use crate::subscription::{Subscription, Trackable};
 pub(crate) struct TcpConn {
     pub(crate) ctos: TcpFlow,
     pub(crate) stoc: TcpFlow,
+    handshake_done: bool,
 }
 
 impl TcpConn {
@@ -18,8 +20,9 @@ impl TcpConn {
         let next_seq = ctxt.seq_no.wrapping_add(1 + ctxt.length as u32);
         let ack = ctxt.ack_no;
         TcpConn {
-            ctos: TcpFlow::new(max_ooo, next_seq, flags, ack, true),
+            ctos: TcpFlow::new(max_ooo, next_seq, flags, ack),
             stoc: TcpFlow::default(max_ooo),
+            handshake_done: false,
         }
     }
 
@@ -39,6 +42,21 @@ impl TcpConn {
             self.stoc
                 .insert_segment::<T>(segment, info, subscription, registry);
         }
+        if self.handshake_done() {
+            self.handshake_done = true;
+            info.handshake_done(subscription);
+        }
+    }
+
+    /// Returns true if the PDU currently being processed is the last
+    /// packet in the TCP handshake.
+    /// Note: we define this pretty loosely -- we just require that both sides have sent SYNs and ACKs,
+    /// but we don't check the sequence numbers of those SYNs/ACKs.
+    #[inline]
+    pub(crate) fn handshake_done(&self) -> bool {
+        !self.handshake_done
+            && self.ctos.consumed_flags & SYN | ACK != 0
+            && self.stoc.consumed_flags & SYN | ACK != 0
     }
 
     #[inline]

@@ -1,14 +1,14 @@
-/// Validate behavior for weird combinations of subscriptions.
-// Callback filter: ipv4 and tcp
-// expl_level: Some(StateTransition::InL4Conn),
-// datatypes: vec![FIRST_PKT.clone(), SESSION_PROTO.clone()],
+/// Iris must allow users to arbitrarily subscribe to data across layers.
+/// This validates edge case behavior for cross-layer combinations of subscriptions.
 use std::path::PathBuf;
 use std::sync::Mutex;
 
 use std::collections::HashMap;
+use std::sync::atomic::AtomicUsize;
 
-use iris_compiler::{callback, callback_fn, input_files, iris_end_macros};
+use iris_compiler::{callback, callback_fn, filter, input_files, iris_end_macros};
 use iris_core::config::default_config;
+use iris_core::protocols::packet::tcp::TCP_PROTOCOL;
 use iris_core::subscription::StreamingCallback;
 use iris_core::{FiveTuple, protocols::stream::SessionProto};
 use iris_core::{L4Pdu, Runtime, StateTxData};
@@ -21,31 +21,35 @@ lazy_static::lazy_static! {
     static ref DNS: Mutex<(usize, Vec<FiveTuple>)> = Mutex::new((0, vec![]));
     static ref QUIC: Mutex<(usize, Vec<FiveTuple>)> = Mutex::new((0, vec![]));
     static ref SSH: Mutex<(usize, Vec<FiveTuple>)> = Mutex::new((0, vec![]));
+    static ref HANDSHAKES_STRUCT: AtomicUsize = AtomicUsize::new(0);
+    static ref HANDSHAKES_FN: AtomicUsize = AtomicUsize::new(0);
 }
 
 // Need to explicitly register parsers
 #[callback("tcp or udp,parsers=http&tls&dns&quic&ssh")]
 #[derive(Debug)]
-struct TcpCallback {
+struct TcpUdpCallback {
     ft: FiveTuple,
     proto: Option<SessionProto>,
     invoked: usize,
+    hshk: bool,
 }
 
-impl StreamingCallback for TcpCallback {
+impl StreamingCallback for TcpUdpCallback {
     fn new(pdu: &L4Pdu) -> Self {
         Self {
             ft: FiveTuple::from_ctxt(&pdu.ctxt),
             proto: None,
             invoked: 0,
+            hshk: false,
         }
     }
 
     fn clear(&mut self) {}
 }
 
-impl TcpCallback {
-    #[callback_fn("TcpCallback,level=InL4Conn")]
+impl TcpUdpCallback {
+    #[callback_fn("TcpUdpCallback,level=InL4Conn")]
     fn update(&mut self, _: &L4Pdu) -> bool {
         self.invoked += 1;
         assert!(
@@ -57,7 +61,16 @@ impl TcpCallback {
         true
     }
 
-    #[callback_fn("TcpCallback,level=L7OnDisc")]
+    #[callback_fn("TcpUdpCallback,level=L4EndHshk")]
+    fn handshake(&mut self, _: &StateTxData) -> bool {
+        assert!(self.hshk == false, "Two handshakes? {:?}", self.ft);
+        self.hshk = true;
+        assert!(self.ft.proto == TCP_PROTOCOL, "Not TCP: {:?}", self.ft);
+        HANDSHAKES_STRUCT.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        true
+    }
+
+    #[callback_fn("TcpUdpCallback,level=L7OnDisc")]
     fn update_proto(&mut self, proto: &SessionProto) -> bool {
         self.proto = Some(proto.clone());
         let mut sessions = SESSIONS.lock().unwrap();
@@ -67,7 +80,7 @@ impl TcpCallback {
         false
     }
 
-    #[callback_fn("TcpCallback,level=L4Terminated")]
+    #[callback_fn("TcpUdpCallback,level=L4Terminated")]
     fn never_invoked(&mut self, _: &StateTxData) -> bool {
         panic!(
             "L4Terminated invoked (should have unsubscribed): {:?}",
@@ -108,6 +121,17 @@ fn http_callback(ft: &FiveTuple, proto: &SessionProto) {
     }
 }
 
+#[filter("level=L4EndHshk")]
+fn has_valid_handshake(_: &StateTxData) -> FilterResult {
+    FilterResult::Accept
+}
+
+#[callback("has_valid_handshake")]
+fn handshake_cb(ft: &FiveTuple) {
+    assert!(ft.proto == TCP_PROTOCOL, "Not TCP: {:?}", ft);
+    HANDSHAKES_FN.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+}
+
 #[input_files("$IRIS_HOME/datatypes/data.txt")]
 #[iris_end_macros]
 fn main() {
@@ -125,6 +149,16 @@ fn check_outputs() {
     let dns = DNS.lock().unwrap();
     let quic = QUIC.lock().unwrap();
     let ssh = SSH.lock().unwrap();
+
+    let hshks_struct = HANDSHAKES_STRUCT.load(std::sync::atomic::Ordering::SeqCst);
+    let hshks_fn = HANDSHAKES_FN.load(std::sync::atomic::Ordering::SeqCst);
+    assert!(
+        hshks_struct == hshks_fn,
+        "Handshake counts differ: struct {}, fn {}",
+        hshks_struct,
+        hshks_fn
+    );
+    assert!(hshks_struct > 0, "No handshakes?");
 
     assert!({
         let sessions = sessions.get("Http").expect("No HTTP Sessions");
