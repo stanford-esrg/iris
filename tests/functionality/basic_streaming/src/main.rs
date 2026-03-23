@@ -1,6 +1,6 @@
-// Just some asserts/prints to confirm expected behavior of subscribing to
-// data pre- and post-reassembly.
-
+/// Confirm expected behavior of subscribing to streaming data
+/// pre- and post-reassembly. Assumes that input pcap is the `small_flows`
+/// pcap, which has this flow with an OOO segment.
 use iris_compiler::*;
 use iris_core::L4Pdu;
 use iris_core::StateTxData;

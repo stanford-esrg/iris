@@ -1,3 +1,6 @@
+/// Verifies that datatypes explicitly marked as "tracked" are
+/// correctly tracked/invoked and are discontinued when the associated
+/// callback filter fails to match.
 use iris_compiler::*;
 use iris_core::FiveTuple;
 use iris_core::L4Pdu;

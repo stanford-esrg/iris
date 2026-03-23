@@ -1,3 +1,5 @@
+/// Basic test; meant to be used with script that verifies expected outputs
+/// by comparing files.
 use clap::Parser;
 use iris_compiler::{callback, input_files, iris_end_macros};
 use iris_core::subscription::Tracked;
