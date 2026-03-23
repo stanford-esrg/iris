@@ -88,8 +88,8 @@ impl SubscriptionSpec {
     }
 
     fn add_invoke_once(&mut self) {
-        // We don't make guarantees for grouped CBs
-        // [TODO could change this in future]
+        // We don't make guarantees for grouped CBs, since we track grouped CBs as a full group.
+        // NICE-TO-HAVE: could change this in the future.
         if self.callbacks.len() > 1 {
             return;
         }
@@ -107,7 +107,13 @@ impl SubscriptionSpec {
         let streaming_pred = patterns
             .iter()
             .any(|pat| pat.predicates.iter().any(|pred| pred.is_streaming()));
-        if streaming_pred {
+        // Multiple, non-mutually-exclusive filter patterns
+        let multiple_filters = streaming_pred || // skip check
+            (patterns.len() > 1 &&     // multiple patterns
+            patterns // multiple patterns might match on same connection
+                .windows(2)
+                .any(|w| w[0] != w[1] && !w[0].is_excl(&w[1])));
+        if streaming_pred || multiple_filters {
             for cb in &mut self.callbacks {
                 cb.invoke_once = true;
             }

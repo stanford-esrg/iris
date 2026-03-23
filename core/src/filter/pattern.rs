@@ -1,6 +1,7 @@
 use super::ast::*;
 use super::subscription::StateTransitionSpec;
 
+use core::panic;
 use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::fmt;
@@ -397,6 +398,22 @@ impl FlatPattern {
             pat.push(curr);
         }
         pat
+    }
+
+    /// Returns `true` if the patterns are mutually exclusive
+    /// (i.e., there is no way for both patterns to match the same connection).
+    /// We consider two patterns to be mutually exclusive if any predicate in one pattern
+    /// is mutually exclusive with any predicate in the other pattern.
+    #[doc(hidden)]
+    pub fn is_excl(&self, other: &Self) -> bool {
+        for p1 in &self.predicates {
+            for p2 in &other.predicates {
+                if p1.is_excl(p2) {
+                    return true;
+                }
+            }
+        }
+        false
     }
 }
 
