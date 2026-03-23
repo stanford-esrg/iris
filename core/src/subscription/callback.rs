@@ -61,6 +61,11 @@ where
         }
         self.state = CallbackState::Unsubscribed;
     }
+
+    /// Invoked when a callback goes out-of-scope
+    pub fn clear(&mut self) {
+        self.callback.clear();
+    }
 }
 
 #[doc(hidden)]

@@ -54,10 +54,15 @@ where
         self.matched = result;
         match self.matched {
             FilterResult::Accept | FilterResult::Drop => {
-                self.filter.clear();
+                self.filter.clear(); // clear out data
             }
             _ => {}
         }
+    }
+
+    /// Invoked when a filter goes out-of-scope
+    pub fn clear(&mut self) {
+        self.filter.clear();
     }
 }
 

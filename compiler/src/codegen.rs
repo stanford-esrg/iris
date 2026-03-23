@@ -141,7 +141,6 @@ pub(crate) fn filter_func_to_tokens(
             quote! { conn.tracked.#fil_ident.filter.#func_ident(#( #params ), *) }
         }
         ParsedInput::Filter(_) => {
-            // TODO StatelessFilterWrapper needed - handle this case
             quote! { #func_ident(#( #params ), *) }
         }
         _ => unreachable!(),
@@ -264,7 +263,6 @@ pub(crate) fn params_to_tokens(
             _ => false,
         });
         if let Some(ParsedInput::DatatypeFn(spec)) = constructor {
-            // TODO validate / what other restrictions needed here?
             constr_to_tokens(spec, conditions, cond_match, params, &dt_name_ident);
         }
     }
@@ -284,6 +282,8 @@ pub(crate) fn constr_to_tokens(
         _ => unreachable!(),
     };
 
+    // REFACTOR: decompose this to directly reference primitive/built-in data types
+    // instead of manual list of strings
     let constructor = {
         assert!(spec.func.datatypes.len() == 1);
         let dt = spec
@@ -316,11 +316,9 @@ pub(crate) fn constr_to_tokens(
         if matches!(returns, Constructor::OptRef) {
             params.push(quote! { #name_ident });
         } else {
-            // TODO can relax the borrowing requirement here
             params.push(quote! { &#name_ident });
         }
     } else {
-        // TODO check is &Self also an option?
         params.push(quote! { &#constructor });
     }
 }
@@ -440,6 +438,26 @@ pub(crate) fn tracked_new_to_tokens(sub: &SubscriptionDecoder) -> proc_macro2::T
     }
 }
 
+pub(crate) fn tracked_clear_to_tokens(sub: &SubscriptionDecoder) -> proc_macro2::TokenStream {
+    let mut clear = vec![];
+    for tracked in &sub.tracked {
+        let impl_clear = matches!(
+            tracked.kind,
+            TrackedKind::Datatype(true) | TrackedKind::StreamCallback | TrackedKind::StreamFilter
+        );
+        if !impl_clear {
+            continue;
+        }
+        let field_name = Ident::new(&tracked.name.to_lowercase(), Span::call_site());
+        clear.push(quote! {
+            self.#field_name.clear();
+        });
+    }
+    quote! {
+        #( #clear )*
+    }
+}
+
 fn tracked_to_type_tokens(tracked: &TrackedType) -> proc_macro2::TokenStream {
     let type_raw = Ident::new(&tracked.name, Span::call_site());
     match tracked.kind {
@@ -542,7 +560,8 @@ pub(crate) fn fil_callback_to_tokens(
     }
 
     // Streaming CBs invoked in "update" methods only.
-    // TODO logic for caching past data and streaming it on first match
+    // NICE-TO-HAVE: caching past data and streaming it on first match
+    // (In general, callback won't be invoked until filter matches)
     let mut invoke = quote! {};
     if match spec.expl_level {
         Some(l) => !l.is_streaming(),

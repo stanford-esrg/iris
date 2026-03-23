@@ -45,7 +45,12 @@ impl StreamingCallback for TcpUdpCallback {
         }
     }
 
-    fn clear(&mut self) {}
+    fn clear(&mut self) {
+        assert!(
+            self.proto.is_some(),
+            "Should have unsubscribed after identifying protocol"
+        );
+    }
 }
 
 impl TcpUdpCallback {
@@ -130,6 +135,21 @@ fn has_valid_handshake(_: &StateTxData) -> FilterResult {
 fn handshake_cb(ft: &FiveTuple) {
     assert!(ft.proto == TCP_PROTOCOL, "Not TCP: {:?}", ft);
     HANDSHAKES_FN.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+}
+
+// Dummy filter that will never match
+#[filter("level=InL4Conn")]
+fn random_data(pdu: &L4Pdu) -> FilterResult {
+    if pdu.seq_no() % 10 == 0 {
+        FilterResult::Drop
+    } else {
+        FilterResult::Continue
+    }
+}
+
+#[callback("random_data")]
+fn random_data_cb(_ft: &FiveTuple) {
+    panic!("Random data callback invoked");
 }
 
 #[input_files("$IRIS_HOME/datatypes/data.txt")]

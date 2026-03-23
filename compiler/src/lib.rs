@@ -295,6 +295,7 @@ pub fn iris_end_macros(_args: TokenStream, input: TokenStream) -> TokenStream {
     };
     let tracked_def = codegen::tracked_to_tokens(&decoder);
     let tracked_new = codegen::tracked_new_to_tokens(&decoder);
+    let tracked_clear = codegen::tracked_clear_to_tokens(&decoder);
     let tracked_update = codegen::tracked_update_to_tokens(&decoder);
     let parsers = codegen::parsers_to_tokens(&decoder);
 
@@ -364,7 +365,7 @@ pub fn iris_end_macros(_args: TokenStream, input: TokenStream) -> TokenStream {
 
             fn clear(&mut self) {
                 self.packets.clear();
-                // TODO: #clear
+                #tracked_clear
             }
         }
 

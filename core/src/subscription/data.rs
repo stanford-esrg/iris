@@ -83,6 +83,12 @@ where
         }
     }
 
+    pub fn clear(&mut self) {
+        self.data.clear();
+        self.state = DatatypeState::Inactive;
+        self.refresh_at.fill(false);
+    }
+
     pub fn start_state_tx(&mut self, tx: &StateTransition) {
         if matches!(self.state, DatatypeState::Active) && self.refresh_at[tx.as_usize()] {
             self.state = DatatypeState::Pending;
@@ -103,9 +109,7 @@ where
     pub fn end_state_tx(&mut self) {
         // Was not set to be "active"
         if matches!(self.state, DatatypeState::Pending) {
-            self.data.clear();
-            self.state = DatatypeState::Inactive;
-            self.refresh_at.fill(false);
+            self.clear();
         }
     }
 }
