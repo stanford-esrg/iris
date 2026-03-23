@@ -49,7 +49,7 @@ pub(crate) fn gen_state_filters(
 
         let ident = Ident::new(&tx.to_string(), Span::call_site());
         main.push(quote! {
-            StateTransition::#ident => #fn_name(conn, &tx),
+            iris_core::StateTransition::#ident => #fn_name(conn, &tx),
         });
 
         // Ensure that datatypes and custom filters that requested updates
@@ -81,10 +81,10 @@ pub(crate) fn gen_state_filters(
 
         // Complete state transition handler
         fns.push(quote! {
-            fn #fn_name(conn: &mut ConnInfo<TrackedWrapper>, tx: &StateTransition) {
+            fn #fn_name(conn: &mut ConnInfo<TrackedWrapper>, tx: &iris_core::StateTransition) {
                 let mut ret = false; // unused in state_tx filters
                 #start_tracked
-                let tx = iris_core::StateTxData::from_tx(tx, &conn.layers[0]);
+                let tx_data = iris_core::StateTxData::from_tx(tx, &conn.layers[0]);
                 // Some callbacks/filters may require immutable borrow of `conn`;
                 // it's easiest to just limit the body of the function to immutable
                 // borrows and then update actions at the end.
@@ -113,7 +113,7 @@ pub(crate) fn gen_state_filters(
 fn gen_state_filter_util(
     code: &mut Vec<proc_macro2::TokenStream>,
     node: &PNode,
-    tree: &PTree, // TODO may not need to pass in `tree`
+    tree: &PTree,
     statics: &mut HashMap<String, (String, proc_macro2::TokenStream)>,
     sub: &SubscriptionDecoder,
     extract_sessions: bool,
@@ -191,13 +191,13 @@ fn gen_state_filter_util(
                 assert!(
                     child.children.is_empty()
                         || (
-                            // TODO - temporary workaround
-                            // It may be okay to have a State predicate here that controls actions
-                            // in cases where (1) a filter has already terminated, but (2) the
-                            // callback is still waiting for a datatype to be constructed.
-                            // In this case, the callback is "active" but hasn't yet been invoked.
-                            // However, there should either be a different approach for this case
-                            // in general (e.g., distinguish between "matched" and "active" callbacks).
+                            // In general, a callback node shouldn't have any other children.
+                            // One exception: it can be OK to have a State predicate (e.g., "if L7 >= Headers") here if
+                            // a filter has already terminated/matched, but the callback is still waiting for
+                            // a data type to be constructed (e.g., a TLS handshake, but we're still in "L7Headers");
+                            // here, the callback is "active" but not yet invoked.
+                            // This is a sanity-check for these cases.
+                            // Possible opportunity for REFACTOR of PTrees in the future.
                             child.children.iter().all(|c| c.pred.is_state()
                                 && c.children.is_empty()
                                 && !c.actions.drop())

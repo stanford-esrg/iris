@@ -15,7 +15,7 @@ lazy_static! {
     pub(crate) static ref BUILTIN_TYPES: Vec<ParsedInput> = vec![
         ParsedInput::Datatype(DatatypeSpec {
             name: "L4Pdu".into(),
-            level: Some(StateTransition::Packet),
+            level: Some(StateTransition::Packet), // "Packet" = standin for "Any"
             expl_parsers: vec![],
             filtered: false,
         }),
@@ -49,7 +49,12 @@ lazy_static! {
             expl_parsers: vec![],
             filtered: false,
         }),
-        // TODO StateTx (without data?)
+        ParsedInput::Datatype(DatatypeSpec {
+            name: "StateTransition".into(),
+            level: Some(StateTransition::Packet),
+            expl_parsers: vec![], // Must be provided by application
+            filtered: false,
+        }),
     ];
 }
 

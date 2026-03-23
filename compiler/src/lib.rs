@@ -324,7 +324,6 @@ pub fn iris_end_macros(_args: TokenStream, input: TokenStream) -> TokenStream {
         use iris_core::subscription::{Trackable, Subscribable};
         use iris_core::conntrack::{TrackedActions, ConnInfo};
         use iris_core::protocols::stream::ParserRegistry;
-        use iris_core::StateTransition;
         use iris_core::subscription::*;
         use iris_datatypes::*;
 

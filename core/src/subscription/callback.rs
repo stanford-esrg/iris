@@ -5,9 +5,9 @@ use crate::L4Pdu;
 /// the appropriate #[callback_fn(...)] macros.
 pub trait StreamingCallback {
     /// Initializes internal data, if applicable.
-    /// Called on first packet in connection.
+    /// Called on first packet in connection *whether or not callback filter has matched*.
     fn new(first_pkt: &L4Pdu) -> Self;
-    /// Clears internal data, if applicable.
+    /// Clears internal data, if applicable. Called when callback unsubscribes.
     fn clear(&mut self);
 }
 

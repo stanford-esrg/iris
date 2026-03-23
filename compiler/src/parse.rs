@@ -100,7 +100,6 @@ pub(crate) struct DatatypeSpec {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub(crate) struct DatatypeFnSpec {
     pub(crate) group_name: String,
-    // TODO only allowed datatypes here are StateTxData and L4Pdu
     pub(crate) func: FnSpec,
     pub(crate) level: Vec<StateTransition>,
 }
@@ -200,7 +199,7 @@ impl ParsedInput {
                 match self {
                     // Expecting: callback func annotated with #[callback] macro
                     // Requires filter. Can specify levels.
-                    // Streaming CBs return bool (TODO loosen this requirement in future)
+                    // Streaming CBs return bool (NICE-TO-HAVE: loosen this requirement in future)
                     Self::Callback(func) => {
                         let (mut fil, level, expl_parsers) = InputKeys::callback(args, &spec.name)?;
                         if !matches!(spec.returns, FnReturn::Bool | FnReturn::None) {
@@ -221,7 +220,7 @@ impl ParsedInput {
                     }
                     // Expecting: callback group func annotated with #[callback_fn] macro
                     // Requires named callback group and (optional) levels.
-                    // Must return bool (TODO loosen this requirement in future)
+                    // Must return bool (NICE-TO-HAVE: loosen this requirement in future)
                     Self::CallbackGroupFn(func) => {
                         if !matches!(spec.returns, FnReturn::Bool) {
                             bail!(ParserError::InvalidReturn(spec.name));
@@ -274,7 +273,7 @@ impl ParsedInput {
                         }
                         func.level = level;
                         func.func = spec;
-                        // Extra rules for datatypes - TODO maybe relax these?
+                        // Extra rules for datatypes - NICE-TO-HAVE: maybe relax these?
                         assert!(
                             func.level.iter().all(|l| l.is_streaming())
                                 || func.level.iter().all(|l| !l.is_streaming()),
@@ -289,11 +288,12 @@ impl ParsedInput {
                             func.func.name
                         );
                         assert!(
-                            // TODO group these "allowed inputs" together
+                            // REFACTOR: group these "allowed inputs" together
                             func.func.datatypes[0].contains("L4Pdu")
                                 || func.func.datatypes[0].contains("StateTxData")
                                 || func.func.datatypes[0].contains("Session")
-                                || func.func.datatypes[0].contains("Mbuf"),
+                                || func.func.datatypes[0].contains("Mbuf")
+                                || func.func.datatypes[0].contains("StateTransition"),
                             "{}:{} requested non-trivial datatypes",
                             func.group_name,
                             func.func.name

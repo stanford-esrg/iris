@@ -327,7 +327,8 @@ pub(crate) fn builtin_to_tokens(name: &String) -> proc_macro2::TokenStream {
     match name.as_str() {
         "L4Pdu" => quote! { pdu },
         "FilterStr" => unimplemented!(),
-        "StateTxData" => quote! { &tx },
+        "StateTxData" => quote! { &tx_data },
+        "StateTransition" => quote! { &tx },
         "Session" => quote! { conn.layers[0].last_session() },
         "SessionProto" => quote! { &conn.layers[0].last_protocol() },
         "CoreId" => quote! { &conn.tracked.core_id },
@@ -530,7 +531,7 @@ pub(crate) fn tracked_update_to_tokens(sub: &SubscriptionDecoder) -> proc_macro2
         let updates = update_to_tokens(sub, level);
         let level_ident = Ident::new(&level.to_string(), Span::call_site());
         all_updates.push(quote! {
-            StateTransition::#level_ident => {
+            iris_core::StateTransition::#level_ident => {
                 #updates
             }
         });
