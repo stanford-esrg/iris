@@ -41,7 +41,7 @@ impl HttpParser {
             ParseResult::Continue(session_id)
         } else {
             // request continuation data or parse error.
-            // TODO: parse request continuation data
+            // NICE-TO-HAVE: parse request continuation data
             ParseResult::Skipped
         }
     }
@@ -55,7 +55,7 @@ impl HttpParser {
                 if consumed < data.len() && consumed > 0 {
                     self.last_body_offset = Some(consumed);
                 }
-                // TODO: Handle response continuation data
+                // NICE-TO-HAVE: Handle response continuation data
                 // Parse result for full session
                 ParseResult::HeadersDone(self.current_trans)
             } else {
@@ -64,7 +64,7 @@ impl HttpParser {
             }
         } else {
             // response continuation data or parse error.
-            // TODO: parse response continuation data
+            // NICE-TO-HAVE: parse response continuation data
             ParseResult::Skipped
         }
     }

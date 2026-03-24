@@ -1,3 +1,4 @@
+#![doc(hidden)]
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 
@@ -21,7 +22,8 @@ use super::pattern::FlatPattern;
 ///   (i.e., root-to-node path) due to potential differences in
 ///   filter predicate needs.**
 ///
-/// TODO ideally we'd use the LayerState predicate type more effectively.
+/// NICE-TO-HAVE: ideally we'd use the LayerState predicate instead of having
+/// this weird extra `if_matches` wrapper.
 #[derive(Debug, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct DataActions {
     /// Optional conditional: these actions are only applied if layer is in
@@ -123,49 +125,6 @@ impl DataActions {
         ret.dedup();
         ret
     }
-
-    // --PSEUDOCODE-- for what the actual code will look like
-    // \TODO - this means that Predicate::LayerState won't be required
-    // pub(crate) fn to_tokens(&self) -> proc_macro2::TokenStream {
-    //     let l7_idx = SupportedLayer::L7 as usize - 1;
-    //     // Insert check for state if applicable.
-    //     // TODO - maybe these should be extracted into PTree nodes instead
-    //     let mut conditional = quote! {};
-    //     if let Some((layer, states)) = &self.if_matches {
-    //         let linfo = match layer {
-    //             SupportedLayer::L4 => quote! { conn_info.linfo },
-    //             SupportedLayer::L7 => quote! { conn_info.layers[#l7_idx] },
-    //         };
-    //         conditional = quote! {
-    //             if conn_info.layers[#l7_idx] == #state
-    //         };
-    //         for idx in 1..states.len() {
-    //             let state = states[idx].to_tokens();
-    //             conditional = quote! {#conditional || #linfo.state == #state };
-    //         }
-    //     }
-    //     // Body: code to update working list of actions
-    //     let mut body = quote! {};
-    //     if !self.transport.drop() {
-    //         let actions = self.transport.to_tokens();
-    //         body = quote! {
-    //             conn_info.linfo.actions.update(#actions);
-    //         };
-    //     }
-    //     if !self.layers[l7_idx].drop() {
-    //         let actions = self.layers[l7_idx].to_tokens();
-    //         body = quote! {
-    //             #body
-    //             conn_info.layers[#l7_idx].actions.update(#actions);
-    //         };
-    //     }
-    //
-    //     quote! {
-    //         #conditional {
-    //             #body
-    //         }
-    //     }
-    // }
 }
 
 /// Actions for a single subscription that will be stored at a node in a PTree.
@@ -176,7 +135,6 @@ impl DataActions {
 pub struct NodeActions {
     /// Essentially, there will be multiple elements here if there are different
     /// branches depending on some layer's state.
-    /// TODO shouldn't need this in future - use LayerState pred.
     pub actions: Vec<DataActions>,
     /// Set to `true` the first time a filter predicate or streaming callback level
     /// is added to ensure that no further datatypes are added afterwards.
@@ -525,7 +483,6 @@ impl SubscriptionLevel {
         // parsing and applying state transitions. For example, an `InL4Conn`
         // update will be invoked after an `L7OnDisc` state transition, if the
         // same PDU triggers both.
-        // - TODO this could change if we add an `update` before reassembly.
         if let Some(expl_level) = &self.callback {
             // E.g., L4OnTerminated, L4FirstPacket
             if !expl_level.is_streaming() {

@@ -22,7 +22,7 @@ pub enum Actions {
 }
 
 /// Basic representation of Actions
-/// TODO change to single bitmask in the future
+/// NICE-TO-HAVE: change to single bitmask in the future
 #[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd)]
 pub struct TrackedActions {
     // Currently-active actions (as bitmask)

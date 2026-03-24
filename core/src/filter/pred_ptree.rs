@@ -183,7 +183,7 @@ impl PredPTree {
             self.add_pattern(pattern, &callback);
         }
 
-        // TODO: maybe remove this to distinguish terminating a user-specified pattern
+        // NICE-TO-HAVE: maybe remove this to distinguish terminating a user-specified pattern
         if self.root.children.is_empty() {
             self.root.is_terminal = true;
         }

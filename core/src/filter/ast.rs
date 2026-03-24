@@ -39,7 +39,7 @@ lazy_static! {
             (tls, tcp),
             (http, tcp),
             (dns, udp), (dns, tcp),
-            (quic, udp), //TODO: tls over quic
+            (quic, udp), // NICE-TO-HAVE: tls over quic?
             (ssh, tcp),
         ]);
         g
@@ -212,7 +212,7 @@ impl Predicate {
         match self {
             Predicate::Custom { levels, .. } => levels.iter().flatten().cloned().collect(),
             Predicate::Callback { .. } => vec![],
-            // can be checked anytime [TODO could refine this later]
+            // Can be checked anytime.
             Predicate::LayerState { .. } => vec![StateTransition::L4FirstPacket],
             _ => {
                 if self.on_packet() {
@@ -326,7 +326,6 @@ impl Predicate {
         if let Predicate::LayerState { state: s, .. } = self {
             // Can apply `self` if different layer (e.g., can check L4-payload after L7-headers)
             // For simplicity, only apply `self` if equivalent
-            // (TODO maybe could optimize by better enforcing order in patterns of state preds)
             return s == &state;
         }
         match layer {

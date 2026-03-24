@@ -51,7 +51,7 @@ pub struct ServerHello {
 pub struct Certificate {
     #[serde(with = "base64")]
     pub raw: Vec<u8>,
-    // TODO: parsed certificate
+    // NICE-TO-HAVE: parsed certificate
 }
 
 /// Key data sent by the server in a ServerKeyExchange message.
@@ -63,7 +63,7 @@ pub enum ServerKeyExchange {
     Rsa(ServerRSAParams),
     #[serde(with = "base64")]
     Unknown(Vec<u8>),
-    // TODO: parse signature
+    // NICE-TO-HAVE: parse signature
 }
 
 impl Default for ServerKeyExchange {

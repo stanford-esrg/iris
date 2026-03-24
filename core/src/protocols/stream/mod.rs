@@ -156,7 +156,7 @@ pub struct ConnData {
     pub five_tuple: FiveTuple,
 }
 
-// TODO get rid of ConnData - likely no longer needed
+// REFACTOR: get rid of ConnData - likely no longer needed
 impl ConnData {
     pub(crate) fn supported_fields() -> Vec<&'static str> {
         let mut v: Vec<_> = TcpCData::supported_fields()
@@ -198,7 +198,7 @@ impl ConnData {
 #[doc(hidden)]
 #[derive(Debug)]
 pub enum SessionData {
-    // TODO: refactor to use trait objects.
+    // REFACTOR: use trait objects?
     Tls(Box<Tls>),
     Dns(Box<Dns>),
     Http(Box<Http>),
@@ -260,7 +260,7 @@ impl Default for Session {
 #[derive(Debug, EnumString)]
 #[strum(serialize_all = "snake_case")]
 pub enum ConnParser {
-    // TODO: refactor to use trait objects.
+    // REFACTOR: use trait objects?
     Tls(TlsParser),
     Dns(DnsParser),
     Http(HttpParser),

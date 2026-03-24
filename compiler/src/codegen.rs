@@ -537,7 +537,7 @@ pub(crate) fn tracked_update_to_tokens(sub: &SubscriptionDecoder) -> proc_macro2
         });
     }
     quote! {
-        match state {
+        match tx {
             #( #all_updates )*
             _ => {},
         }

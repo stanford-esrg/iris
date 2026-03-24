@@ -90,14 +90,14 @@ where
             conn_tracker.process(mbuf, ctxt, self);
         }
     }
-
-    // TODO: packet continue filter should ideally be built at
-    // compile-time based on what the NIC supports (what has
-    // already been filtered out in HW).
-    // Ideally, NIC would `mark` mbufs as `deliver` and/or `continue`.
     /// Invokes the software packet filter.
     /// Used for each packet to determine
-    /// forwarding to conn. tracker. /// TMP - todo return bool
+    /// forwarding to conn. tracker.
+    ///
+    /// NICE-TO-HAVE: we'd ideally have a configuration option that, at compile time,
+    /// tells Iris to construct this initial packet filter using what the NIC supports.
+    /// As it is, this packet filter is likely to apply filter predicates already applied in HW.
+    /// (This needs to be a config option in case, e.g., we're compiling on a different machine.)
     pub fn filter_packet(&self, mbuf: &Mbuf, core_id: &CoreId) -> bool {
         (self.packet_filter)(mbuf, core_id)
     }

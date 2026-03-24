@@ -18,9 +18,11 @@
 //! The #[callback] macro must take in its filter pattern as its first argument.
 //!
 //! Other optional arguments:
-//! * `level`: Explicitly indicate the state transition that a function should be invoked at.
-//! * `parsers`: Explicitly specify session-level protocol parsers, using `&` as a separator (e.g., "http&tls").
+//! * `level`: Explicitly indicate the state transition that a function should be invoked at. `&`-separated.
+//! * `parsers`: Explicitly specify session-level protocol parsers, `&`-separated (e.g., "http&tls").
+//! * `tracked`: Data type only; see [`fn@datatype`].
 //!
+//! Notes on parsers:
 //! - Iris will infer and register protocol parsers based on data types
 //!   and filters; for example, if a function requests a TLS handshake or
 //!   filters for "tls", then Iris will register the "tls" parser.
@@ -80,6 +82,11 @@ use subscription::SubscriptionDecoder;
 /// #[datatype("L7EndHdrs,parsers=dns"))]
 /// pub type DnsTransaction = Box<Dns>;
 /// ```
+///
+/// Developers can explicitly tag a datatype as "tracked". This indicates that updating the
+/// data type is computationally- and memory-intensive. The data type must implement the "Tracked" trait, and
+/// Iris will "clear" and stop invoking APIs on the data type if all connections requiring it go out of scope.
+/// Requiring Iris to track a data type adds some overhead and limits Iris's ability to optimize filter trees.
 #[proc_macro_attribute]
 pub fn datatype(args: TokenStream, input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(args as StringOpt).value;
@@ -387,7 +394,7 @@ pub fn iris_end_macros(_args: TokenStream, input: TokenStream) -> TokenStream {
 
             fn update(conn: &mut ConnInfo<TrackedWrapper>,
                 pdu: &iris_core::L4Pdu,
-                state: iris_core::StateTransition) -> bool
+                tx: iris_core::StateTransition) -> bool
             {
                 let mut ret = false;
                 #tracked_update

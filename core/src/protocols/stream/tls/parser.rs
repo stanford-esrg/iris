@@ -458,7 +458,7 @@ impl Tls {
             }
         };
 
-        // TODO: record may be compressed Parse record contents as plaintext
+        // NICE-TO-HAVE: record may be compressed Parse record contents as plaintext
         match parse_tls_record_with_header(record_buffer, &record.hdr) {
             Ok((rem, ref msg_list)) => {
                 for msg in msg_list {

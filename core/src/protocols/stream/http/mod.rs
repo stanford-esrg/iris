@@ -11,10 +11,10 @@
 //! responses.
 //!
 /*
-TODO: support request/response continuations (body that spans multiple packets)
-TODO: support chunked transfer encoding
-TODO: provide request/response body
-TODO: HTTP/2 support
+NICE-TO-HAVE: support request/response continuations (body that spans multiple packets)
+NICE-TO-HAVE: support chunked transfer encoding
+NICE-TO-HAVE: provide request/response body
+NICE-TO-HAVE: HTTP/2 support
 */
 
 pub mod parser;
@@ -113,5 +113,5 @@ impl Http {
         self.response.transfer_encoding.as_deref().unwrap_or("")
     }
 
-    // TODO: more methods...
+    // NICE-TO-HAVE: more methods...
 }

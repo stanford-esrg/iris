@@ -457,7 +457,7 @@ impl PTree {
     }
 
     // Add patterns for non-terminal matches on streaming filters
-    // TODO may not always need this (if no correctness issues?)
+    // NICE-TO-HAVE: may not always need this (if no correctness issues?)
     fn split_custom(&self, patterns: &[FlatPattern]) -> Vec<FlatPattern> {
         let mut split_patterns = vec![];
         if matches!(self.filter_layer, StateTransition::L4Terminated) {
@@ -636,8 +636,7 @@ impl PTree {
 
             // Maintain streaming filter if still `matching` regardless of
             // later predicate state
-            // TODO do we need this?
-            // TODO avoid additional lookups
+            // NICE-TO-HAVE: do we need this? could avoid additional lookups
             if node.pred.is_custom() && node.pred.is_matching() {
                 node.actions.merge(&DataActions::from_stream_pred(
                     &node.pred,
@@ -649,7 +648,7 @@ impl PTree {
 
             if node.pred.is_state() {
                 // Used to determine when we can/can't "skip ahead"
-                // TODO may not need this - may just be able to stop traversing in opts if
+                // NICE-TO-HAVE: may not need this - may just be able to stop traversing in opts if
                 // any state pred is hit
                 state_pred = Some(node.pred.clone());
             }
@@ -1072,7 +1071,7 @@ impl PTree {
             // If disambiguation is not needed (i.e., only one possible delivery
             // outcome), then no filter condition is needed.
             // The exception is if there is a filter that we still need to apply.
-            // --> TODO can we relax this requirement?
+            // --> NICE-TO-HAVE: can we relax this requirement?
             if self.deliver.len() == 1 && !self.contains_term_filters() {
                 self.root
                     .deliver

@@ -213,15 +213,14 @@ where
     S: Subscribable,
 {
     // enforce that workers cores cannot mutate runtime
-    // TODO: make this *const and use Mutex for interior mutability
+    // NICE-TO-HAVE: make this *const and use Mutex for interior mutability
     let rx_cores = arg as *const BTreeMap<CoreId, RxCore<S>>;
     let rx_cores = unsafe { &*rx_cores };
 
     let core_id = CoreId(unsafe { dpdk::rte_lcore_id() } as u32);
     let rx_core = rx_cores.get(&core_id).expect("Invalid Core");
 
-    // TODO: slight optimization: even if filter is nonempty, if the hardware takes care of the
-    // whole thing we can also run_rx with no filter
+    // TODO: if the hardware takes care of the whole packet filter, we can skip the packet filter.
     rx_core.rx_loop();
     0
 }

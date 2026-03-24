@@ -197,8 +197,6 @@ impl ConnRecord {
 
         if segment.dir {
             update_history(&mut self.history, segment, 0x0);
-            // TODO need a separate `update` for `update_owned`
-            // Cloning segment is a non-starter.
             self.orig.insert_segment(segment);
         } else {
             update_history(&mut self.history, segment, 0x20);
@@ -210,10 +208,6 @@ impl ConnRecord {
         }
     }
 
-    // TODO currently we don't guarantee reassembly order for payload
-    // packets. This either needs to be changed in the framework or
-    // handled by the datatype (if ctxt.reassembled = true, we need to
-    // handle things differently).
     #[cfg_attr(not(feature = "skip_expand"), datatype_fn("ConnRecord,level=InL4Conn"))]
     pub fn update(&mut self, pdu: &L4Pdu) {
         self.update_data(pdu);

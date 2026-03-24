@@ -92,7 +92,7 @@ impl<'a> Packet<'a> for Ethernet<'a> {
                 }
             }
             VLAN_802_1AD => {
-                // Unimplemented. TODO: support QinQ
+                // Unimplemented. NICE-TO-HAVE: support QinQ
                 None
             }
             _ => Some(ether_type.into()),
@@ -154,4 +154,4 @@ impl PacketHeader for Dot1q {
     }
 }
 
-// TODO: Implement QinQ.
+// NICE-TO-HAVE: Implement QinQ.

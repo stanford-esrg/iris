@@ -10,8 +10,8 @@
 //! Each subscription consists of one or more data types (data to analyze), a filter (traffic of interest),
 //! and a callback (analysis code). Each application can consist of one or more subscriptions.
 //!
-//! For simple use-cases, Iris provides built-in data types in [crate::datatypes] and a Wireshark-like filter
-//! DSL documented in [crate::compiler].
+//! For simple use-cases, Iris provides built-in data types in the Iris (built-in) data types crate and
+//! a Wireshark-like filter DSL documented in the Iris compiler crate.
 //! For example, only a few lines of code are needed to capture HTTP requests with a specific user agent:
 //!
 //! ```rust,ignore
@@ -27,9 +27,9 @@
 //! Iris processes packets in a connection as they arrive, advancing connections through a set
 //! of protocol state machines. Developers can hook into states and state transitions to extract
 //! data, perform additional computation, or attach state for later use.
-//! The currently-supported states are documented in TODO (state TX link moved).
+//! The currently-supported states are documented in [`crate::conntrack::conn_state::StateTransition`].
 //! Developers indicate that a struct, type, or function should hook into Iris using the macros exported by
-//! [crate::compiler].
+//! the Iris compiler crate.
 //!
 //! For example, we can define a data type that extracts features from the body of a connection:
 //!

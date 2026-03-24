@@ -118,8 +118,9 @@ impl Port {
         rx_core_ids.sort_unstable();
         rx_core_ids.dedup();
 
-        // TODO: display warning if cores do not match port socket
-        // TODO: display warning and handle duplicate cores per port and across ports
+        // NICE-TO-HAVE: error handling
+        // - Display warning if cores do not match port socket
+        // - Display warning and handle duplicate cores per port and across ports
         let mut q: u16 = 0;
         let nb_buckets = if let Some(sink) = &port_map.sink {
             queue_map.insert(

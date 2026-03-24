@@ -18,7 +18,9 @@ use crate::{conntrack::StateTransition, filter::FilterError};
 
 use anyhow::{bail, Result};
 
-// TODO predicate ordering in patterns, in general, isn't optimal
+// NICE-TO-HAVE: predicate ordering in patterns isn't optimal.
+// Would be great to reorder predicates (in patterns and/or when inserting in a tree
+// to apply "less expensive" or "narrower" (less likely to match) predicates early.
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct FlatPattern {
@@ -56,7 +58,6 @@ impl FlatPattern {
     }
 
     // Returns a vector of fully qualified patterns from self
-    // TODO can rethink ordering here
     pub(super) fn to_fully_qualified(&self) -> Result<Vec<LayeredPattern>> {
         if self.is_empty()
             || (self.predicates.len() == 1
@@ -221,7 +222,7 @@ impl FlatPattern {
             if pred.is_custom()
                 && (pred.is_streaming()
                     || if let Predicate::Custom { levels, .. } = pred {
-                        levels.len() > 1 // TODO could do pairwise inequality here?
+                        levels.len() > 1 // REFACTOR: could do pairwise inequality here?
                     } else {
                         unreachable!()
                     })
@@ -348,7 +349,7 @@ impl FlatPattern {
         }
 
         // Move up anything that doesn't rely on the state predicate
-        // TODO do this recursively
+        // REFACTOR: do this recursively
         if let Some(first_state) = predicates.iter().position(|p| p.is_state()) {
             if first_state < predicates.len() - 1 {
                 if let Predicate::LayerState { layer, state, .. } = predicates[first_state] {
@@ -376,7 +377,7 @@ impl FlatPattern {
     }
 
     // Returns the predicates in FlatPattern that come after (or may come after)
-    // the given StateTransition. TODO make more effic.
+    // the given StateTransition. REFACTOR: make more efficient.
     pub(super) fn next_pred(&self, curr: StateTransition) -> Vec<StateTransition> {
         // All levels that may come after `curr`
         let mut pat: Vec<_> = self

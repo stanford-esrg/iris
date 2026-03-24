@@ -16,9 +16,9 @@
 //! - The payload bytes count is a lazy counter which does not try to exclude tokens for encryption,
 //!   which is a process that happens in wireshark.
 /*
-TODO: support parsing the tls out of the initial quic packet setup
-TODO support dns over quic
-TODO: support HTTP/3
+NICE-TO-HAVE: support parsing the tls out of the initial quic packet setup
+NICE-TO-HAVE support dns over quic
+NICE-TO-HAVE: support HTTP/3
 */
 pub(crate) mod parser;
 

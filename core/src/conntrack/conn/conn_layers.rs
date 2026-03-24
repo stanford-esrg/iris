@@ -203,7 +203,6 @@ pub struct L7Session {
     // Further encapsulated layers could go here.
 }
 
-// TODO revisit visibility
 impl L7Session {
     /// Initialize infrastructure for probing, parsing, and tracking
     /// L6/L7 (application-layer) sessions.

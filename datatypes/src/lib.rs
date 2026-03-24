@@ -33,7 +33,7 @@ pub mod tls_handshake;
 pub use tls_handshake::TlsHandshake;
 
 /// No-op function to invoke macro
-/// TODO can we do this more cleanly?
+/// REFACTOR: can we do this more cleanly?
 #[cfg_attr(
     not(feature = "skip_expand"),
     cache_file("$IRIS_HOME/datatypes/data.txt")

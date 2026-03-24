@@ -133,7 +133,7 @@ impl<'a> Packet<'a> for Ipv6<'a> {
     }
 }
 
-// Fixed portion of Ipv6 header TODO: handle extension headers
+// Fixed portion of Ipv6 header NICE-TO-HAVE: handle extension headers
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 struct Ipv6Header {

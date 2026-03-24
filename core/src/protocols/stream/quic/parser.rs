@@ -407,7 +407,7 @@ impl QuicPacket {
                     crypto_buffer.append(&mut crypto_bytes);
                     // Attempt to parse CRYPTO buffer
                     // clear on success
-                    // TODO: This naive buffer will not work for out of order frames
+                    // NICE-TO-HAVE: This naive buffer will not work for out of order frames
                     // across packets or multiple messages in the same buffer
                     match parse_tls_message_handshake(crypto_buffer) {
                         Ok((_, msg)) => {
@@ -492,7 +492,7 @@ impl QuicConn {
         let mut offset = 0;
         // Iterate over all of the data in the datagram
         // Parse as many QUIC packets as possible
-        // TODO: identify padding appended to datagram
+        // NICE-TO-HAVE: identify padding appended to datagram
         while data.len() > offset {
             if let Ok((quic, off)) = QuicPacket::parse_from(self, data, offset, direction) {
                 self.packets.push(quic);
