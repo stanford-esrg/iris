@@ -273,10 +273,10 @@ impl SubscriptionDecoder {
                 // Levels of the datatypes in the function(s)
                 match inp {
                     ParsedInput::Filter(f) => {
-                        lvls.extend(self.datatypes_to_levels(&f.func));
+                        lvls.extend(self.fil_datatypes_to_levels(&f.func, &name));
                     }
                     ParsedInput::FilterGroupFn(f) => {
-                        lvls.extend(self.datatypes_to_levels(&f.func));
+                        lvls.extend(self.fil_datatypes_to_levels(&f.func, &format!("{}::{}", f.group_name, f.func.name)));
                     }
                     _ => continue,
                 }
@@ -443,21 +443,32 @@ impl SubscriptionDecoder {
 
     // TODO figure out what should go here -- need to fix filters
     // Pull the top-level datatype declaration to infer a function level
-    fn datatypes_to_levels(&self, spec: &FnSpec) -> Vec<StateTransition> {
+    fn fil_datatypes_to_levels(&self, spec: &FnSpec, as_str: &String) -> Vec<StateTransition> {
         let mut lvls = vec![];
         for dt_name in &spec.datatypes {
             let dt_info = self
                 .datatypes_raw
                 .get(dt_name)
                 .unwrap_or_else(|| panic!("Cannot find datatype {}", dt_name));
+            // Try level declared on struct first
             let mut level = dt_info
                 .iter()
                 .find(|grp| matches!(grp, ParsedInput::Datatype(_)))
                 .unwrap_or_else(|| panic!("Cannot find datatype declaration {}", dt_name))
                 .levels();
+            // If no level declared on struct, check for functions
+            if level.is_empty() {
+                level = dt_info
+                    .iter()
+                    .find(|grp| matches!(grp, ParsedInput::DatatypeFn(_)))
+                    .unwrap_or_else(|| panic!("Cannot find datatype function declaration {}", dt_name))
+                    .levels();
+            }
+            level.sort();
+            level.dedup();
             assert!(
                 level.len() == 1,
-                "{} declaration has {} levels (requires 1)",
+                "{} declaration has {} levels (requires 1 to be used in filter function; try declaring level on struct)",
                 dt_name,
                 level.len()
             );
@@ -465,6 +476,12 @@ impl SubscriptionDecoder {
         }
         lvls.sort();
         lvls.dedup();
+        if lvls.len() > 1 {
+            panic!(
+                "Multiple datatypes with different levels in filter function not supported: {}",
+                as_str
+            );
+        }
         lvls
     }
 
