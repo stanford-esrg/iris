@@ -276,7 +276,10 @@ impl SubscriptionDecoder {
                         lvls.extend(self.fil_datatypes_to_levels(&f.func, &name));
                     }
                     ParsedInput::FilterGroupFn(f) => {
-                        lvls.extend(self.fil_datatypes_to_levels(&f.func, &format!("{}::{}", f.group_name, f.func.name)));
+                        lvls.extend(self.fil_datatypes_to_levels(
+                            &f.func,
+                            &format!("{}::{}", f.group_name, f.func.name),
+                        ));
                     }
                     _ => continue,
                 }
@@ -461,7 +464,9 @@ impl SubscriptionDecoder {
                 level = dt_info
                     .iter()
                     .find(|grp| matches!(grp, ParsedInput::DatatypeFn(_)))
-                    .unwrap_or_else(|| panic!("Cannot find datatype function declaration {}", dt_name))
+                    .unwrap_or_else(|| {
+                        panic!("Cannot find datatype function declaration {}", dt_name)
+                    })
                     .levels();
             }
             level.sort();

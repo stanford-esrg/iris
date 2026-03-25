@@ -570,6 +570,13 @@ pub(crate) fn fil_callback_to_tokens(
     } {
         invoke = cb_to_tokens(sub, &dts, name, group, spec.invoke_once);
     }
+    if spec.is_streaming() || spec.is_grouped() {
+        let set_active = cb_set_active_to_tokens(&group.unwrap_or(name).into());
+        invoke = quote! {
+            #set_active
+            #invoke
+        };
+    }
 
     // Note: CB is set as "active" (i.e., matched) based on presence in "matched" data of PTree
 

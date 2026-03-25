@@ -273,6 +273,9 @@ impl FlatPattern {
 
     /// This layer is the first time that this could match
     pub(super) fn is_first_match(&self, filter_layer: &StateTransition) -> bool {
+        // Iterate in reverse order since predicates are ordered by layer.
+        // If we hit a predicate that could have been applied at an earlier layer,
+        // going from end to start, we can return early.
         for pred in self.predicates.iter().rev() {
             let levels = pred.levels();
             if pred.is_state() {
