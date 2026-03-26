@@ -176,6 +176,7 @@ pub(crate) fn device_supported(pred: &Predicate, port: &Port) -> bool {
 fn predicate_supported(predicate: &Predicate, port: &Port, group: u32, priority: u32) -> bool {
     let pattern = FlatPattern {
         predicates: vec![predicate.to_owned()],
+        as_str: None,
     };
     let fq_patterns = pattern.to_fully_qualified().expect("fully qualified");
     fq_patterns

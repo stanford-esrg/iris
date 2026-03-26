@@ -133,6 +133,7 @@ impl PredPTree {
             if node.is_terminal {
                 patterns.push(FlatPattern {
                     predicates: predicates.to_vec(),
+                    as_str: None,
                 });
             } else {
                 for child in node.children.iter() {

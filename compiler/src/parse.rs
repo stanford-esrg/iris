@@ -21,6 +21,12 @@ pub(crate) enum FnReturn {
     None,
 }
 
+impl FnReturn {
+    pub(super) fn is_constructor(&self) -> bool {
+        matches!(self, FnReturn::Constructor(_))
+    }
+}
+
 /// Types of constructors (possible return values)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) enum Constructor {
@@ -464,6 +470,19 @@ impl ParsedInput {
             self,
             ParsedInput::CallbackGroup(_) | ParsedInput::FilterGroup(_)
         )
+    }
+
+    pub(crate) fn is_constructor(&self) -> bool {
+        match self {
+            Self::Callback(i) => i.func.returns.is_constructor(),
+            Self::CallbackGroup(_) => false,
+            Self::CallbackGroupFn(i) => i.func.returns.is_constructor(),
+            Self::Filter(_) => false,
+            Self::FilterGroup(_) => false,
+            Self::FilterGroupFn(i) => i.func.returns.is_constructor(),
+            Self::Datatype(_) => false,
+            Self::DatatypeFn(i) => i.func.returns.is_constructor(),
+        }
     }
 
     pub(crate) fn expl_parsers(&self) -> Vec<String> {

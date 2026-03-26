@@ -11,6 +11,8 @@ use iris_core::filter::{
 use proc_macro2::{Ident, Span};
 use quote::quote;
 
+use iris_core::filter::ptree::PNode;
+
 use heck::CamelCase;
 use regex::{Regex, bytes::Regex as BytesRegex};
 use std::collections::HashMap;
@@ -23,6 +25,7 @@ pub(crate) fn cb_to_tokens(
     cb_name: &str,
     cb_group: Option<&str>,
     invoke_once: bool,
+    node: Option<&PNode>,
 ) -> proc_macro2::TokenStream {
     let mut conditions = vec![];
     let mut cond_match = vec![];
@@ -33,6 +36,7 @@ pub(crate) fn cb_to_tokens(
         &mut conditions,
         &mut cond_match,
         &mut params,
+        node,
     );
     let cb_wrapper_str = cb_name.to_lowercase();
     let cb_name = match cb_name.contains("::") {
@@ -125,6 +129,7 @@ pub(crate) fn filter_func_to_tokens(
         &mut conditions,
         &mut cond_match,
         &mut params,
+        None,
     );
     let func_ident = Ident::new(&func.name, Span::call_site());
     let fil_ident = match filter {
@@ -199,7 +204,7 @@ pub(crate) fn datatype_func_to_tokens(
     let dt_name = Ident::new(&dt.group_name.to_lowercase(), Span::call_site());
     let fname = Ident::new(&dt.func.name, Span::call_site());
     if BUILTIN_TYPES.iter().any(|inp| inp.name() == param) {
-        let builtin = builtin_to_tokens(param);
+        let builtin = builtin_to_tokens(param, None);
         if filtered {
             // Wrapped in `TrackedDataWrapper`
             return quote! {
@@ -229,6 +234,7 @@ pub(crate) fn params_to_tokens(
     conditions: &mut Vec<proc_macro2::TokenStream>,
     cond_match: &mut Vec<proc_macro2::TokenStream>,
     params: &mut Vec<proc_macro2::TokenStream>,
+    node: Option<&PNode>,
 ) {
     for dt in datatypes {
         let dt_metadata = sub
@@ -250,7 +256,7 @@ pub(crate) fn params_to_tokens(
 
         // Built-in datatype
         if BUILTIN_TYPES.iter().any(|inp| inp.name() == dt) {
-            let builtin = builtin_to_tokens(dt);
+            let builtin = builtin_to_tokens(dt, node);
             params.push(quote! { #builtin });
             continue;
         }
@@ -323,10 +329,20 @@ pub(crate) fn constr_to_tokens(
     }
 }
 
-pub(crate) fn builtin_to_tokens(name: &String) -> proc_macro2::TokenStream {
+pub(crate) fn builtin_to_tokens(name: &String, node: Option<&PNode>) -> proc_macro2::TokenStream {
     match name.as_str() {
         "L4Pdu" => quote! { pdu },
-        "FilterStr" => unimplemented!(),
+        "FilterStr" => {
+            let node = node.expect(
+                &format!("FilterStr parameter not valid (streaming callback, incompatible level, data type, or filter function)")
+            );
+            let filter_str = match &node.filter_str {
+                Some(s) => s,
+                None => panic!("No filter string found for node {}", node),
+            };
+            let filter_str = syn::LitStr::new(&filter_str, Span::call_site());
+            quote! { &#filter_str }
+        }
         "StateTxData" => quote! { &tx_data },
         "StateTransition" => quote! { &tx },
         "Session" => quote! { conn.layers[0].last_session() },
@@ -385,6 +401,7 @@ pub(crate) fn update_to_tokens(
                     &cb.func.name,
                     Some(&cb.func.name),
                     false,
+                    None,
                 ));
             }
             ParsedInput::CallbackGroupFn(cb) => {
@@ -394,6 +411,7 @@ pub(crate) fn update_to_tokens(
                     &cb.func.name,
                     Some(&cb.group_name),
                     false,
+                    None,
                 ));
             }
             ParsedInput::Filter(_) | ParsedInput::FilterGroupFn(_) => {
@@ -549,6 +567,7 @@ pub(crate) fn tracked_update_to_tokens(sub: &SubscriptionDecoder) -> proc_macro2
 pub(crate) fn fil_callback_to_tokens(
     sub: &SubscriptionDecoder,
     spec: &CallbackSpec,
+    node: Option<&PNode>,
 ) -> proc_macro2::TokenStream {
     let dts: Vec<String> = spec.datatypes.iter().map(|dt| dt.name.clone()).collect();
     let name = spec.as_str.as_str();
@@ -568,7 +587,7 @@ pub(crate) fn fil_callback_to_tokens(
         Some(l) => !l.is_streaming(),
         None => true,
     } {
-        invoke = cb_to_tokens(sub, &dts, name, group, spec.invoke_once);
+        invoke = cb_to_tokens(sub, &dts, name, group, spec.invoke_once, node);
     }
     if spec.is_streaming() || spec.is_grouped() {
         let set_active = cb_set_active_to_tokens(&group.unwrap_or(name).into());

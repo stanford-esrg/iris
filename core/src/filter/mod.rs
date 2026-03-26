@@ -94,7 +94,10 @@ impl Filter {
         let flat_patterns: Vec<_> = raw_patterns
             .into_iter()
             .map(|p| {
-                let mut patt = FlatPattern { predicates: p };
+                let mut patt = FlatPattern {
+                    predicates: p,
+                    as_str: None,
+                };
                 patt.handle_custom_predicates(valid_custom_preds).unwrap();
                 patt
             })

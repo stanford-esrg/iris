@@ -73,6 +73,17 @@ impl SubscriptionSpec {
                 .unwrap_or_else(|_| panic!("Invalid filter: {}", self.filter));
             self.patterns = Some(filter.get_patterns_flat());
         }
+        let filter_str = self
+            .callbacks
+            .iter()
+            .any(|cb| cb.datatypes.iter().any(|dt| dt.name == "FilterStr"));
+        if filter_str {
+            if let Some(pats) = &mut self.patterns {
+                for pat in pats {
+                    pat.as_str = Some(pat.to_string());
+                }
+            }
+        }
     }
 
     fn get_filter_parsers(&self) -> HashSet<String> {
@@ -655,10 +666,10 @@ impl SubscriptionDecoder {
         if inps.len() == 1 && inps[0].levels().len() == 1 && !is_streaming {
             return None;
         }
-        // Multiple parsed inputs, but one is a group definition
-        // and only one is a function and it's not streaming.
-        if !is_streaming
-            && inps
+        // Multiple parsed inputs, but one is a group definition and
+        // the other is a constructor.
+        if !is_streaming {
+            let fns = inps
                 .iter()
                 .filter(|i| {
                     matches!(
@@ -668,10 +679,15 @@ impl SubscriptionDecoder {
                             | ParsedInput::FilterGroupFn(_)
                     )
                 })
-                .count()
-                <= 1
-        {
-            return None;
+                .collect::<Vec<_>>();
+            if fns.len() == 0 {
+                return None;
+            }
+            if fns.len() == 1 {
+                if fns.last().unwrap().is_constructor() {
+                    return None;
+                }
+            }
         }
 
         // Streaming or multiple functions

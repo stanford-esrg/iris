@@ -10,6 +10,7 @@ use crate::stats::{StatExt, TCP_BYTE, TCP_PKT, UDP_BYTE, UDP_PKT};
 
 pub mod data;
 pub mod filter;
+pub use data::FilterStr;
 pub use data::Tracked;
 pub use filter::StreamingFilter;
 pub mod callback;

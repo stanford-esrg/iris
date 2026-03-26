@@ -41,6 +41,9 @@ pub struct PNode {
 
     // Identifier
     pub id: usize,
+
+    // String representation of the filter that this node terminates
+    pub filter_str: Option<String>,
 }
 
 impl PNode {
@@ -54,6 +57,7 @@ impl PNode {
             matched: HashSet::new(),
             filtered_datatypes: HashMap::new(),
             id,
+            filter_str: None,
         }
     }
 
@@ -443,6 +447,7 @@ impl PTree {
             self.add_pattern(
                 &FlatPattern {
                     predicates: vec![Predicate::default_pred()],
+                    as_str: None,
                 },
                 callbacks,
                 id,
@@ -586,6 +591,7 @@ impl PTree {
                 .filter(|p| !p.is_next_layer(self.filter_layer))
                 .cloned()
                 .collect(),
+            as_str: full_pattern.as_str.clone(),
         };
         assert!(pattern.predicates.len() <= full_pattern.predicates.len());
         if pattern.predicates.len() < full_pattern.predicates.len() {
@@ -665,6 +671,12 @@ impl PTree {
             node.matched.insert(callback.subscription_id.clone());
             self.matched.insert(callback.subscription_id.clone());
         }
+
+        if !truncated && pattern.as_str.is_some() {
+            assert!(node.filter_str.is_none() || node.filter_str == pattern.as_str);
+            node.filter_str = pattern.as_str.clone();
+        }
+
         node.actions.merge(actions);
         let filtered_data_names: Vec<String> = pattern
             .get_filtered_data()
@@ -1087,6 +1099,7 @@ impl PTree {
         self.sort();
         self.mark_mutual_exclusion(); // Must be last
         self.update_metadata();
+        // TODO FOR FILTER_STR: will "collapse" ever mess up the "FilterStr"?
     }
 }
 

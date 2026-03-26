@@ -330,7 +330,7 @@ fn add_callback_pred(
             deliver.subscription_id,
             name
         );
-        let cb = fil_callback_to_tokens(sub, deliver);
+        let cb = fil_callback_to_tokens(sub, deliver, Some(node));
         code.push(quote! { #cb });
     }
 
@@ -359,7 +359,7 @@ fn update_body(body: &mut Vec<proc_macro2::TokenStream>, node: &PNode, sub: &Sub
         body.push(quote! { #cb });
     }
     for deliver in &node.deliver {
-        let cb = fil_callback_to_tokens(sub, deliver);
+        let cb = fil_callback_to_tokens(sub, deliver, Some(node));
         body.push(quote! { #cb });
     }
     for (_, dt) in &node.filtered_datatypes {

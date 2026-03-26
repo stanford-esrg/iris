@@ -25,6 +25,7 @@ use anyhow::{bail, Result};
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct FlatPattern {
     pub predicates: Vec<Predicate>,
+    pub as_str: Option<String>,
 }
 
 impl FlatPattern {
@@ -191,7 +192,10 @@ impl FlatPattern {
             state,
             op: BinOp::Eq,
         });
-        Self { predicates }
+        Self {
+            predicates,
+            as_str: self.as_str.clone(),
+        }
     }
 
     // Inserts a Callback predicate
@@ -212,7 +216,10 @@ impl FlatPattern {
         if self.predicates.iter().all(|p| !p.is_custom()) {
             return vec![];
         }
-        let mut all_patterns: Vec<Self> = vec![Self { predicates: vec![] }];
+        let mut all_patterns: Vec<Self> = vec![Self {
+            predicates: vec![],
+            as_str: self.as_str.clone(),
+        }];
         for pred in &self.predicates {
             // For each predicate, either add 1x to each partial or split
             // patterns by custom streaming/non-custom streaming
@@ -364,7 +371,10 @@ impl FlatPattern {
                 }
             }
         }
-        Self { predicates }
+        Self {
+            predicates,
+            as_str: self.as_str.clone(),
+        }
     }
 
     // Returns FlatPattern of only predicates that can be filtered in hardware
@@ -376,6 +386,7 @@ impl FlatPattern {
                 .into_iter()
                 .filter(|p| p.is_hardware_filterable(port))
                 .collect::<Vec<_>>(),
+            as_str: self.as_str.clone(),
         }
     }
 
@@ -422,14 +433,15 @@ impl FlatPattern {
 }
 
 impl fmt::Display for FlatPattern {
+    // NICE-TO-HAVE: could remove some predicates?
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(f, "[")?;
         let mut first = true;
         for predicate in self.predicates.iter() {
             if !first {
-                write!(f, ", {}", predicate)?;
+                write!(f, "->\'{}\'", predicate)?;
             } else {
-                write!(f, "{}", predicate)?;
+                write!(f, "\'{}\'", predicate)?;
             }
             first = false;
         }
@@ -514,7 +526,10 @@ impl LayeredPattern {
             }
             predicates.extend(field_preds.to_owned());
         }
-        FlatPattern { predicates }
+        FlatPattern {
+            predicates,
+            as_str: None,
+        }
     }
 
     pub(super) fn get_header_predicates(&self) -> &LinkedHashMap<ProtocolName, Vec<Predicate>> {
@@ -587,7 +602,10 @@ mod tests {
         let flat_patterns = raw_patterns
             .into_iter()
             .map(|p| {
-                let mut patt = FlatPattern { predicates: p };
+                let mut patt = FlatPattern {
+                    predicates: p,
+                    as_str: None,
+                };
                 patt.handle_custom_predicates(&CUSTOM_FILTERS).unwrap();
                 patt
             })
@@ -613,7 +631,10 @@ mod tests {
         let flat_patterns = raw_patterns
             .into_iter()
             .map(|p| {
-                let mut patt = FlatPattern { predicates: p };
+                let mut patt = FlatPattern {
+                    predicates: p,
+                    as_str: None,
+                };
                 patt.handle_custom_predicates(&CUSTOM_FILTERS).unwrap();
                 patt
             })
@@ -647,7 +668,10 @@ mod tests {
         let raw_patterns = FilterParser::parse_filter(filter_raw).unwrap();
         let mut flat_patterns = raw_patterns
             .into_iter()
-            .map(|p| FlatPattern { predicates: p })
+            .map(|p| FlatPattern {
+                predicates: p,
+                as_str: None,
+            })
             .collect::<Vec<_>>();
         flat_patterns[0]
             .handle_custom_predicates(&CUSTOM_FILTERS)
