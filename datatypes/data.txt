@@ -1,8 +1,8 @@
-{"Datatype":{"name":"ConnDuration","level":"L4Terminated","expl_parsers":[],"filtered":false}}
+{"Datatype":{"name":"ConnDuration","level":null,"expl_parsers":[],"filtered":false}}
 {"DatatypeFn":{"group_name":"ConnDuration","func":{"name":"update","datatypes":["L4Pdu"],"returns":"None"},"level":["InL4Conn"]}}
-{"Datatype":{"name":"PktCount","level":"L4Terminated","expl_parsers":[],"filtered":false}}
+{"Datatype":{"name":"PktCount","level":null,"expl_parsers":[],"filtered":false}}
 {"DatatypeFn":{"group_name":"PktCount","func":{"name":"update","datatypes":["L4Pdu"],"returns":"None"},"level":["InL4Conn"]}}
-{"Datatype":{"name":"ByteCount","level":"L4Terminated","expl_parsers":[],"filtered":false}}
+{"Datatype":{"name":"ByteCount","level":null,"expl_parsers":[],"filtered":false}}
 {"DatatypeFn":{"group_name":"ByteCount","func":{"name":"update","datatypes":["L4Pdu"],"returns":"None"},"level":["InL4Conn"]}}
 {"Datatype":{"name":"InterArrivals","level":null,"expl_parsers":[],"filtered":false}}
 {"DatatypeFn":{"group_name":"InterArrivals","func":{"name":"update","datatypes":["L4Pdu"],"returns":"None"},"level":["InL4Conn"]}}

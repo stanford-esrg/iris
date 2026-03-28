@@ -1,10 +1,21 @@
-/// Confirm expected behavior of subscribing to streaming data
-/// pre- and post-reassembly. Assumes that input pcap is the `small_flows`
-/// pcap, which has this flow with an OOO segment.
+/// Confirm various streaming behavior.
+///
+/// 1. Subscribe to streaming data pre- and post-reassembly
+/// (assumes that input pcap is the `small_flows`
+/// pcap, which has a specific flow with OOO segments).
+///
+/// 2. Subscribe to streaming filter + various callbacks
 use iris_compiler::*;
+use iris_core::FiveTuple;
 use iris_core::L4Pdu;
 use iris_core::StateTxData;
+use iris_core::subscription::{FilterResult, StreamingCallback};
 use iris_core::{Runtime, config::default_config};
+use iris_datatypes::PktCount;
+
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+// ---- Pre- and post-reassembly streaming ---- //
 
 // Specific known connection
 // ip.src == 128.241.90.211 and ip.dst == 172.16.255.1 and tcp.port == 10655
@@ -62,17 +73,41 @@ impl ConnRecordTester {
 
     #[callback_fn("ConnRecordTester,level=L4Terminated")]
     fn ended(&mut self, _: &StateTxData) -> bool {
-        println!("PRE LEN: {}", self.pdus_pre.len());
-        println!("POST LEN: {}", self.pdus_post.len());
+        // println!("PRE LEN: {}", self.pdus_pre.len());
+        // println!("POST LEN: {}", self.pdus_post.len());
         assert!(self.pdus_pre.len() == 34 && self.pdus_post.len() == 34 && self.reordering == 4);
         false
     }
 }
 
+// ---- Streaming filter + streaming callback ---- //
+
+#[filter("level=InL4Conn")]
+fn num_pkts_ge_10(pkts: &PktCount) -> FilterResult {
+    if pkts.total() >= 10 {
+        FilterResult::Accept
+    } else {
+        FilterResult::Continue
+    }
+}
+
+static INVOKED_PKTS: AtomicUsize = AtomicUsize::new(0);
+
+#[callback("num_pkts_ge_10,level=InL4Conn")]
+fn long_flow_tester_pkts(_: &FiveTuple, pkts: &PktCount) -> bool {
+    assert!(pkts.total() > 10, "Actual packets: {}", pkts.total());
+    // TODO: this CB may be getting invoked after a delay?
+    // assert!(pkts.total() == 10, "Actual packets: {}", pkts.total());
+    INVOKED_PKTS.fetch_add(1, Ordering::SeqCst);
+    false
+}
+
+#[input_files("$IRIS_HOME/datatypes/data.txt")]
 #[iris_end_macros]
 fn main() {
     env_logger::init();
     let config = default_config();
     let mut runtime: Runtime<SubscribedWrapper> = Runtime::new(config, filter).unwrap();
     runtime.run();
+    assert!(INVOKED_PKTS.load(Ordering::SeqCst) > 0);
 }

@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 
 /// Tracks the start (first packet seen) and end (last packet seen)
 /// times of a connection
-#[cfg_attr(not(feature = "skip_expand"), datatype("L4Terminated"))]
+#[cfg_attr(not(feature = "skip_expand"), datatype)]
 #[derive(Debug, Clone)]
 pub struct ConnDuration {
     pub start_ts: Instant,
@@ -68,7 +68,7 @@ impl Tracked for ConnDuration {
 
 /// The number of packets observed in a connection
 #[derive(Debug, serde::Serialize, Clone)]
-#[cfg_attr(not(feature = "skip_expand"), datatype("L4Terminated"))]
+#[cfg_attr(not(feature = "skip_expand"), datatype)]
 pub struct PktCount {
     pub orig: usize,
     pub resp: usize,
@@ -112,7 +112,7 @@ impl Tracked for PktCount {
 /// The number of bytes, excluding packet headers, in each
 /// flow in a connection connection
 #[derive(Debug, serde::Serialize, Clone)]
-#[cfg_attr(not(feature = "skip_expand"), datatype("L4Terminated"))]
+#[cfg_attr(not(feature = "skip_expand"), datatype)]
 pub struct ByteCount {
     pub orig: usize,
     pub resp: usize,

@@ -444,6 +444,17 @@ impl SubscriptionDecoder {
                 spec.name
             );
         }
+        if datatypes.iter().any(|dt| {
+            dt.updates
+                .iter()
+                .any(|l| *l == StateTransition::L4Terminated)
+        }) {
+            assert!(
+                expl_level.is_none() || expl_level.unwrap() == StateTransition::L4Terminated,
+                "Callback {} requests datatype that is L4Terminated; cannot specify separate level",
+                spec.name
+            );
+        }
         CallbackSpec {
             expl_level,
             datatypes,
