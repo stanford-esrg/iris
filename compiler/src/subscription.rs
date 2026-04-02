@@ -12,6 +12,7 @@ use lazy_static::lazy_static;
 use std::collections::{HashMap, HashSet};
 
 lazy_static! {
+    // Update documentation if also updating this!
     pub(crate) static ref BUILTIN_TYPES: Vec<ParsedInput> = vec![
         ParsedInput::Datatype(DatatypeSpec {
             name: "L4Pdu".into(),
@@ -19,6 +20,7 @@ lazy_static! {
             expl_parsers: vec![],
             filtered: false,
         }),
+        // Applies only to callbacks, but convenient to store here [REFACTOR]
         ParsedInput::Datatype(DatatypeSpec {
             name: "FilterStr".into(),
             level: Some(StateTransition::Packet),
@@ -77,11 +79,9 @@ impl SubscriptionSpec {
             .callbacks
             .iter()
             .any(|cb| cb.datatypes.iter().any(|dt| dt.name == "FilterStr"));
-        if filter_str {
-            if let Some(pats) = &mut self.patterns {
-                for pat in pats {
-                    pat.as_str = Some(pat.to_string());
-                }
+        if filter_str && let Some(pats) = &mut self.patterns {
+            for pat in pats {
+                pat.as_str = Some(pat.to_string());
             }
         }
     }
@@ -107,10 +107,10 @@ impl SubscriptionSpec {
 
         // Streaming CBs invoked until unsubscribe; L4Terminated subscriptions
         // don't need to be tracked.
-        if let Some(level) = self.callbacks[0].expl_level {
-            if level.is_streaming() || level == StateTransition::L4Terminated {
-                return;
-            }
+        if let Some(level) = self.callbacks[0].expl_level
+            && (level.is_streaming() || level == StateTransition::L4Terminated)
+        {
+            return;
         }
 
         // Any CB that has streaming patterns
@@ -275,8 +275,8 @@ impl SubscriptionDecoder {
                 assert!(v.len() == 1, "Missing filter group for: {:?}", v);
             }
 
-            // TODO this breaks if filter is trying to
-            // request multiple datatypes like a callback
+            // TODO this can break if filter is trying to request multiple datatypes
+            // Filter group gets "level" at max level even if there are multiple functions
             let mut levels = vec![];
             let mut filtered_data = vec![];
             for inp in v {
@@ -284,7 +284,7 @@ impl SubscriptionDecoder {
                 // Levels of the datatypes in the function(s)
                 match inp {
                     ParsedInput::Filter(f) => {
-                        lvls.extend(self.fil_datatypes_to_levels(&f.func, &name));
+                        lvls.extend(self.fil_datatypes_to_levels(&f.func, name));
                     }
                     ParsedInput::FilterGroupFn(f) => {
                         lvls.extend(self.fil_datatypes_to_levels(
@@ -389,7 +389,7 @@ impl SubscriptionDecoder {
         spec: &FnSpec,
         as_str: String,
         subscription_id: String,
-        levels: &Vec<StateTransition>,
+        levels: &[StateTransition],
         callbacks: &mut Vec<CallbackSpec>,
     ) {
         if levels.len() <= 1 {
@@ -399,7 +399,7 @@ impl SubscriptionDecoder {
         } else {
             // Break up into multiple callbacks for multiple different levels.
             // REFACTOR: might be simpler in the future to change CallbackSpec to take multiple levels?
-            let mut levels = levels.clone();
+            let mut levels: Vec<StateTransition> = levels.to_vec();
             levels.sort();
             levels.dedup();
             for l in levels {
@@ -444,11 +444,10 @@ impl SubscriptionDecoder {
                 spec.name
             );
         }
-        if datatypes.iter().any(|dt| {
-            dt.updates
-                .iter()
-                .any(|l| *l == StateTransition::L4Terminated)
-        }) {
+        if datatypes
+            .iter()
+            .any(|dt| dt.updates.contains(&StateTransition::L4Terminated))
+        {
             assert!(
                 expl_level.is_none() || expl_level.unwrap() == StateTransition::L4Terminated,
                 "Callback {} requests datatype that is L4Terminated; cannot specify separate level",
@@ -466,7 +465,7 @@ impl SubscriptionDecoder {
         }
     }
 
-    // TODO figure out what should go here -- need to fix filters
+    // TODO figure out what should go here -- need to fix filters to have multiple levels / params?
     // Pull the top-level datatype declaration to infer a function level
     fn fil_datatypes_to_levels(&self, spec: &FnSpec, as_str: &String) -> Vec<StateTransition> {
         let mut lvls = vec![];
@@ -667,8 +666,6 @@ impl SubscriptionDecoder {
         }
     }
 
-    // TODO CB also needs to be tracked (differently - just make sure it hasn't already been invoked)
-    // if it is a static CB with a streaming filter
     fn is_tracked_type(inps: &Vec<ParsedInput>) -> Option<TrackedType> {
         let is_streaming = inps
             .iter()
@@ -691,13 +688,11 @@ impl SubscriptionDecoder {
                     )
                 })
                 .collect::<Vec<_>>();
-            if fns.len() == 0 {
+            if fns.is_empty() {
                 return None;
             }
-            if fns.len() == 1 {
-                if fns.last().unwrap().is_constructor() {
-                    return None;
-                }
+            if fns.len() == 1 && fns.last().unwrap().is_constructor() {
+                return None;
             }
         }
 
@@ -786,10 +781,11 @@ impl SubscriptionDecoder {
                         return true;
                     }
                     // 2. Callback might unsubscribe
-                    if let Some(cb) = level.callback {
-                        if cb.is_streaming() && &cb == filter_layer {
-                            return true;
-                        }
+                    if let Some(cb) = level.callback
+                        && cb.is_streaming()
+                        && &cb == filter_layer
+                    {
+                        return true;
                     }
                     // 3. Filter predicate might match
                     if level.filter_preds.iter().any(|l| l == filter_layer) {

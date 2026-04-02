@@ -1,4 +1,4 @@
-///! Management for per-connection state machines.
+//! Management for per-connection state machines.
 use serde::{Deserialize, Serialize};
 use std::{cmp::Ordering, str::FromStr};
 use strum::IntoEnumIterator;
@@ -159,13 +159,12 @@ impl StateTransition {
 
         // TCP handshake must complete before anything
         // that requires data from both endpoints
-        if matches!(self, StateTransition::L4EndHshk) || matches!(other, StateTransition::L4EndHshk)
+        if (matches!(self, StateTransition::L4EndHshk)
+            || matches!(other, StateTransition::L4EndHshk))
+            && (matches!(self, StateTransition::L7EndHdrs)
+                || matches!(other, StateTransition::L7EndHdrs))
         {
-            if matches!(self, StateTransition::L7EndHdrs)
-                || matches!(other, StateTransition::L7EndHdrs)
-            {
-                return StateTxOrd::from_ord(self.cmp(other));
-            }
+            return StateTxOrd::from_ord(self.cmp(other));
         }
 
         // Different layers

@@ -19,7 +19,9 @@ Follow the instructions in [INSTALL.md](INSTALL.md) to set up Iris.
 
 ## Iris Programming Framework: Overview
 
-An Iris application consists of *one or more* traffic *subscriptions*, each of which consists of filters, data types, and callbacks over tracked connections.
+Before using Iris, we recommend reading Section 4 of [our paper](https://thearossman.github.io/files/iris.pdf), which describes Iris' base abstractions.
+
+At a high level, an Iris application consists of *one or more* traffic *subscriptions*, each of which consists of filters, data types, and callbacks over tracked connections.
 
 * **Subscription Programming Model.** Iris supports analyzing packets, reassembled streams, and parsed application sessions within a bidirectional, "five-tuple"-defined connection. Each subscription includes a filter (what data is of interest?), a set of data types (what format should the data be delivered in?), and callback (what to do with the data?).
 
@@ -34,7 +36,7 @@ Iris processes packets in a connection as they arrive, advancing the connection 
 
 ### Data Types
 
-Iris defines three primitive data types: raw packets, reassembled streams, and parsed fields available within any state transition (["StateTransition"](./core/src/conntrack/conn/conn_state.rs#L29)).
+Iris allows users to build higher-level data types from three primitive data types: raw packets, reassembled streams, and parsed fields available within any state transition (["StateTransition"](./core/src/conntrack/conn/conn_state.rs#L29)).
 User-defined Iris data types are defined in Rust and can access any of these primitive data types to create higher-level abstractions, which are then made available to filters and callbacks.
 
 A variety of default data types are provided in the [datatypes](./datatypes) crate.
@@ -91,6 +93,12 @@ impl OpenVPNOpcode {
 
 Note: in some cases, Iris can infer the [StateTransition](core/src/conntrack/conn/conn_state.rs#L29) (e.g., a "tls" callback requesting a TLS handshake is delivered as soon as the TLS handshake is ready).
 The compiler will throw an error if a StateTransition is required and missing.
+
+#### Built-In Data Type Wrappers
+
+Iris' ["built-in" data types](compiler/src/subscription.rs:#L16) are: `L4Pdu`, `StateTxData`, `StateTransition`, `StateTxData`, `Session`, `SessionProto`, `CoreId`, and `StateTransition`.
+
+These are
 
 ### Filters
 

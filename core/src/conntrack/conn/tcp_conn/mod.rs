@@ -55,8 +55,8 @@ impl TcpConn {
     #[inline]
     pub(crate) fn handshake_done(&self) -> bool {
         !self.handshake_done
-            && self.ctos.consumed_flags & SYN | ACK != 0
-            && self.stoc.consumed_flags & SYN | ACK != 0
+            && self.ctos.consumed_flags & (SYN | ACK) != 0
+            && self.stoc.consumed_flags & (SYN | ACK) != 0
     }
 
     #[inline]

@@ -857,11 +857,11 @@ impl PTree {
             // 4. ...and for filtered data
             let mut my_filtered_data = on_path_data.clone();
             let mut new_data = HashMap::new();
-            for (_, dt) in &node.filtered_datatypes {
+            for dt in node.filtered_datatypes.values() {
                 match my_filtered_data.get(&dt.name) {
                     Some(on_path_dt) => {
                         // Datatype already present on path
-                        if !dt.is_contained_in(&on_path_dt) {
+                        if !dt.is_contained_in(on_path_dt) {
                             // ...but has different `refresh_at` fields
                             my_filtered_data.insert(dt.name.clone(), dt.clone());
                             new_data.insert(dt.name.clone(), dt.clone());
@@ -1112,24 +1112,23 @@ impl PTree {
         // Indicates that there is some child that requires session extraction;
         // candidate for inserting session extractor node
         fn session_state(node: &PNode) -> bool {
-            match &node.pred {
+            matches!(
+                node.pred,
                 Predicate::LayerState {
                     layer: SupportedLayer::L7,
                     state: LayerState::Headers,
                     op: super::ast::BinOp::Gt,
-                } => true,
-                Predicate::LayerState {
+                } | Predicate::LayerState {
                     layer: SupportedLayer::L7,
                     state: LayerState::Payload,
                     op: super::ast::BinOp::Eq | super::ast::BinOp::Ge,
-                } => true,
-                _ => false,
-            }
+                }
+            )
         }
 
         // Confirm that a child (or descendant) is actually on_session
         fn has_on_session(node: &PNode) -> bool {
-            node.pred.on_session() || node.children.iter().any(|child| has_on_session(child))
+            node.pred.on_session() || node.children.iter().any(has_on_session)
         }
 
         // Confirm that a child (or descendent) has an on_proto
@@ -1138,7 +1137,7 @@ impl PTree {
             if node.pred.on_session() {
                 return false;
             } // early return
-            node.pred.on_proto() || node.children.iter().any(|child| has_on_proto(child))
+            node.pred.on_proto() || node.children.iter().any(has_on_proto)
         }
 
         fn insert_session_node(node: &mut PNode, proto: Option<ProtocolName>) {
@@ -1516,8 +1515,6 @@ mod tests {
         let node = tree.get_subtree(1).unwrap(); // checks if CB is active
         assert!(node.pred.is_callback() && !node.actions.drop());
 
-        // TODO - CB not being set as active
-        // - Also make a helper for PNode "is no-op" to centralize that logic
         let mut tree = PTree::new_empty(StateTransition::L4FirstPacket);
         tree.add_subscription(&patterns, &SESSION_PROTO_SUB, &SESSION_PROTO_SUB[0].as_str);
         tree.collapse();

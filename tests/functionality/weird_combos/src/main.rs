@@ -69,7 +69,7 @@ impl TcpUdpCallback {
 
     #[callback_fn("TcpUdpCallback,level=L4EndHshk")]
     fn handshake(&mut self, _: &StateTxData) -> bool {
-        assert!(self.hshk == false, "Two handshakes? {:?}", self.ft);
+        assert!(!self.hshk, "Two handshakes? {:?}", self.ft);
         self.hshk = true;
         assert!(self.ft.proto == TCP_PROTOCOL, "Not TCP: {:?}", self.ft);
         HANDSHAKES_STRUCT.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
@@ -82,7 +82,7 @@ impl TcpUdpCallback {
         let mut sessions = SESSIONS.lock().unwrap();
         let entry = sessions.entry(format!("{:?}", proto)).or_default();
         entry.0 += 1;
-        entry.1.push(self.ft.clone());
+        entry.1.push(self.ft);
         false
     }
 
@@ -109,27 +109,27 @@ fn http_callback(ft: &FiveTuple, proto: &SessionProto) {
         SessionProto::Http => {
             let mut http = HTTP.lock().unwrap();
             http.0 += 1;
-            http.1.push(ft.clone());
+            http.1.push(*ft);
         }
         SessionProto::Tls => {
             let mut tls = TLS.lock().unwrap();
             tls.0 += 1;
-            tls.1.push(ft.clone());
+            tls.1.push(*ft);
         }
         SessionProto::Dns => {
             let mut dns = DNS.lock().unwrap();
             dns.0 += 1;
-            dns.1.push(ft.clone());
+            dns.1.push(*ft);
         }
         SessionProto::Quic => {
             let mut quic = QUIC.lock().unwrap();
             quic.0 += 1;
-            quic.1.push(ft.clone());
+            quic.1.push(*ft);
         }
         SessionProto::Ssh => {
             let mut ssh = SSH.lock().unwrap();
             ssh.0 += 1;
-            ssh.1.push(ft.clone());
+            ssh.1.push(*ft);
         }
         _ => panic!("Unexpected protocol: {:?} for {:?}", proto, ft),
     }
@@ -149,7 +149,7 @@ fn handshake_cb(ft: &FiveTuple) {
 // Dummy filter that will never match
 #[filter("level=InL4Conn")]
 fn random_data(pdu: &L4Pdu) -> FilterResult {
-    if pdu.seq_no() % 10 == 0 {
+    if pdu.seq_no().is_multiple_of(10) {
         FilterResult::Drop
     } else {
         FilterResult::Continue

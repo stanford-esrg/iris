@@ -362,7 +362,7 @@ fn update_body(body: &mut Vec<proc_macro2::TokenStream>, node: &PNode, sub: &Sub
         let cb = fil_callback_to_tokens(sub, deliver, Some(node));
         body.push(quote! { #cb });
     }
-    for (_, dt) in &node.filtered_datatypes {
+    for dt in node.filtered_datatypes.values() {
         let dt = filtered_dt_to_tokens(dt);
         body.push(quote! { #dt });
     }

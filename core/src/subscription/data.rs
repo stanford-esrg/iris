@@ -29,20 +29,20 @@ pub trait Tracked {
 ///
 /// Examples:
 /// - Filter: "tls or quic" parsed as patterns
-/// ["eth->tcp->tls", "eth->udp->quic"]
+///   `["eth->tcp->tls", "eth->udp->quic"]`
 /// - "tls.sni contains nflx or tls.sni contains hulu" parsed as patterns
-/// ["eth->tcp->tls.sni contains nflx", "eth->tcp->tls.sni contains hulu"]
+///   `["eth->tcp->tls.sni contains nflx", "eth->tcp->tls.sni contains hulu"]`
 ///
 /// Some "gotchas":
 /// - FilterStr cannot be requested in a streaming callback (InL4Conn).
-/// If you need FilterStr along with streaming data, we recommend defining
-/// a stateful callback with two methods.
+///   If you need FilterStr along with streaming data, we recommend defining
+///   a stateful callback with two methods.
 /// - Filter patterns may not be mutually exclusive; i.e., multiple patterns
-/// can possibly match. Iris guarantees that stateless, non-streaming
-/// callbacks are invoked at most once; if multiple patterns match, the FilterStr
-/// delivered will be the one that matches first. Iris makes no such guarantee
-/// for stateful callbacks. If you want to receive every pattern that matches,
-/// if multiple match, define a stateful callback.
+///   can possibly match. Iris guarantees that stateless, non-streaming
+///   callbacks are invoked at most once; if multiple patterns match, the FilterStr
+///   delivered will be the one that matches first. Iris makes no such guarantee
+///   for stateful callbacks. If you want to receive every pattern that matches,
+///   if multiple match, define a stateful callback.
 pub type FilterStr<'a> = &'a str;
 
 /// Must be implemented as a trait; cannot define inherent `impl`

@@ -1,8 +1,8 @@
 /// Confirm various streaming behavior.
 ///
 /// 1. Subscribe to streaming data pre- and post-reassembly
-/// (assumes that input pcap is the `small_flows`
-/// pcap, which has a specific flow with OOO segments).
+///    (assumes that input pcap is the `small_flows`
+///    pcap, which has a specific flow with OOO segments).
 ///
 /// 2. Subscribe to streaming filter + various callbacks
 use iris_compiler::*;

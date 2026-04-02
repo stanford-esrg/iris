@@ -334,13 +334,13 @@ pub(crate) fn builtin_to_tokens(name: &String, node: Option<&PNode>) -> proc_mac
         "L4Pdu" => quote! { pdu },
         "FilterStr" => {
             let node = node.expect(
-                &format!("FilterStr parameter not valid (streaming callback, incompatible level, data type, or filter function)")
+                "FilterStr parameter not valid (streaming callback, incompatible level, data type, or filter function)"
             );
             let filter_str = match &node.filter_str {
                 Some(s) => s,
                 None => panic!("No filter string found for node {}", node),
             };
-            let filter_str = syn::LitStr::new(&filter_str, Span::call_site());
+            let filter_str = syn::LitStr::new(filter_str, Span::call_site());
             quote! { &#filter_str }
         }
         "StateTxData" => quote! { &tx_data },
@@ -590,7 +590,7 @@ pub(crate) fn fil_callback_to_tokens(
         invoke = cb_to_tokens(sub, &dts, name, group, spec.invoke_once, node);
     }
     if spec.is_streaming() || spec.is_grouped() {
-        let set_active = cb_set_active_to_tokens(&group.unwrap_or(name).into());
+        let set_active = cb_set_active_to_tokens(group.unwrap_or(name));
         invoke = quote! {
             #set_active
             #invoke
@@ -611,7 +611,7 @@ pub(crate) fn filtered_dt_to_tokens(dt: &FilteredDatatype) -> proc_macro2::Token
     }
 }
 
-pub(crate) fn cb_set_active_to_tokens(cb_group: &String) -> proc_macro2::TokenStream {
+pub(crate) fn cb_set_active_to_tokens(cb_group: &str) -> proc_macro2::TokenStream {
     let wrapper = Ident::new(&cb_group.to_lowercase(), Span::call_site());
     quote! { conn.tracked.#wrapper.try_set_active(); }
 }

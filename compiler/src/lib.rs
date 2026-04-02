@@ -103,6 +103,10 @@ pub fn datatype(args: TokenStream, input: TokenStream) -> TokenStream {
 
 /// Indicate that a struct method should be invoked by Iris as part of
 /// constructing a data type.
+/// These functions can take in any "built-in" data types[fn@BUILTIN_TYPES]
+/// (except `FilterStr`, which applies only to callbacks):
+/// `L4Pdu`, `StateTxData`, `StateTransition`, `StateTxData`, `Session`,
+/// `SessionProto`, `CoreId`, or `StateTransition`.
 ///
 /// Example usage (in an `impl` block for `ConnRecord`)
 ///

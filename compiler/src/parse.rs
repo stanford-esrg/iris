@@ -174,23 +174,23 @@ impl FnSpec {
 
     // Helper - parses Option<Self> or Option<&Self>
     fn parse_option(type_path: &TypePath, name: &String) -> FnReturn {
-        if let syn::PathArguments::AngleBracketed(args) = &type_path.path.segments[0].arguments {
-            if let Some(syn::GenericArgument::Type(arg)) = args.args.first() {
-                match arg {
-                    syn::Type::Path(type_path) => {
-                        if type_path.path.is_ident("Self") || type_path.path.is_ident(&name) {
-                            return FnReturn::Constructor(Constructor::Opt);
-                        }
+        if let syn::PathArguments::AngleBracketed(args) = &type_path.path.segments[0].arguments
+            && let Some(syn::GenericArgument::Type(arg)) = args.args.first()
+        {
+            match arg {
+                syn::Type::Path(type_path) => {
+                    if type_path.path.is_ident("Self") || type_path.path.is_ident(&name) {
+                        return FnReturn::Constructor(Constructor::Opt);
                     }
-                    syn::Type::Reference(type_ref) => {
-                        if let syn::Type::Path(type_path) = type_ref.elem.as_ref() {
-                            if type_path.path.is_ident("Self") || type_path.path.is_ident(&name) {
-                                return FnReturn::Constructor(Constructor::OptRef);
-                            }
-                        }
-                    }
-                    _ => panic!("{}", ParserError::InvalidReturn(name.clone())),
                 }
+                syn::Type::Reference(type_ref) => {
+                    if let syn::Type::Path(type_path) = type_ref.elem.as_ref()
+                        && (type_path.path.is_ident("Self") || type_path.path.is_ident(&name))
+                    {
+                        return FnReturn::Constructor(Constructor::OptRef);
+                    }
+                }
+                _ => panic!("{}", ParserError::InvalidReturn(name.clone())),
             }
         }
         panic!("{}", ParserError::InvalidReturn(name.clone()));
@@ -395,11 +395,11 @@ impl ParsedInput {
                     Self::Datatype(dt) => {
                         // Handle explicitly tracked and filtered data
                         let mut args = args.clone();
-                        if let Some(args_) = &mut args {
-                            if args_.contains("tracked") {
-                                dt.filtered = true;
-                                args = Some(args_.replace("tracked", "").trim().to_string());
-                            }
+                        if let Some(args_) = &mut args
+                            && args_.contains("tracked")
+                        {
+                            dt.filtered = true;
+                            args = Some(args_.replace("tracked", "").trim().to_string());
                         }
                         let struct_def = InputKeys::struct_def(args, &name)?;
                         dt.level = struct_def.0;

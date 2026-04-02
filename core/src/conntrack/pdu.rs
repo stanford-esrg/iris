@@ -16,6 +16,7 @@ use anyhow::{bail, Result};
 use std::net::{IpAddr, SocketAddr};
 
 /// Transport-layer protocol data unit for stream reassembly and application-layer protocol parsing.
+/// As a primitive Iris data type, this can be reassembled (InL4Stream) or not reassembled (InL4Conn).
 #[derive(Debug, Clone)]
 pub struct L4Pdu {
     /// Internal packet buffer containing frame data.
