@@ -92,6 +92,7 @@ fn num_pkts_ge_10(pkts: &PktCount) -> FilterResult {
 }
 
 static INVOKED_PKTS: AtomicUsize = AtomicUsize::new(0);
+static INVOKED_TLS: AtomicUsize = AtomicUsize::new(0);
 
 #[callback("num_pkts_ge_10,level=InL4Conn")]
 fn long_flow_tester_pkts(_: &FiveTuple, pkts: &PktCount) -> bool {
@@ -99,6 +100,13 @@ fn long_flow_tester_pkts(_: &FiveTuple, pkts: &PktCount) -> bool {
     // TODO: this CB may be getting invoked after a delay?
     // assert!(pkts.total() == 10, "Actual packets: {}", pkts.total());
     INVOKED_PKTS.fetch_add(1, Ordering::SeqCst);
+    false
+}
+
+#[callback("tls and num_pkts_ge_10,level=InL4Conn")]
+fn long_flow_tester_tls(_: &FiveTuple, pkts: &PktCount) -> bool {
+    assert!(pkts.total() > 10, "Actual packets: {}", pkts.total());
+    INVOKED_TLS.fetch_add(1, Ordering::SeqCst);
     false
 }
 
@@ -110,4 +118,5 @@ fn main() {
     let mut runtime: Runtime<SubscribedWrapper> = Runtime::new(config, filter).unwrap();
     runtime.run();
     assert!(INVOKED_PKTS.load(Ordering::SeqCst) > 0);
+    assert!(INVOKED_TLS.load(Ordering::SeqCst) > 0);
 }

@@ -760,6 +760,10 @@ impl SubscriptionDecoder {
         }
         ptree.collapse();
         println!("{}", ptree);
+        if filter_layer.is_streaming() && filter_layer.in_transport() {
+            // REFACTOR: this is messy
+            ptree.extract_sessions();
+        }
         ptree
     }
 

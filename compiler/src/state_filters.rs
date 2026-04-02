@@ -163,7 +163,7 @@ fn gen_state_filter_util(
             }
             Predicate::LayerState { layer, state, op } => {
                 let extract_sessions_ = extract_sessions
-                    || (layer == &SupportedLayer::L7 && state >= &LayerState::Headers);
+                    || (layer == &SupportedLayer::L7 && state >= &LayerState::Payload);
                 let pred_tokenstream = layerstate_to_tokens(layer, state, *op);
                 add_pred(
                     code,

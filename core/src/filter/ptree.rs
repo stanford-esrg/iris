@@ -2,7 +2,8 @@ use core::fmt;
 use std::cmp::{Ordering, PartialOrd};
 use std::collections::{HashMap, HashSet};
 
-use crate::conntrack::StateTransition;
+use crate::conntrack::conn::conn_layers::SupportedLayer;
+use crate::conntrack::{LayerState, StateTransition};
 use crate::filter::subscription::{DataActions, FilteredDatatype};
 
 use super::{
@@ -1100,6 +1101,83 @@ impl PTree {
         self.mark_mutual_exclusion(); // Must be last
         self.update_metadata();
         // TODO FOR FILTER_STR: will "collapse" ever mess up the "FilterStr"?
+    }
+
+    /// REFACTOR: this is messy
+    ///
+    /// Insert a node that forces the code generator to extract the last matched session (if one exists)
+    /// so that a child node can match on it.
+    /// This is a quirk of the generated code; see `extract_sessions` in `compiler/src/state_filter.rs`.
+    pub fn extract_sessions(&mut self) {
+        // Indicates that there is some child that requires session extraction;
+        // candidate for inserting session extractor node
+        fn session_state(node: &PNode) -> bool {
+            match &node.pred {
+                Predicate::LayerState {
+                    layer: SupportedLayer::L7,
+                    state: LayerState::Headers,
+                    op: super::ast::BinOp::Gt,
+                } => true,
+                Predicate::LayerState {
+                    layer: SupportedLayer::L7,
+                    state: LayerState::Payload,
+                    op: super::ast::BinOp::Eq | super::ast::BinOp::Ge,
+                } => true,
+                _ => false,
+            }
+        }
+
+        // Confirm that a child (or descendant) is actually on_session
+        fn has_on_session(node: &PNode) -> bool {
+            node.pred.on_session() || node.children.iter().any(|child| has_on_session(child))
+        }
+
+        // Confirm that a child (or descendent) has an on_proto
+        // before any on_session
+        fn has_on_proto(node: &PNode) -> bool {
+            if node.pred.on_session() {
+                return false;
+            } // early return
+            node.pred.on_proto() || node.children.iter().any(|child| has_on_proto(child))
+        }
+
+        fn insert_session_node(node: &mut PNode, proto: Option<ProtocolName>) {
+            // Record protocol
+            let proto = if node.pred.on_proto() {
+                Some(node.pred.get_protocol().clone())
+            } else {
+                proto
+            };
+
+            if node.pred.is_state() && session_state(node) && has_on_session(node) {
+                if proto.is_none() {
+                    assert!(has_on_proto(node), "No protocol found on path to {}", node);
+                    return;
+                }
+                let mut proto_node = PNode::new(
+                    Predicate::Unary {
+                        protocol: proto.as_ref().unwrap().clone(),
+                    },
+                    0, // updated in `update_size`
+                );
+                proto_node.children = std::mem::take(&mut node.children);
+                node.children = vec![proto_node];
+                // Early return; nothing else to do for children
+                return;
+            }
+
+            for child in &mut node.children {
+                insert_session_node(child, proto.clone());
+            }
+        }
+
+        // Might have some LayerState predicates that require extracting the session
+        // (e.g., TLS handshake) before we can check fields on it.
+        if self.filter_layer.is_streaming() && self.filter_layer.in_transport() {
+            let proto = None;
+            insert_session_node(&mut self.root, proto);
+            self.update_size();
+        }
     }
 }
 
