@@ -423,7 +423,7 @@ impl FlatPattern {
     pub fn is_excl(&self, other: &Self) -> bool {
         for p1 in &self.predicates {
             for p2 in &other.predicates {
-                if p1.is_excl(p2) {
+                if p1 != p2 && p1.is_excl(p2) {
                     return true;
                 }
             }

@@ -118,13 +118,8 @@ impl SubscriptionSpec {
         let streaming_pred = patterns
             .iter()
             .any(|pat| pat.predicates.iter().any(|pred| pred.is_streaming()));
-        // Multiple, non-mutually-exclusive filter patterns
-        let multiple_filters = streaming_pred || // skip check
-            (patterns.len() > 1 &&     // multiple patterns
-            patterns // multiple patterns might match on same connection
-                .windows(2)
-                .any(|w| w[0] != w[1] && !w[0].is_excl(&w[1])));
-        if streaming_pred || multiple_filters {
+
+        if streaming_pred {
             for cb in &mut self.callbacks {
                 cb.invoke_once = true;
             }
