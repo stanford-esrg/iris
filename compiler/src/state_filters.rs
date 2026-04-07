@@ -49,7 +49,7 @@ pub(crate) fn gen_state_filters(
 
         let ident = Ident::new(&tx.to_string(), Span::call_site());
         main.push(quote! {
-            iris_core::StateTransition::#ident => #fn_name(conn, &tx),
+            iris_core::StateTransition::#ident => #fn_name(conn, &tx, pdu),
         });
 
         // Ensure that datatypes and custom filters that requested updates
@@ -80,9 +80,15 @@ pub(crate) fn gen_state_filters(
         }
 
         // Complete state transition handler
+        let extract_data = if matches!(tx, StateTransition::L4FirstPacket) {
+            quote! { let pdu = pdu.expect("L4Pdu not passed to L4FirstPacket?"); }
+        } else {
+            quote! {}
+        };
         fns.push(quote! {
-            fn #fn_name(conn: &mut ConnInfo<TrackedWrapper>, tx: &iris_core::StateTransition) {
+            fn #fn_name(conn: &mut ConnInfo<TrackedWrapper>, tx: &iris_core::StateTransition, pdu: Option<&iris_core::L4Pdu>) {
                 let mut ret = false; // unused in state_tx filters
+                #extract_data
                 #start_tracked
                 let tx_data = iris_core::StateTxData::from_tx(tx, &conn.layers[0]);
                 // Some callbacks/filters may require immutable borrow of `conn`;

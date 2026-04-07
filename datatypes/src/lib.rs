@@ -1,6 +1,6 @@
 #[allow(unused_imports)]
 use iris_compiler::cache_file;
-use iris_core::{protocols::Session, L4Pdu, Mbuf};
+use iris_core::{protocols::Session, L4Pdu};
 
 pub mod conn_fts;
 pub use conn_fts::*;
@@ -16,9 +16,6 @@ pub use http_transaction::HttpTransaction;
 
 pub mod packet_list;
 pub use packet_list::*;
-
-pub mod packet;
-pub use packet::{Payload, ZcFrame};
 
 pub mod quic_stream;
 pub use quic_stream::QuicStream;
@@ -52,13 +49,6 @@ pub trait FromSession {
     /// Invoked when the session is fully matched, parsed, and ready to
     /// be delivered to a callback.
     fn from_session(session: &Session) -> Option<&Self>;
-}
-
-/// Convenience method to convert an `Mbuf` into a datatype that
-/// can be subscribed to. Datatypes implementing this trait
-/// are automatically Level=Packet.
-pub trait FromMbuf {
-    fn new(mbuf: &Mbuf) -> Option<&Self>;
 }
 
 /// Trait implemented by datatypes that are constant throughout

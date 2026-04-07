@@ -56,7 +56,7 @@ fn filter() -> FilterFactory<TestTrackable> {
     fn packet_filter(_mbuf: &Mbuf, _core_id: &CoreId) -> bool {
         true
     }
-    fn state_tx(conn: &mut ConnInfo<TestTrackable>, tx: &StateTransition) {
+    fn state_tx(conn: &mut ConnInfo<TestTrackable>, tx: &StateTransition, _: Option<&L4Pdu>) {
         if matches!(tx, StateTransition::L4FirstPacket) {
             conn.linfo.actions.active |= Actions::Update; // "update" pre-reassembly
             conn.linfo.actions.active |= Actions::Parse; // "update" post-reassembly

@@ -27,6 +27,7 @@ pub struct PredPNode {
     pub children: Vec<PredPNode>,
 
     // Packet-level subscriptions that may need to be invoked
+    // NOT SUPPORTED
     pub deliver: HashSet<CallbackSpec>,
 }
 
@@ -161,24 +162,32 @@ impl PredPTree {
         layered
     }
 
+    fn get_callback(callbacks: &[CallbackSpec]) -> Option<CallbackSpec> {
+        if callbacks.len() == 1 && matches!(callbacks[0].expl_level, Some(StateTransition::Packet))
+        {
+            panic!(
+                "Explicit packet-level subscriptions not supported ({})",
+                callbacks[0].as_str
+            );
+            // return Some(callbacks[0].clone());
+        }
+        if callbacks.len() == 1 && callbacks[0].expl_level.is_none() {
+            if callbacks[0]
+                .datatypes
+                .iter()
+                .all(|dt| dt.updates.len() == 1 && dt.updates[0] == StateTransition::Packet)
+            {
+                // This may be okay if the filter pattern doesn't terminate here
+                return Some(callbacks[0].clone());
+            }
+        }
+        None
+    }
+
     pub fn build_tree(&mut self, patterns: &[FlatPattern], callbacks: &[CallbackSpec]) {
         // Check for packet-level subscription
-        let callback = if callbacks.len() == 1
-            && callbacks[0].datatypes.iter().all(|dt| {
-                dt.updates.len() == 1
-                    && matches!(
-                        dt.updates[0],
-                        StateTransition::Packet | StateTransition::L4FirstPacket
-                    )
-            }) {
-            match callbacks[0].expl_level {
-                Some(StateTransition::Packet) => Some(callbacks[0].clone()),
-                None => Some(callbacks[0].clone()),
-                _ => None,
-            }
-        } else {
-            None
-        };
+        // [TODO: this should be dead code - packet-level subscriptions not supported]
+        let callback = Self::get_callback(callbacks);
         // add each pattern to tree
         for pattern in patterns {
             self.add_pattern(pattern, &callback);
@@ -209,10 +218,14 @@ impl PredPTree {
 
         node.is_terminal = true;
         if terminates_full_pattern {
-            // Packet-level pattern and packet-level CB
+            // [TODO] Packet-level pattern and packet-level CB
             if let Some(cb) = callback {
                 node.deliver.insert(cb.clone());
                 self.deliver.insert(cb.clone());
+                panic!(
+                    "Packet-level callbacks not supported; specify explicit level for {}",
+                    cb.as_str
+                );
             }
         }
     }

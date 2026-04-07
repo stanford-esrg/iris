@@ -59,8 +59,12 @@ pub enum StateTransition {
     /// L4 connection terminated by FIN/ACK sequence or timeout
     L4Terminated,
 
-    /// Packet-level datatype. Any filter or datatype tagged with this
+    /// Packet-level datatype. Any datatype tagged with this
     /// is built from a single, connectionless packet (Mbuf).
+    ///
+    /// Note: Iris currently does not support subscriptions that are not tied to
+    /// a connection. Callbacks and filters should use `InL4Conn` to request
+    /// packet-level data types.
     ///
     /// Packet-level filters cannot be combined with datatypes or callbacks
     /// that require connection/session tracking. Packet-level datatypes can only be

@@ -147,7 +147,7 @@ where
                         _ => Err(anyhow!("Invalid L4 Protocol")),
                     };
                     if let Ok(mut conn) = conn {
-                        conn.info.filter_first_packet(subscription);
+                        conn.info.filter_first_packet(subscription, &pdu);
                         // Pre-reassembly update
                         if conn.info.needs_update() {
                             conn.info.new_packet(&pdu, subscription);

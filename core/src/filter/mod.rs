@@ -45,7 +45,7 @@ use thiserror::Error;
 pub type PacketFilterFn = fn(&Mbuf, &CoreId) -> bool;
 /// Filter applied on a state transition.
 #[doc(hidden)]
-pub type StateTxFn<T> = fn(&mut ConnInfo<T>, &StateTransition);
+pub type StateTxFn<T> = fn(&mut ConnInfo<T>, &StateTransition, Option<&L4Pdu>);
 /// Invoked to update internal data on each new packet
 /// Returns `true` if something changed (CB unsubscribed, streaming filter matched/didn't match)
 #[doc(hidden)]

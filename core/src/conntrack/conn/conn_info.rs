@@ -57,8 +57,12 @@ where
 
     /// Initializes actions at all layers when first packet
     /// in L4 connection is observed.
-    pub(crate) fn filter_first_packet(&mut self, subscription: &Subscription<T::Subscribed>) {
-        subscription.state_tx::<T>(self, &StateTransition::L4FirstPacket);
+    pub(crate) fn filter_first_packet(
+        &mut self,
+        subscription: &Subscription<T::Subscribed>,
+        pdu: &L4Pdu,
+    ) {
+        subscription.state_tx::<T>(self, &StateTransition::L4FirstPacket, Some(pdu));
     }
 
     /// Update tracked data when new packet is observed.
@@ -133,7 +137,8 @@ where
     /// Update subscription data and current state, including actions,
     /// upon state transition.
     fn exec_state_tx(&mut self, tx: StateTransition, subscription: &Subscription<T::Subscribed>) {
-        if tx == StateTransition::Packet {
+        // Packet is "no-op"; FirstPacket is handled separately
+        if matches!(tx, StateTransition::Packet | StateTransition::L4FirstPacket) {
             return;
         }
 
@@ -151,8 +156,7 @@ where
             layer.layer_info_mut().actions.start_state_tx(tx);
         }
         match tx {
-            StateTransition::L4FirstPacket | StateTransition::Packet => {}
-            _ => subscription.state_tx::<T>(self, &tx),
+            _ => subscription.state_tx::<T>(self, &tx, None),
         }
         for layer in &mut self.layers {
             layer.end_state_tx();

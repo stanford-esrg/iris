@@ -20,10 +20,6 @@
 {"DatatypeFn":{"group_name":"OrigPktStream","func":{"name":"update","datatypes":["L4Pdu"],"returns":"None"},"level":["InL4Conn"]}}
 {"Datatype":{"name":"RespPktStream","level":null,"expl_parsers":[],"filtered":false}}
 {"DatatypeFn":{"group_name":"RespPktStream","func":{"name":"update","datatypes":["L4Pdu"],"returns":"None"},"level":["InL4Conn"]}}
-{"Datatype":{"name":"ZcFrame","level":"Packet","expl_parsers":[],"filtered":false}}
-{"DatatypeFn":{"group_name":"ZcFrame","func":{"name":"new","datatypes":["Mbuf"],"returns":{"Constructor":"OptRef"}},"level":["Packet"]}}
-{"Datatype":{"name":"Payload","level":"Packet","expl_parsers":[],"filtered":false}}
-{"DatatypeFn":{"group_name":"ZcFrame","func":{"name":"new","datatypes":["Mbuf"],"returns":{"Constructor":"OptRef"}},"level":["Packet"]}}
 {"Datatype":{"name":"QuicStream","level":"L7EndHdrs","expl_parsers":["quic"],"filtered":false}}
 {"DatatypeFn":{"group_name":"QuicStream","func":{"name":"from_session","datatypes":["Session"],"returns":{"Constructor":"OptRef"}},"level":["L7EndHdrs"]}}
 {"Datatype":{"name":"SshHandshake","level":"L7EndHdrs","expl_parsers":["ssh"],"filtered":false}}

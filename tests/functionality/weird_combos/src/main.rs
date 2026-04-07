@@ -161,6 +161,19 @@ fn random_data_cb(_ft: &FiveTuple) {
     panic!("Random data callback invoked");
 }
 
+// This should cause a compiler error
+// (packet-level subscriptions not supported)
+// #[callback("tcp")]
+// fn tester(_: &L4Pdu) { }
+
+// These should compile -- explicitly specify level
+#[callback("tcp,level=L4FirstPacket")]
+fn tester_first(_: &L4Pdu) {}
+#[callback("tcp,level=InL4Conn")]
+fn tester_stream(_: &L4Pdu) -> bool {
+    false
+}
+
 #[input_files("$IRIS_HOME/datatypes/data.txt")]
 #[iris_end_macros]
 fn main() {

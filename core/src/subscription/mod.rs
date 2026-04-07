@@ -105,8 +105,16 @@ where
 
     /// Called on any StateTransition.
     /// Updates actions and invokes filters.
-    pub fn state_tx<T: Trackable>(&self, conn: &mut ConnInfo<S::Tracked>, tx: &StateTransition) {
-        (self.state_tx_filter)(conn, tx)
+    ///
+    /// Note: the only state TX for which pdu is not None is on first packet
+    /// (the first packet in the connection is passed through).
+    pub fn state_tx<T: Trackable>(
+        &self,
+        conn: &mut ConnInfo<S::Tracked>,
+        tx: &StateTransition,
+        pdu: Option<&L4Pdu>,
+    ) {
+        (self.state_tx_filter)(conn, tx, pdu)
     }
 
     /// Invoke "update" API, returning `true` if Actions may need

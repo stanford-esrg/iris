@@ -390,7 +390,8 @@ pub fn iris_end_macros(_args: TokenStream, input: TokenStream) -> TokenStream {
             }
 
             fn state_tx(conn: &mut ConnInfo<TrackedWrapper>,
-                    tx: &iris_core::StateTransition) {
+                    tx: &iris_core::StateTransition,
+                    pdu: Option<&iris_core::L4Pdu>) {
                 #state_tx_main
             }
 
