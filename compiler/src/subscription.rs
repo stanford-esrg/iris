@@ -1,0 +1,982 @@
+use crate::parse::*;
+use iris_core::conntrack::StateTransition;
+use iris_core::filter::{
+    Filter,
+    ast::{FuncIdent, Predicate},
+    pattern::FlatPattern,
+    pred_ptree::PredPTree,
+    ptree::PTree,
+    subscription::{CallbackSpec, StateTransitionSpec, SubscriptionLevel},
+};
+use lazy_static::lazy_static;
+use std::collections::{HashMap, HashSet};
+
+lazy_static! {
+    // Update documentation if also updating this!
+    pub(crate) static ref BUILTIN_TYPES: Vec<ParsedInput> = vec![
+        ParsedInput::Datatype(DatatypeSpec {
+            name: "L4Pdu".into(),
+            level: Some(StateTransition::Packet), // "Packet" = standin for "Any"
+            expl_parsers: vec![],
+            filtered: false,
+        }),
+        // Applies only to callbacks, but convenient to store here [REFACTOR]
+        ParsedInput::Datatype(DatatypeSpec {
+            name: "FilterStr".into(),
+            level: Some(StateTransition::Packet),
+            expl_parsers: vec![],
+            filtered: false,
+        }),
+        ParsedInput::Datatype(DatatypeSpec {
+            name: "StateTxData".into(),
+            level: Some(StateTransition::Packet),
+            expl_parsers: vec![], // Must be provided by application
+            filtered: false,
+        }),
+        ParsedInput::Datatype(DatatypeSpec {
+            name: "Session".into(),
+            level: Some(StateTransition::L7EndHdrs),
+            expl_parsers: vec![], // Must be provided by application
+            filtered: false,
+        }),
+        ParsedInput::Datatype(DatatypeSpec {
+            name: "SessionProto".into(),
+            level: Some(StateTransition::L7OnDisc),
+            expl_parsers: vec![], // Must be provided by application
+            filtered: false,
+        }),
+        ParsedInput::Datatype(DatatypeSpec {
+            name: "CoreId".into(),
+            level: Some(StateTransition::Packet),
+            expl_parsers: vec![],
+            filtered: false,
+        }),
+        ParsedInput::Datatype(DatatypeSpec {
+            name: "StateTransition".into(),
+            level: Some(StateTransition::Packet),
+            expl_parsers: vec![], // Must be provided by application
+            filtered: false,
+        }),
+    ];
+}
+
+#[derive(Debug)]
+pub(crate) struct SubscriptionSpec {
+    pub(crate) callbacks: Vec<CallbackSpec>,
+    pub(crate) filter: String,
+    pub(crate) as_str: String,
+    pub(crate) patterns: Option<Vec<FlatPattern>>,
+}
+
+impl SubscriptionSpec {
+    fn add_patterns(&mut self, custom_preds: &[Predicate]) {
+        if self.patterns.is_none() {
+            let filter = Filter::new(&self.filter, custom_preds)
+                .unwrap_or_else(|_| panic!("Invalid filter: {}", self.filter));
+            self.patterns = Some(filter.get_patterns_flat());
+        }
+        let filter_str = self
+            .callbacks
+            .iter()
+            .any(|cb| cb.datatypes.iter().any(|dt| dt.name == "FilterStr"));
+        if filter_str && let Some(pats) = &mut self.patterns {
+            for pat in pats {
+                pat.as_str = Some(pat.to_string());
+            }
+        }
+    }
+
+    fn get_filter_parsers(&self) -> HashSet<String> {
+        let mut ret = HashSet::new();
+        for pat in self.patterns.as_ref().unwrap() {
+            for pred in &pat.predicates {
+                if pred.on_proto() {
+                    ret.insert(pred.get_protocol().clone().0);
+                }
+            }
+        }
+        ret
+    }
+
+    fn add_invoke_once(&mut self) {
+        // We don't make guarantees for grouped CBs, since we track grouped CBs as a full group.
+        // NICE-TO-HAVE: could change this in the future.
+        if self.callbacks.len() > 1 {
+            return;
+        }
+
+        // Streaming CBs invoked until unsubscribe; L4Terminated subscriptions
+        // don't need to be tracked.
+        if let Some(level) = self.callbacks[0].expl_level
+            && (level.is_streaming() || level == StateTransition::L4Terminated)
+        {
+            return;
+        }
+
+        // Any CB that has streaming patterns
+        let patterns = self.patterns.as_ref().expect("Patterns not populated");
+        let streaming_pred = patterns
+            .iter()
+            .any(|pat| pat.predicates.iter().any(|pred| pred.is_streaming()));
+
+        if streaming_pred {
+            for cb in &mut self.callbacks {
+                cb.invoke_once = true;
+            }
+        }
+    }
+}
+
+/// Responsible for transforming the raw data in `parse.rs` into the formats
+/// Iris requires.
+pub(crate) struct SubscriptionDecoder {
+    /// Filter group (or function name) --> Parsed Input(s)
+    pub(crate) filters_raw: HashMap<String, Vec<ParsedInput>>,
+    /// Map datatype group (or name) -> Parsed Input(s)
+    pub(crate) datatypes_raw: HashMap<String, Vec<ParsedInput>>,
+    /// Map cb group (or name) -> Parsed Input(s)
+    pub(crate) cbs_raw: HashMap<String, Vec<ParsedInput>>,
+
+    /// Required stream protocol parsers
+    pub(crate) parsers: HashSet<String>,
+
+    /// Valid custom predicates passed into Filter::new()
+    pub(crate) custom_preds: Vec<Predicate>,
+    /// Datatype name -> Datatype Spec with all updates
+    /// Used to derive levels for callbacks and custom filters
+    pub(crate) datatypes: HashMap<String, StateTransitionSpec>,
+    /// Datatypes marked explicitly as `tracked`; these are wrapped at runtime
+    /// to discard if the associated subscriptions go out of scope, under the assumption
+    /// that they are computationally and/or memory intensive.
+    pub(crate) filtered_datatypes: HashSet<String>,
+    /// Full subscriptions
+    pub(crate) subscriptions: Vec<SubscriptionSpec>,
+
+    /// Required `updates`: Level of required update -->
+    /// datatype update, filter method, or streaming callback.
+    pub(crate) updates: HashMap<StateTransition, Vec<ParsedInput>>,
+    /// Tracked datatypes (stored as fields in Tracked struct)
+    pub(crate) tracked: HashSet<TrackedType>,
+}
+
+impl SubscriptionDecoder {
+    pub(crate) fn new(inputs: &Vec<ParsedInput>) -> Self {
+        let mut ret = Self {
+            filters_raw: HashMap::new(),
+            datatypes_raw: HashMap::new(),
+            cbs_raw: HashMap::new(),
+            parsers: HashSet::new(),
+            custom_preds: Vec::new(),
+            datatypes: HashMap::new(),
+            filtered_datatypes: HashSet::new(),
+            subscriptions: Vec::new(),
+            updates: HashMap::new(),
+            tracked: HashSet::new(),
+        };
+        ret.parse_raw(inputs);
+        ret.decode_datatypes();
+        ret.decode_filters();
+        ret.decode_subscriptions();
+        ret.prune_filters_and_datatypes();
+        ret.add_parsers();
+        for spec in &mut ret.subscriptions {
+            spec.add_patterns(&ret.custom_preds);
+            ret.parsers.extend(spec.get_filter_parsers());
+            spec.add_invoke_once();
+        }
+        ret.decode_updates();
+        assert!(!ret.cbs_raw.is_empty(), "No callbacks defined");
+        ret
+    }
+
+    /// Map inputs by name
+    fn parse_raw(&mut self, inputs: &Vec<ParsedInput>) {
+        BUILTIN_TYPES.iter().for_each(|dt| {
+            self.datatypes_raw
+                .insert(dt.name().clone(), vec![dt.clone()]);
+        });
+        for inp in inputs {
+            let name = inp.name().clone();
+            match inp {
+                ParsedInput::Datatype(_) => {
+                    let v = self.datatypes_raw.entry(name).or_insert(vec![]);
+                    v.push(inp.clone());
+                }
+                ParsedInput::DatatypeFn(dt) => {
+                    let group_name = dt.group_name.clone();
+                    let v = self.datatypes_raw.entry(group_name).or_insert(vec![]);
+                    v.push(inp.clone());
+                }
+                ParsedInput::Filter(_) => {
+                    self.filters_raw.insert(name.clone(), vec![inp.clone()]);
+                }
+                ParsedInput::FilterGroup(_) => {
+                    let v = self.filters_raw.entry(name).or_insert(vec![]);
+                    v.push(inp.clone());
+                }
+                ParsedInput::FilterGroupFn(f) => {
+                    let group_name = f.group_name.clone();
+                    let v = self.filters_raw.entry(group_name).or_insert(vec![]);
+                    v.push(inp.clone());
+                }
+                ParsedInput::Callback(_) => {
+                    assert!(
+                        !self.cbs_raw.contains_key(&name),
+                        "Callback {} defined twice",
+                        name
+                    );
+                    self.cbs_raw.insert(name.clone(), vec![inp.clone()]);
+                }
+                ParsedInput::CallbackGroup(_) => {
+                    let v = self.cbs_raw.entry(name).or_insert(vec![]);
+                    v.push(inp.clone());
+                }
+                ParsedInput::CallbackGroupFn(cb) => {
+                    let group_name = cb.group_name.clone();
+                    let v = self.cbs_raw.entry(group_name).or_insert(vec![]);
+                    v.push(inp.clone());
+                }
+            }
+        }
+    }
+
+    fn decode_datatypes(&mut self) {
+        for (dt, inp) in &self.datatypes_raw {
+            let spec = StateTransitionSpec {
+                name: dt.clone(),
+                updates: inp.iter().cloned().flat_map(|l| l.levels()).collect(),
+            };
+            self.datatypes.insert(dt.clone(), spec);
+            if inp.iter().any(|i| match i {
+                ParsedInput::Datatype(d) => d.filtered,
+                _ => false,
+            }) {
+                self.filtered_datatypes.insert(dt.clone());
+            }
+        }
+    }
+
+    fn decode_filters(&mut self) {
+        for (name, v) in self.filters_raw.iter() {
+            // Validate grouped input
+            if v.iter().any(|inp| inp.is_group()) {
+                assert!(v.len() > 1, "Missing group for {:?}", v);
+                assert!(
+                    v.iter().map(|s| s.group()).all(|x| x == v[0].group()),
+                    "Mismatched groups in: {:?}",
+                    v
+                );
+            } else {
+                assert!(v.len() == 1, "Missing filter group for: {:?}", v);
+            }
+
+            // TODO this can break if filter is trying to request multiple datatypes
+            // Filter group gets "level" at max level even if there are multiple functions
+            let mut levels = vec![];
+            let mut filtered_data = vec![];
+            for inp in v {
+                let mut lvls = vec![];
+                // Levels of the datatypes in the function(s)
+                match inp {
+                    ParsedInput::Filter(f) => {
+                        lvls.extend(self.fil_datatypes_to_levels(&f.func, name));
+                    }
+                    ParsedInput::FilterGroupFn(f) => {
+                        lvls.extend(self.fil_datatypes_to_levels(
+                            &f.func,
+                            &format!("{}::{}", f.group_name, f.func.name),
+                        ));
+                    }
+                    _ => continue,
+                }
+                if lvls.iter().any(|l| l.is_streaming()) {
+                    assert!(
+                        !inp.levels().is_empty(),
+                        "Filter {}::{} requests streaming datatypes; must explicitly specify level",
+                        name,
+                        inp.name()
+                    );
+                }
+                // Explicitly annotated levels
+                lvls.extend(inp.levels());
+                lvls.sort();
+                lvls.dedup();
+                if !lvls.is_empty() {
+                    levels.push(lvls);
+                }
+                // Filtered ("expensive") datatypes that require tracking in PTree
+                match inp {
+                    ParsedInput::Filter(f) => {
+                        filtered_data.extend(
+                            f.func
+                                .datatypes
+                                .iter()
+                                .filter(|dt| self.filtered_datatypes.contains(*dt))
+                                .cloned(),
+                        );
+                    }
+                    ParsedInput::FilterGroupFn(f) => {
+                        filtered_data.extend(
+                            f.func
+                                .datatypes
+                                .iter()
+                                .filter(|dt| self.filtered_datatypes.contains(*dt))
+                                .cloned(),
+                        );
+                    }
+                    _ => continue,
+                }
+            }
+            self.custom_preds.push(Predicate::Custom {
+                name: FuncIdent(name.clone()),
+                levels,
+                matched: true,
+                filtered_data,
+            });
+        }
+    }
+
+    fn decode_subscriptions(&mut self) {
+        for (cb_name, v) in &self.cbs_raw {
+            let inp_group = v
+                .iter()
+                .find(|i| matches!(i, ParsedInput::Callback(_) | ParsedInput::CallbackGroup(_)))
+                .unwrap_or_else(|| panic!("{} missing callback definition", cb_name));
+            let filter = match inp_group {
+                ParsedInput::Callback(cb) => cb.filter.clone(),
+                ParsedInput::CallbackGroup(cb) => cb.filter.clone(),
+                _ => unreachable!(),
+            };
+            let mut callbacks = vec![];
+
+            for inp in v {
+                match inp {
+                    ParsedInput::Callback(cb) => {
+                        assert!(v.len() == 1);
+                        self.specs_to_cb(
+                            &cb.func,
+                            cb_name.clone(),
+                            cb_name.clone(),
+                            &cb.level,
+                            &mut callbacks,
+                        );
+                    }
+                    ParsedInput::CallbackGroupFn(cb) => {
+                        let sub_id = cb.group_name.clone();
+                        let as_str = format!("{}::{}", sub_id, cb.func.name);
+                        self.specs_to_cb(&cb.func, as_str, sub_id, &cb.level, &mut callbacks);
+                    }
+                    ParsedInput::CallbackGroup(_) => continue,
+                    _ => panic!("Unknown ParsedInput in callback list"),
+                }
+            }
+            self.subscriptions.push(SubscriptionSpec {
+                callbacks,
+                filter,
+                as_str: cb_name.clone(),
+                patterns: None,
+            });
+        }
+    }
+
+    fn specs_to_cb(
+        &self,
+        spec: &FnSpec,
+        as_str: String,
+        subscription_id: String,
+        levels: &[StateTransition],
+        callbacks: &mut Vec<CallbackSpec>,
+    ) {
+        if levels.len() <= 1 {
+            let cb_spec =
+                self.spec_to_cbs_int(spec, as_str, subscription_id, levels.last().cloned());
+            callbacks.push(cb_spec);
+        } else {
+            // Break up into multiple callbacks for multiple different levels.
+            // REFACTOR: might be simpler in the future to change CallbackSpec to take multiple levels?
+            let mut levels: Vec<StateTransition> = levels.to_vec();
+            levels.sort();
+            levels.dedup();
+            for l in levels {
+                let cb_spec =
+                    self.spec_to_cbs_int(spec, as_str.clone(), subscription_id.clone(), Some(l));
+                callbacks.push(cb_spec);
+            }
+        }
+    }
+
+    fn spec_to_cbs_int(
+        &self,
+        spec: &FnSpec,
+        as_str: String,
+        subscription_id: String,
+        expl_level: Option<StateTransition>,
+    ) -> CallbackSpec {
+        let must_deliver = spec.datatypes.iter().any(|dt| dt == "FilterStr");
+        let datatypes = spec
+            .datatypes
+            .iter()
+            .map(|dt_name| {
+                self.datatypes
+                    .get(dt_name)
+                    .unwrap_or_else(|| panic!("Can't find datatype {}", dt_name))
+                    .clone()
+            })
+            .collect::<Vec<_>>();
+        let filtered_data = spec
+            .datatypes
+            .iter()
+            .filter(|dt| self.filtered_datatypes.contains(*dt))
+            .cloned()
+            .collect::<Vec<_>>();
+        if datatypes
+            .iter()
+            .any(|dt| dt.updates.iter().any(|l| l.is_streaming()))
+        {
+            assert!(
+                expl_level.is_some(),
+                "Callback {} requests streaming datatype; must explicitly specify level.",
+                spec.name
+            );
+        }
+        if datatypes
+            .iter()
+            .any(|dt| dt.updates.contains(&StateTransition::L4Terminated))
+        {
+            assert!(
+                expl_level.is_none() || expl_level.unwrap() == StateTransition::L4Terminated,
+                "Callback {} requests datatype that is L4Terminated; cannot specify separate level",
+                spec.name
+            );
+        }
+        CallbackSpec {
+            expl_level,
+            datatypes,
+            must_deliver,
+            invoke_once: false, // Filled in when patterns are built
+            as_str,
+            subscription_id,
+            filtered_data,
+        }
+    }
+
+    // TODO figure out what should go here -- need to fix filters to have multiple levels / params?
+    // Pull the top-level datatype declaration to infer a function level
+    fn fil_datatypes_to_levels(&self, spec: &FnSpec, as_str: &String) -> Vec<StateTransition> {
+        let mut lvls = vec![];
+        for dt_name in &spec.datatypes {
+            let dt_info = self
+                .datatypes_raw
+                .get(dt_name)
+                .unwrap_or_else(|| panic!("Cannot find datatype {}", dt_name));
+            // Try level declared on struct first
+            let mut level = dt_info
+                .iter()
+                .find(|grp| matches!(grp, ParsedInput::Datatype(_)))
+                .unwrap_or_else(|| panic!("Cannot find datatype declaration {}", dt_name))
+                .levels();
+            // If no level declared on struct, check for functions
+            if level.is_empty() {
+                level = dt_info
+                    .iter()
+                    .find(|grp| matches!(grp, ParsedInput::DatatypeFn(_)))
+                    .unwrap_or_else(|| {
+                        panic!("Cannot find datatype function declaration {}", dt_name)
+                    })
+                    .levels();
+            }
+            level.sort();
+            level.dedup();
+            assert!(
+                level.len() == 1,
+                "{} declaration has {} levels (requires 1 to be used in filter function; try declaring level on struct)",
+                dt_name,
+                level.len()
+            );
+            lvls.push(level.pop().unwrap());
+        }
+        lvls.sort();
+        lvls.dedup();
+        if lvls.len() > 1 {
+            panic!(
+                "Multiple datatypes with different levels in filter function not supported: {}",
+                as_str
+            );
+        }
+        lvls
+    }
+
+    fn prune_filters_and_datatypes(&mut self) {
+        // Only retain filters that are actually used by a subscription
+        self.filters_raw.retain(|name, _| {
+            self.subscriptions
+                .iter()
+                .any(|spec| spec.filter.contains(name))
+        });
+
+        // Only retain datatypes that are actually used by a datatype or filter
+        let mut req_datatypes = HashSet::new();
+        for v in self.filters_raw.values() {
+            for inp in v {
+                match inp {
+                    ParsedInput::FilterGroupFn(spec) => {
+                        req_datatypes.extend(&spec.func.datatypes);
+                    }
+                    ParsedInput::Filter(spec) => {
+                        req_datatypes.extend(&spec.func.datatypes);
+                    }
+                    _ => {}
+                }
+            }
+        }
+        for v in self.cbs_raw.values() {
+            for inp in v {
+                match inp {
+                    ParsedInput::Callback(spec) => {
+                        req_datatypes.extend(&spec.func.datatypes);
+                    }
+                    ParsedInput::CallbackGroupFn(spec) => {
+                        req_datatypes.extend(&spec.func.datatypes);
+                    }
+                    _ => {}
+                }
+            }
+        }
+        self.datatypes_raw
+            .retain(|name, _| req_datatypes.contains(name));
+    }
+
+    fn add_parsers(&mut self) {
+        for v in self.filters_raw.values() {
+            self.parsers.extend(
+                v.iter()
+                    .flat_map(|i| i.expl_parsers())
+                    .filter(|p| !p.is_empty()),
+            );
+        }
+        for v in self.datatypes_raw.values() {
+            self.parsers.extend(
+                v.iter()
+                    .flat_map(|i| i.expl_parsers())
+                    .filter(|p| !p.is_empty()),
+            );
+        }
+        for v in self.cbs_raw.values() {
+            self.parsers.extend(
+                v.iter()
+                    .flat_map(|i| i.expl_parsers())
+                    .filter(|p| !p.is_empty()),
+            );
+        }
+    }
+
+    fn decode_updates(&mut self) {
+        let mut updates = HashMap::new();
+        for v in self.filters_raw.values() {
+            Self::push_update(&mut updates, v);
+            if let Some(tracked) = Self::is_tracked_type(v) {
+                self.tracked.insert(tracked);
+            }
+        }
+        for v in self.datatypes_raw.values() {
+            Self::push_update(&mut updates, v);
+            if let Some(tracked) = Self::is_tracked_type(v) {
+                self.tracked.insert(tracked);
+            }
+        }
+        for v in self.cbs_raw.values() {
+            Self::push_update(&mut updates, v);
+            if let Some(tracked) = Self::is_tracked_type(v) {
+                self.tracked.insert(tracked);
+            }
+        }
+        for spec in &self.subscriptions {
+            for cb in &spec.callbacks {
+                if cb.invoke_once {
+                    assert!(
+                        cb.subscription_id == cb.as_str,
+                        "Grouped CB {}::{} marked as invoke_once",
+                        cb.subscription_id,
+                        cb.as_str
+                    );
+                    self.tracked.insert(TrackedType {
+                        name: cb.as_str.clone(),
+                        kind: TrackedKind::StaticCallback,
+                    });
+                }
+
+                // Datatypes that are not builtin but need
+                // to be cached for future delivery
+                // TODO - change this to be datatypes that are ready before
+                // callbacks and shouldn't be constructed in-place.
+                // TODO - change to only do this if the subscription can't
+                // be delivered at L4FirstPacket
+                let static_dts = cb
+                    .datatypes
+                    .iter()
+                    .filter(|dt| {
+                        dt.updates.len() == 1 && dt.updates[0] == StateTransition::L4FirstPacket
+                    })
+                    .collect::<Vec<_>>();
+                for dt in static_dts {
+                    self.tracked.insert(TrackedType {
+                        name: dt.name.clone(),
+                        kind: TrackedKind::StaticData,
+                    });
+                }
+            }
+        }
+        self.updates = updates;
+    }
+
+    fn push_update(
+        updates: &mut HashMap<StateTransition, Vec<ParsedInput>>,
+        inps: &Vec<ParsedInput>,
+    ) {
+        for inp in inps {
+            if inp.is_group() {
+                continue;
+            }
+            let (streaming, stat): (Vec<_>, Vec<_>) =
+                inp.levels().into_iter().partition(|l| l.is_streaming());
+            for l in streaming {
+                updates.entry(l).or_insert(vec![]).push(inp.clone());
+            }
+            for l in stat {
+                match inp {
+                    // Deliver requested tx update to filter and datatype fns
+                    ParsedInput::FilterGroupFn(_) => {
+                        updates.entry(l).or_insert(vec![]).push(inp.clone());
+                    }
+                    ParsedInput::DatatypeFn(f) => {
+                        if !matches!(f.func.returns, FnReturn::Constructor(_)) {
+                            updates.entry(l).or_insert(vec![]).push(inp.clone());
+                        }
+                    }
+                    // Callbacks invoked inline
+                    // Ungrouped filter functions that aren't streaming don't need to be tracked
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    fn is_tracked_type(inps: &Vec<ParsedInput>) -> Option<TrackedType> {
+        let is_streaming = inps
+            .iter()
+            .any(|inp| inp.levels().iter().any(|l| l.is_streaming()));
+        // Only one function and it's not streaming
+        if inps.len() == 1 && inps[0].levels().len() == 1 && !is_streaming {
+            return None;
+        }
+        // Multiple parsed inputs, but one is a group definition and
+        // the other is a constructor.
+        if !is_streaming {
+            let fns = inps
+                .iter()
+                .filter(|i| {
+                    matches!(
+                        i,
+                        ParsedInput::CallbackGroupFn(_)
+                            | ParsedInput::DatatypeFn(_)
+                            | ParsedInput::FilterGroupFn(_)
+                    )
+                })
+                .collect::<Vec<_>>();
+            if fns.is_empty() {
+                return None;
+            }
+            if fns.len() == 1 && fns.last().unwrap().is_constructor() {
+                return None;
+            }
+        }
+
+        // Streaming or multiple functions
+        for inp in inps {
+            match inp {
+                ParsedInput::CallbackGroup(group) => {
+                    return Some(TrackedType {
+                        kind: TrackedKind::StreamCallback,
+                        name: group.name.clone(),
+                    });
+                }
+                ParsedInput::FilterGroup(group) => {
+                    return Some(TrackedType {
+                        kind: TrackedKind::StreamFilter,
+                        name: group.name.clone(),
+                    });
+                }
+                ParsedInput::Datatype(group) => {
+                    return Some(TrackedType {
+                        kind: TrackedKind::Datatype(group.filtered),
+                        name: group.name.clone(),
+                    });
+                }
+                ParsedInput::Callback(cb) => {
+                    return Some(TrackedType {
+                        kind: TrackedKind::StatelessCallback,
+                        name: cb.func.name.clone(),
+                    });
+                }
+                ParsedInput::Filter(fil) => {
+                    return Some(TrackedType {
+                        kind: TrackedKind::StatelessFilter,
+                        name: fil.func.name.clone(),
+                    });
+                }
+                _ => continue,
+            }
+        }
+        None
+    }
+
+    pub(crate) fn get_packet_filter_tree(&self) -> PredPTree {
+        let mut ptree: PredPTree = PredPTree::new_empty(true);
+        for spec in &self.subscriptions {
+            let patterns = spec.patterns.as_ref().expect("Patterns not populated");
+            ptree.build_tree(patterns, &spec.callbacks);
+        }
+        ptree.prune_branches();
+        println!("{}", ptree);
+        ptree
+    }
+
+    pub(crate) fn build_ptree(&self, filter_layer: StateTransition) -> PTree {
+        assert!(!matches!(filter_layer, StateTransition::Packet));
+        let mut ptree = PTree::new_empty(filter_layer);
+        for spec in &self.subscriptions {
+            let patterns = spec.patterns.as_ref().expect("Patterns not populated");
+            ptree.add_subscription(patterns, &spec.callbacks, &spec.as_str);
+        }
+        ptree.collapse();
+        println!("{}", ptree);
+        if filter_layer.is_streaming() && filter_layer.in_transport() {
+            // REFACTOR: this is messy
+            ptree.extract_sessions();
+        }
+        ptree
+    }
+
+    /// The application requires a filter at this stage
+    /// I.e., at this state transition, the application may have
+    /// new information to invoke a callback, update Actions, or
+    /// drop traffic.
+    pub(crate) fn requires_filter(&self, filter_layer: &StateTransition) -> bool {
+        for spec in &self.subscriptions {
+            for cb in &spec.callbacks {
+                let patterns = spec.patterns.as_ref().expect("Patterns not populated");
+                for pat in patterns {
+                    let level = SubscriptionLevel::new(&cb.datatypes, pat, cb.expl_level);
+                    if level.can_skip(filter_layer) {
+                        continue;
+                    }
+                    // 1. Delivery may be required or no longer required
+                    // (in case of unsubscribe)
+                    if level.can_deliver(filter_layer) {
+                        return true;
+                    }
+                    // 2. Callback might unsubscribe
+                    if let Some(cb) = level.callback
+                        && cb.is_streaming()
+                        && &cb == filter_layer
+                    {
+                        return true;
+                    }
+                    // 3. Filter predicate might match
+                    if level.filter_preds.iter().any(|l| l == filter_layer) {
+                        return true;
+                    }
+                }
+                for dt in &cb.datatypes {
+                    if dt.updates.iter().any(|l| l == filter_layer) {
+                        return true;
+                    }
+                }
+            }
+        }
+        false
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum TrackedKind {
+    StreamCallback,
+    StatelessCallback,
+    StaticCallback,
+    StreamFilter,
+    StatelessFilter,
+    // True if the datatype is filtered (requires tracking in PTree)
+    Datatype(bool),
+    // Stored in struct but does not require updates
+    StaticData,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct TrackedType {
+    pub(crate) kind: TrackedKind,
+    pub(crate) name: String,
+}
+
+use std::hash::{Hash, Hasher};
+impl Hash for TrackedType {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.name.hash(state);
+        format!("{:?}", self.kind).hash(state);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use iris_core::conntrack::StateTransition;
+    use iris_core::filter::{Filter, ptree::*};
+
+    use super::*;
+
+    #[test]
+    fn test_filter_parse_basic() {
+        /*
+         * struct MyGroup {
+         *  field: ...
+         * }
+         *
+         * impl MyGroup {
+         *  fn new() -> Self;
+         *
+         *  #[filter_fn("MyGroup,InL4Conn")]
+         *  fn update(&mut self, pdu: &L4Pdu) -> FilterResult;
+         *
+         *  #[filter_fn("MyGroup")]
+         *  fn tls(&mut self, tls: &TlsHandshake) -> FilterResult;
+         * }
+         */
+        let inputs = vec![
+            ParsedInput::FilterGroup(FilterGroupSpec {
+                level: None,
+                name: "MyGroup".into(),
+                expl_parsers: vec![],
+            }),
+            ParsedInput::FilterGroupFn(FilterGroupFnSpec {
+                level: vec![StateTransition::InL4Conn],
+                group_name: "MyGroup".into(),
+                func: FnSpec {
+                    name: "update".into(),
+                    returns: FnReturn::FilterResult,
+                    datatypes: vec!["L4Pdu".into()],
+                },
+            }),
+            ParsedInput::FilterGroupFn(FilterGroupFnSpec {
+                level: vec![],
+                group_name: "MyGroup".into(),
+                func: FnSpec {
+                    name: "on_tls".into(),
+                    returns: FnReturn::FilterResult,
+                    datatypes: vec!["TlsHandshake".into()],
+                },
+            }),
+            ParsedInput::Datatype(DatatypeSpec {
+                level: Some(StateTransition::Packet),
+                name: "L4Pdu".into(),
+                expl_parsers: vec![],
+                filtered: false,
+            }),
+            ParsedInput::Datatype(DatatypeSpec {
+                level: Some(StateTransition::L7EndHdrs),
+                name: "TlsHandshake".into(),
+                expl_parsers: vec![],
+                filtered: false,
+            }),
+            ParsedInput::Datatype(DatatypeSpec {
+                level: None,
+                name: "ConnRecord".into(),
+                expl_parsers: vec![],
+                filtered: false,
+            }),
+            ParsedInput::DatatypeFn(DatatypeFnSpec {
+                group_name: "ConnRecord".into(),
+                func: FnSpec {
+                    name: "update".into(),
+                    datatypes: vec!["L4Pdu".into()],
+                    returns: FnReturn::None,
+                },
+                level: vec![StateTransition::InL4Conn],
+            }),
+            ParsedInput::Callback(CallbackFnSpec {
+                filter: "ipv4 and tls and MyGroup".into(),
+                level: vec![StateTransition::InL4Conn],
+                func: FnSpec {
+                    name: "my_cb".into(),
+                    datatypes: vec!["ConnRecord".into(), "TlsHandshake".into()],
+                    returns: FnReturn::None,
+                },
+                expl_parsers: vec![],
+            }),
+        ];
+        let decoder = SubscriptionDecoder::new(&inputs);
+        assert!(decoder.custom_preds.len() == 1);
+        assert!({
+            let pred = decoder.custom_preds.first().unwrap();
+            let levels = pred.levels();
+            levels.len() == 3
+                && levels.contains(&StateTransition::Packet)
+                && levels.contains(&StateTransition::InL4Conn)
+                && levels.contains(&StateTransition::L7EndHdrs)
+        });
+        assert!({
+            let sub = decoder.subscriptions.first().unwrap();
+            let datatypes = &sub.callbacks.first().unwrap().datatypes;
+            datatypes.len() == 2
+                && datatypes
+                    .iter()
+                    .any(|dt| dt.updates == vec![StateTransition::InL4Conn])
+                && datatypes
+                    .iter()
+                    .any(|dt| dt.updates == vec![StateTransition::L7EndHdrs])
+        });
+
+        assert!(decoder.updates.len() == 1);
+        let entr = decoder.updates.get(&StateTransition::InL4Conn).unwrap();
+        assert!(
+            entr.len() == 3,
+            "Actual len: {} (value: {:?}",
+            entr.len(),
+            entr
+        );
+
+        // Build up some basic trees
+        let mut ptree = PTree::new_empty(StateTransition::L7OnDisc);
+        for s in &decoder.subscriptions {
+            let filter = Filter::new(&s.filter, &decoder.custom_preds).unwrap();
+            let patterns = filter.get_patterns_flat();
+            ptree.add_subscription(&patterns, &s.callbacks, &s.as_str);
+        }
+        ptree.collapse();
+        // eth -> tls -> [MyGroup.matched -> my_cb.active] ; [MyGroup.matching]
+        assert!(
+            ptree.size == 5,
+            "Actual size: {} (value: {}",
+            ptree.size,
+            ptree
+        );
+        let filter_matched = ptree.get_subtree(2).unwrap();
+        let filter_matching = ptree.get_subtree(4).unwrap();
+        assert!(!filter_matched.pred.is_matching() && filter_matching.pred.is_matching());
+
+        let mut ptree = PTree::new_empty(StateTransition::L7EndHdrs);
+        for s in &decoder.subscriptions {
+            let filter = Filter::new(&s.filter, &decoder.custom_preds).unwrap();
+            let patterns = filter.get_patterns_flat();
+            ptree.add_subscription(&patterns, &s.callbacks, &s.as_str);
+        }
+        ptree.collapse();
+        assert!(!ptree.deliver.is_empty());
+
+        let mut ptree = PTree::new_empty(StateTransition::InL4Conn);
+        for s in &decoder.subscriptions {
+            let filter = Filter::new(&s.filter, &decoder.custom_preds).unwrap();
+            let patterns = filter.get_patterns_flat();
+            ptree.add_subscription(&patterns, &s.callbacks, &s.as_str);
+        }
+        ptree.collapse();
+        assert!(!ptree.deliver.is_empty());
+    }
+}

@@ -1,0 +1,215 @@
+//! Transport-layer protocol data unit.
+//! Directly exposed to users as a primitive data type.
+
+use crate::memory::mbuf::Mbuf;
+use crate::protocols::packet::ethernet::Ethernet;
+use crate::protocols::packet::ipv4::Ipv4;
+use crate::protocols::packet::ipv6::Ipv6;
+use crate::protocols::packet::tcp::{Tcp, TCP_PROTOCOL};
+use crate::protocols::packet::udp::{Udp, UDP_PROTOCOL};
+use crate::protocols::packet::Packet;
+
+use std::time::Instant;
+
+use anyhow::{bail, Result};
+
+use std::net::{IpAddr, SocketAddr};
+
+/// Transport-layer protocol data unit for stream reassembly and application-layer protocol parsing.
+/// As a primitive Iris data type, this can be reassembled (InL4Stream) or not reassembled (InL4Conn).
+#[derive(Debug, Clone)]
+pub struct L4Pdu {
+    /// Internal packet buffer containing frame data.
+    pub mbuf: Mbuf,
+    /// Transport layer context.
+    pub ctxt: L4Context,
+    /// `true` if segment is in the direction of orig -> resp.
+    pub dir: bool,
+    /// Time observed from timerwheel.
+    pub ts: Instant,
+}
+
+impl L4Pdu {
+    pub(crate) fn new(mbuf: Mbuf, ctxt: L4Context, dir: bool, ts: Instant) -> Self {
+        L4Pdu {
+            mbuf,
+            ctxt,
+            dir,
+            ts,
+        }
+    }
+
+    #[inline]
+    pub fn mbuf_own(self) -> Mbuf {
+        self.mbuf
+    }
+
+    #[inline]
+    pub fn mbuf_ref(&self) -> &Mbuf {
+        &self.mbuf
+    }
+
+    #[inline]
+    pub fn offset(&self) -> usize {
+        self.ctxt.offset
+    }
+
+    #[inline]
+    pub fn app_body_offset(&self) -> Option<usize> {
+        self.ctxt.app_offset
+    }
+
+    #[inline]
+    pub(crate) fn mark_no_payload(&mut self) {
+        self.ctxt.offset = self.mbuf.data_len();
+        self.ctxt.length = 0;
+    }
+
+    #[inline]
+    pub fn length(&self) -> usize {
+        self.ctxt.length
+    }
+
+    #[inline]
+    pub fn seq_no(&self) -> u32 {
+        self.ctxt.seq_no
+    }
+
+    #[inline]
+    pub fn ack_no(&self) -> u32 {
+        self.ctxt.ack_no
+    }
+
+    #[inline]
+    pub fn flags(&self) -> u8 {
+        self.ctxt.flags
+    }
+}
+
+/// Parsed transport-layer context from the packet used for connection tracking.
+#[derive(Debug, Clone, Copy)]
+pub struct L4Context {
+    /// Source socket address.
+    pub src: SocketAddr,
+    /// Destination socket address.
+    pub dst: SocketAddr,
+    /// L4 protocol.
+    pub proto: usize,
+    /// Offset into mbuf where L4 payload begins.
+    /// If this segment is reassembled, this is the offset where
+    /// *new* payload begins. None indicates that no new data.
+    /// If segment has not been reassembled, this is offset after
+    /// TCP header.
+    pub offset: usize,
+    /// Length of the payload in bytes.
+    pub length: usize,
+    /// Raw sequence number of segment.
+    pub seq_no: u32,
+    /// Raw acknowledgment number of segment.
+    pub ack_no: u32,
+    /// TCP flags.
+    pub flags: u8,
+    /// True if packet has been reassembled, with corresponding
+    /// possible updates to `offset`.
+    pub reassembled: bool,
+    /// If segment contains application-layer body, its offset
+    /// into the payload (after `offset`, i.e. L4 headers).
+    /// None indicates no application-layer body.
+    pub app_offset: Option<usize>,
+}
+
+impl L4Context {
+    pub fn new(mbuf: &Mbuf) -> Result<Self> {
+        if let Ok(eth) = mbuf.parse_to::<Ethernet>() {
+            if let Ok(ipv4) = eth.parse_to::<Ipv4>() {
+                if let Ok(tcp) = ipv4.parse_to::<Tcp>() {
+                    if let Some(payload_size) = (ipv4.total_length() as usize)
+                        .checked_sub(ipv4.header_len() + tcp.header_len())
+                    {
+                        Ok(L4Context {
+                            src: SocketAddr::new(IpAddr::V4(ipv4.src_addr()), tcp.src_port()),
+                            dst: SocketAddr::new(IpAddr::V4(ipv4.dst_addr()), tcp.dst_port()),
+                            proto: TCP_PROTOCOL,
+                            offset: tcp.next_header_offset(),
+                            length: payload_size,
+                            seq_no: tcp.seq_no(),
+                            ack_no: tcp.ack_no(),
+                            flags: tcp.flags(),
+                            reassembled: false,
+                            app_offset: None,
+                        })
+                    } else {
+                        bail!("Malformed Packet");
+                    }
+                } else if let Ok(udp) = ipv4.parse_to::<Udp>() {
+                    if let Some(payload_size) = (ipv4.total_length() as usize)
+                        .checked_sub(ipv4.header_len() + udp.header_len())
+                    {
+                        Ok(L4Context {
+                            src: SocketAddr::new(IpAddr::V4(ipv4.src_addr()), udp.src_port()),
+                            dst: SocketAddr::new(IpAddr::V4(ipv4.dst_addr()), udp.dst_port()),
+                            proto: UDP_PROTOCOL,
+                            offset: udp.next_header_offset(),
+                            length: payload_size,
+                            seq_no: 0,
+                            ack_no: 0,
+                            flags: 0,
+                            reassembled: false,
+                            app_offset: None,
+                        })
+                    } else {
+                        bail!("Malformed Packet");
+                    }
+                } else {
+                    bail!("Not TCP or UDP");
+                }
+            } else if let Ok(ipv6) = eth.parse_to::<Ipv6>() {
+                if let Ok(tcp) = ipv6.parse_to::<Tcp>() {
+                    if let Some(payload_size) =
+                        (ipv6.payload_length() as usize).checked_sub(tcp.header_len())
+                    {
+                        Ok(L4Context {
+                            src: SocketAddr::new(IpAddr::V6(ipv6.src_addr()), tcp.src_port()),
+                            dst: SocketAddr::new(IpAddr::V6(ipv6.dst_addr()), tcp.dst_port()),
+                            proto: TCP_PROTOCOL,
+                            offset: tcp.next_header_offset(),
+                            length: payload_size,
+                            seq_no: tcp.seq_no(),
+                            ack_no: tcp.ack_no(),
+                            flags: tcp.flags(),
+                            reassembled: false,
+                            app_offset: None,
+                        })
+                    } else {
+                        bail!("Malformed Packet");
+                    }
+                } else if let Ok(udp) = ipv6.parse_to::<Udp>() {
+                    if let Some(payload_size) =
+                        (ipv6.payload_length() as usize).checked_sub(udp.header_len())
+                    {
+                        Ok(L4Context {
+                            src: SocketAddr::new(IpAddr::V6(ipv6.src_addr()), udp.src_port()),
+                            dst: SocketAddr::new(IpAddr::V6(ipv6.dst_addr()), udp.dst_port()),
+                            proto: UDP_PROTOCOL,
+                            offset: udp.next_header_offset(),
+                            length: payload_size,
+                            seq_no: 0,
+                            ack_no: 0,
+                            flags: 0,
+                            reassembled: false,
+                            app_offset: None,
+                        })
+                    } else {
+                        bail!("Malformed Packet");
+                    }
+                } else {
+                    bail!("Not TCP or UDP");
+                }
+            } else {
+                bail!("Not IP");
+            }
+        } else {
+            bail!("Not Ethernet");
+        }
+    }
+}

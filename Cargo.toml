@@ -1,0 +1,24 @@
+[workspace]
+members = [
+    "core",
+    "datatypes",
+    "examples/basic",
+    "examples/basic_dispatching",
+    "examples/enc_conns",
+    "examples/measuring_sec",
+    "examples/ml_qos",
+    "examples/open_vpn",
+    "examples/combined",
+    "examples/websites",
+    "tests/functionality/basic_test",
+    "tests/functionality/basic_streaming",
+    "tests/functionality/basic_tracked", "tests/functionality/weird_combos", "tests/functionality/filter_test",
+]
+resolver = "2"
+
+[profile.release]
+lto = true
+
+[patch.crates-io]
+pcap = { git = 'https://github.com/thegwan/pcap', branch = 'compile-optimized' }
+
