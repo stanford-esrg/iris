@@ -155,9 +155,7 @@ where
         for layer in self.layers.iter_mut() {
             layer.layer_info_mut().actions.start_state_tx(tx);
         }
-        match tx {
-            _ => subscription.state_tx::<T>(self, &tx, None),
-        }
+        subscription.state_tx::<T>(self, &tx, None);
         for layer in &mut self.layers {
             layer.end_state_tx();
         }

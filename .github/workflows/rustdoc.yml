@@ -63,14 +63,6 @@ jobs:
                 cd .. ;
             fi
 
-    - name: Build Documentation (v0.1.0)
-      run: git fetch --all --tags && git checkout v0.1.0 && cargo doc --lib --no-deps
-
-    - name: Move Documentation (v0.1.0)
-      run: |
-        mkdir -p docs/v0.1.0
-        cp -r target/doc/* docs/v0.1.0/
-
     - name: Build Documentation
       run: git checkout main && cargo doc --lib --no-deps
 

@@ -423,8 +423,8 @@ impl Predicate {
         // Different protocols are mutually exclusive if a connection, by our definitions,
         // can't have both at the same time.
         if self.get_protocol() != pred.get_protocol() {
-            return !has_path(&self.get_protocol(), &pred.get_protocol())
-                && !has_path(&pred.get_protocol(), &self.get_protocol());
+            return !has_path(self.get_protocol(), pred.get_protocol())
+                && !has_path(pred.get_protocol(), self.get_protocol());
         }
 
         // A binary and unary predicate at the same layer will not be mutually excl.
