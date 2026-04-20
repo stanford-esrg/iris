@@ -506,7 +506,7 @@ impl PTree {
         let mut datatypes = pattern.get_datatypes();
         // Add datatypes required by callbacks
         for callback in callbacks {
-            datatypes.extend(callback.get_datatypes().into_iter());
+            datatypes.extend(callback.get_datatypes());
         }
         // Construct node actions
         let mut node_actions = NodeActions::new(self.filter_layer);
@@ -1214,7 +1214,7 @@ mod tests {
 
     #[test]
     fn test_ptree_basic() {
-        let filter = Filter::new("tls", &vec![]).unwrap();
+        let filter = Filter::new("tls", &[]).unwrap();
         let patterns = filter.get_patterns_flat();
 
         let mut tree = PTree::new_empty(StateTransition::L4FirstPacket);
@@ -1336,11 +1336,11 @@ mod tests {
 
     #[test]
     fn test_multi() {
-        let filter = Filter::new("tls", &vec![]).unwrap();
+        let filter = Filter::new("tls", &[]).unwrap();
         let patterns_1 = filter.get_patterns_flat();
         let filter = Filter::new("tls and my_filter", &CUSTOM_FILTERS).unwrap();
         let patterns_2: Vec<FlatPattern> = filter.get_patterns_flat();
-        let filter = Filter::new("ipv4 and tcp.port = 80", &vec![]).unwrap();
+        let filter = Filter::new("ipv4 and tcp.port = 80", &[]).unwrap();
         let patterns_3 = filter.get_patterns_flat();
 
         // - First packet: check optimizations
@@ -1478,7 +1478,7 @@ mod tests {
         assert!(tree
             .actions
             .actions
-            .get(0)
+            .first()
             .unwrap()
             .transport
             .needs_update());

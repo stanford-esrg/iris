@@ -648,10 +648,10 @@ impl SubscriptionDecoder {
                     ParsedInput::FilterGroupFn(_) => {
                         updates.entry(l).or_insert(vec![]).push(inp.clone());
                     }
-                    ParsedInput::DatatypeFn(f) => {
-                        if !matches!(f.func.returns, FnReturn::Constructor(_)) {
-                            updates.entry(l).or_insert(vec![]).push(inp.clone());
-                        }
+                    ParsedInput::DatatypeFn(f)
+                        if !matches!(f.func.returns, FnReturn::Constructor(_)) =>
+                    {
+                        updates.entry(l).or_insert(vec![]).push(inp.clone());
                     }
                     // Callbacks invoked inline
                     // Ungrouped filter functions that aren't streaming don't need to be tracked

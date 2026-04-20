@@ -808,10 +808,8 @@ pub(super) fn is_parent_ipv4(
     parent_op: &BinOp,
 ) -> bool {
     match child_op {
-        BinOp::Eq | BinOp::In => {
-            if matches!(parent_op, BinOp::Eq) || matches!(parent_op, BinOp::In) {
-                return parent_ipv4.contains(child_ipv4);
-            }
+        BinOp::Eq | BinOp::In if matches!(parent_op, BinOp::Eq | BinOp::In) => {
+            return parent_ipv4.contains(child_ipv4);
         }
         BinOp::Ne => {
             if matches!(parent_op, BinOp::Ne) {

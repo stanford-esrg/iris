@@ -613,11 +613,13 @@ mod tests {
         let fq_patterns = flat_patterns[0].to_fully_qualified().unwrap();
         assert!(
             fq_patterns.len() == 1
-                && fq_patterns[0]
+                && fq_patterns
+                    .first()
+                    .unwrap()
                     .0
                     .get(ProtocolName::none())
                     .expect("Expecting `none` protocol entry")
-                    .get(0)
+                    .first()
                     .expect("Expecting `none` protocol with 1 predicate")
                     .get_name()
                     == &filterfunc!("my_filter")
@@ -682,9 +684,9 @@ mod tests {
     #[test]
     fn test_subpattern() {
         let filter_raw = "tcp.port = 80 and tls.sni = \'abc\'";
-        let filter = Filter::new(filter_raw, &vec![]).unwrap();
+        let filter = Filter::new(filter_raw, &[]).unwrap();
         let pattern = filter.get_patterns_flat();
-        let pattern = pattern.get(0).unwrap();
+        let pattern = pattern.first().unwrap();
         let subpattern = pattern.get_subpattern(SupportedLayer::L7, LayerState::Discovery);
         // "tls" and SNI field checks removed
         assert!(subpattern
@@ -704,7 +706,7 @@ mod tests {
         let filter_raw = "tcp.port = 80 and tls.sni = \'abc\' and my_filter";
         let filter = Filter::new(filter_raw, &CUSTOM_FILTERS).unwrap();
         let pattern = filter.get_patterns_flat();
-        let pattern = pattern.get(0).unwrap();
+        let pattern = pattern.first().unwrap();
         let with_state = pattern.with_l7_state();
         assert!(
             with_state.predicates.len() > 3,

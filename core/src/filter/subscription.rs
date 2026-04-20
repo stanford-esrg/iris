@@ -656,7 +656,7 @@ mod tests {
         // Initial state: should parse until end of headers
         let actions = l7_header.to_actions(StateTransition::L4FirstPacket).actions;
         assert!(actions.len() == 1);
-        assert!(actions[0].if_matches == None);
+        assert!(actions[0].if_matches.is_none());
         assert!(actions[0].transport.has_next_layer() && actions[0].layers[0].needs_parse());
         for tx in StateTransition::iter() {
             if matches!(tx, StateTransition::L7EndHdrs) {
@@ -677,7 +677,7 @@ mod tests {
         }
         // Everything should be dropped after headers
         let actions = l7_header.to_actions(StateTransition::L7EndHdrs).actions;
-        assert!(actions.len() == 0);
+        assert!(actions.is_empty());
     }
 
     // Actions for datatype that requires both L4 and L7 data

@@ -11,6 +11,7 @@ jobs:
   rustdoc:
     env:
       DPDK_VERSION: "20.11"
+      IRIS_HOME: "."
     runs-on: ubuntu-latest
     steps:
     - name: Checkout repository
