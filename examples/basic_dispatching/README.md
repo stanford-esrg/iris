@@ -15,13 +15,13 @@ With the default configuration provided, testing on Stanford University network 
 ### Work Dispatching vs. Basic Callback
 Testing with computationally intensive workloads (10 million cycles per callback) demonstrates the advantage of work dispatching for CPU-bound processing:
 
-**Configuration** (8 total cores)  
-- **Work dispatching**: 4 RX cores + 4 processing cores  
-- **Basic callback**: All 8 RX cores (no separate processing)  
+**Configuration** (8 total cores)
+- **Work dispatching**: 4 RX cores + 4 processing cores
+- **Basic callback**: All 8 RX cores (no separate processing)
 
-**Results** (5-minute test, 105 Gbps average traffic, 90–120 Gbps range)  
-- **Work dispatching**: &lt;1% packet loss, **0% subscription loss**  
-- **Basic callback**: 5–15% packet loss (9.78% average)  
+**Results** (5-minute test, 105 Gbps average traffic, 90–120 Gbps range)
+- **Work dispatching**: &lt;1% packet loss, **0% subscription loss**
+- **Basic callback**: 5–15% packet loss (9.78% average)
 
 ## Configuration
 
@@ -31,7 +31,7 @@ The worker threads and message passing setup are designed to be configurable bas
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--config` | ./configs/offline.toml | Mode to run retina in (offline or online) |
+| `--config` | ./configs/offline.toml | Mode to run Iris in (offline or online) |
 | `--tls-worker-cores` | 36,37 | CPU cores dedicated to TLS processing |
 | `--dns-worker-cores` | 38,39 | CPU cores dedicated to DNS processing |
 | `--tls-batch-size` | 16 | Batch size for TLS event processing |
@@ -47,7 +47,7 @@ The worker threads and message passing setup are designed to be configurable bas
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `--config` | ./configs/offline.toml | Mode to run retina in (offline or online) |
+| `--config` | ./configs/offline.toml | Mode to run Iris in (offline or online) |
 | `--worker-cores` | 36,37,38,39 | CPU cores for shared worker pool |
 | `--batch-size` | 16 | Batch size for shared processing |
 | `--tls-channel-size` | 32768 | Channel buffer size for TLS events |
