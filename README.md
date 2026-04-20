@@ -262,3 +262,9 @@ After all macros, you must tag some function or struct with:
 ```
 
 This tells Iris that it has read all macro inputs and can begin generating code. This must go in the main file of every application. Generally, putting it on the `main` function makes sense.
+
+
+## Contributing
+
+Contributions welcome! Please run cargo fmt and cargo clippy before making a pull request.
+If you're not sure where to start, please check out open [issues and feature requests](https://github.com/stanford-esrg/iris/issues).
