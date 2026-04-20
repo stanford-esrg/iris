@@ -6,6 +6,7 @@ mod measuring_sec;
 mod ml_qos;
 mod openvpn;
 
+#[allow(unused_imports)]
 use measuring_sec::*;
 use ml_qos::*;
 use openvpn::*;
@@ -16,6 +17,7 @@ use iris_core::Runtime;
 use iris_core::config::load_config;
 
 #[input_files("$IRIS_HOME/datatypes/data.txt")]
+#[input_files("$IRIS_HOME/examples/ml_qos/data.txt")]
 #[iris_end_macros]
 fn main() {
     measuring_sec::init_files();

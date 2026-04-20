@@ -153,9 +153,7 @@ fn core_state_tx() {
             info.linfo.actions.active == Actions::Update | Actions::PassThrough | Actions::Parse,
             "ConnTracker has incorrect actions actions after first_packet filter."
         );
-        let l7 = match info.layers.get(0).unwrap() {
-            Layer::L7(layer) => layer,
-        };
+        let Layer::L7(l7) = info.layers.first().unwrap();
         assert!(l7.linfo.actions.active == Actions::Parse);
     }
 
@@ -181,9 +179,7 @@ fn core_state_tx() {
             info.linfo.actions.active == Actions::Update | Actions::PassThrough | Actions::Parse,
             "ConnTracker should have Update and PassThrough actions after InUpdate filter."
         );
-        let l7 = match info.layers.get(0).unwrap() {
-            Layer::L7(layer) => layer,
-        };
+        let Layer::L7(l7) = info.layers.first().unwrap();
         assert!(l7.linfo.actions.active == Actions::Parse);
     }
 
