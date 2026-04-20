@@ -171,15 +171,15 @@ impl PredPTree {
             );
             // return Some(callbacks[0].clone());
         }
-        if callbacks.len() == 1 && callbacks[0].expl_level.is_none() {
-            if callbacks[0]
+        if callbacks.len() == 1
+            && callbacks[0].expl_level.is_none()
+            && callbacks[0]
                 .datatypes
                 .iter()
                 .all(|dt| dt.updates.len() == 1 && dt.updates[0] == StateTransition::Packet)
-            {
-                // This may be okay if the filter pattern doesn't terminate here
-                return Some(callbacks[0].clone());
-            }
+        {
+            // This may be okay if the filter pattern doesn't terminate here
+            return Some(callbacks[0].clone());
         }
         None
     }
