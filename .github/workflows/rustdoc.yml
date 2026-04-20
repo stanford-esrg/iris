@@ -69,6 +69,7 @@ jobs:
 
     - name: Move Documentation
       run: |
+        mkdir -p docs
         cp -r target/doc/* docs/
 
     - name: Deploy Documentation
