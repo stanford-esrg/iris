@@ -1,16 +1,17 @@
-# Iris: Expressive Traffic Analysis for the Modern Internet
+# Iris
+
+[![build-status](https://github.com/stanford-esrg/iris/actions/workflows/ci.yml/badge.svg)](https://github.com/stanford-esrg/iris/actions)
+[![doc-status](https://github.com/stanford-esrg/iris/actions/workflows/rustdoc.yml/badge.svg)](https://stanford-esrg.github.io/iris/iris_core)
 
 Iris is an open-source development framework for traffic analysis research.
 
 Iris provides high-level abstractions, like [Zeek](https://zeek.org), alongside low-level, performant access to connection data. Iris absorbs the common, tedious tasks associated with traffic analysis, leaving researchers to focus on what is relevant to their use-cases. In experiments on the Stanford University network, we find that Iris can execute multiple concurrent, complex analsysis tasks at 100Gbps+ on a single commodity server.
 
-## Note for Artifact Evaluation
+## Documentation
 
-Meaningfully replicating the experiments in the Iris paper requires access to live traffic.
-However, Iris supports offline development and evaluation using packet captures.
-Additionally, the Iris *compiler*---which translates user-defined code and specifications into an end-to-end analysis pipeline---is a key aspect of the system.
+A detailed description of Iris's architecture and its performance can be found in our NSDI'26 paper: [Iris: Expressive Traffic Analysis for the Modern Internet](https://thearossman.github.io/files/iris.pdf).
 
-Full Rust crate documentation for using and developing against Iris will be improved and released in the coming weeks.
+Documentation for developing Iris applications can be found [here](https://stanford-esrg.github.io/iris/iris_core/).
 
 ## Installation and Setup
 
