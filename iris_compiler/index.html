@@ -1,0 +1,67 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Macros for defining subscriptions in Iris."><title>iris_compiler - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../static.files/rustdoc-b7b9f40b.css"><meta name="rustdoc-vars" data-root-path="../" data-static-root-path="../static.files/" data-current-crate="iris_compiler" data-themes="" data-resource-suffix="" data-rustdoc-version="1.95.0 (59807616e 2026-04-14)" data-channel="1.95.0" data-search-js="search-63369b7b.js" data-stringdex-js="stringdex-b897f86f.js" data-settings-js="settings-170eb4bf.js" ><script src="../static.files/storage-41dd4d93.js"></script><script defer src="../crates.js"></script><script defer src="../static.files/main-5013f961.js"></script><noscript><link rel="stylesheet" href="../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../static.files/favicon-044be391.svg"></head><body class="rustdoc mod crate"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Crate iris_compiler</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../iris_compiler/index.html">iris_<wbr>compiler</a><span class="version">1.0.0</span></h2></div><div class="sidebar-elems"><ul class="block"><li><a id="all-types" href="all.html">All Items</a></li></ul><section id="rustdoc-toc"><h3><a href="#">Sections</a></h3><ul class="block top-toc"><li><a href="#macro-arguments" title="Macro Arguments">Macro Arguments</a></li><li><a href="#return-values" title="Return values">Return values</a></li><li><a href="#filter-dsl" title="Filter DSL">Filter DSL</a><ul><li><a href="#added-binary-comparison-operators" title="Added Binary Comparison Operators">Added Binary Comparison Operators</a></li><li><a href="#added-field-types-rhs-values" title="Added Field Types (RHS values)">Added Field Types (RHS values)</a></li></ul></li></ul><h3><a href="#attributes">Crate Items</a></h3><ul class="block"><li><a href="#attributes" title="Attribute Macros">Attribute Macros</a></li></ul></section><div id="rustdoc-modnav"></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><h1>Crate <span>iris_<wbr>compiler</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../src/iris_compiler/lib.rs.html#1-420">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Macros for defining subscriptions in Iris.</p>
+<p>Every Iris subscription requires a callback, a filter, and one or more data types.
+Many simple applications can get by with just the <a href="attr.callback.html" title="attr iris_compiler::callback">callback</a> macro, leveraging
+Iris’ filter DSL (which can filter on protocols and protocol fields) and the
+sample data types in [crate::datatypes].</p>
+<p>For more complex use-cases, developers can define custom filters with <a href="attr.filter.html" title="attr iris_compiler::filter">filter</a> and
+data types with [fn@datatypes]. Stateful callbacks, filters, and data types — i.e.,
+those that accumulate data over the lifetime of a connection – use the <a href="attr.callback_fn.html" title="attr iris_compiler::callback_fn">callback_fn</a>,
+<a href="attr.filter_fn.html" title="attr iris_compiler::filter_fn">filter_fn</a>, and <a href="attr.datatype_fn.html" title="attr iris_compiler::datatype_fn">datatype_fn</a>, respectively, to annotate struct methods.</p>
+<h3 id="macro-arguments"><a class="doc-anchor" href="#macro-arguments">§</a>Macro Arguments</h3>
+<p>Because Rust macros cannot access state beyond their immediate input, all *_fn annotations
+must take in the name of the struct they are associated with as their first argument.
+The #<a href="attr.callback.html" title="attr iris_compiler::callback">callback</a> macro must take in its filter pattern as its first argument.</p>
+<p>Other optional arguments:</p>
+<ul>
+<li><code>level</code>: Explicitly indicate the state transition that a function should be invoked at. <code>&amp;</code>-separated.</li>
+<li><code>parsers</code>: Explicitly specify session-level protocol parsers, <code>&amp;</code>-separated (e.g., “http&amp;tls”).</li>
+<li><code>tracked</code>: Data type only; see <a href="attr.datatype.html" title="attr iris_compiler::datatype"><code>datatype</code></a>.</li>
+</ul>
+<p>Notes on parsers:</p>
+<ul>
+<li>Iris will infer and register protocol parsers based on data types
+and filters; for example, if a function requests a TLS handshake or
+filters for “tls”, then Iris will register the “tls” parser.</li>
+<li>Developers should use this to explicitly register additional parsers.
+For example, the “Session”, “StateTxData”, and “SessionProto” types
+do not register any parsers.</li>
+</ul>
+<h3 id="return-values"><a class="doc-anchor" href="#return-values">§</a>Return values</h3>
+<p>Streaming callback functions must return a boolean value, which can be “false” to unsubscribe
+from a connection (i.e., stop receiving updates for that connection). Note that if one function in
+a callback group (i.e., a struct method) returns false, the entire callback (all struct methods)
+is considered “unsubscribed”.</p>
+<p>Filter functions must return a [crate::core::subscription::FilterResult].</p>
+<h3 id="filter-dsl"><a class="doc-anchor" href="#filter-dsl">§</a>Filter DSL</h3>
+<p>Iris’ filter DSL implements
+<a href="https://stanford-esrg.github.io/retina/v0.1.0/retina_filtergen/index.html">Retina’s filter language</a>
+with added support for a <code>contains</code> operator and raw byte matching (see below).
+Iris developers can also filter on custom predicates by referring to them by name
+(function name for filter functions or struct name for stateful filters).</p>
+<h4 id="added-binary-comparison-operators"><a class="doc-anchor" href="#added-binary-comparison-operators">§</a>Added Binary Comparison Operators</h4><div><table><thead><tr><th>Operator</th><th>Alias</th><th>Description</th><th>Example</th></tr></thead><tbody>
+<tr><td><code>~b</code></td><td></td><td>Byte regular expression match</td><td><code>ssh.protocol_version_ctos ~b '(?-u)^\x32\\.\x30$'</code></td></tr>
+<tr><td><code>contains</code></td><td></td><td>Check if right appears in left</td><td><code>ssh.key_exchange_cookie_stoc contains |15 A1|</code></td></tr>
+<tr><td><code>not contains</code></td><td><code>!contains</code></td><td>Check that right doesn’t appear in left</td><td><code>ssh.key_exchange_cookie_stoc not contains |15 A1|</code></td></tr>
+</tbody></table>
+</div><h4 id="added-field-types-rhs-values"><a class="doc-anchor" href="#added-field-types-rhs-values">§</a>Added Field Types (RHS values)</h4>
+<p>| Type          | Example            |
+| Byte          | <code>\|32 2E 30\|</code>       |</p>
+</div></details><h2 id="attributes" class="section-header">Attribute Macros<a href="#attributes" class="anchor">§</a></h2><dl class="item-table"><dt><a class="attr" href="attr.cache_file.html" title="attr iris_compiler::cache_file">cache_<wbr>file</a></dt><dd>If a crate or target needs to export data types, filters, or callbacks to another crate
+or target, it must specify a file to cache parsed data in.
+Other crates or targets access these exported types using <a href="attr.input_files.html" title="attr iris_compiler::input_files">input_files</a>.
+Rust macros can’t maintain local state across targets, and this is a simple workaround.
+See [crate::datatypes] for an example of using `cache_file``, and see [crate::examples] for
+applications that use <a href="attr.input_files.html" title="attr iris_compiler::input_files">input_files</a> to import definitions from other crates or targets.</dd><dt><a class="attr" href="attr.callback.html" title="attr iris_compiler::callback">callback</a></dt><dd>Indicate that a struct or function is a callback.
+Must specify a filter as a string.</dd><dt><a class="attr" href="attr.callback_fn.html" title="attr iris_compiler::callback_fn">callback_<wbr>fn</a></dt><dd>Indicate that a struct method should be invoked by Iris as part of
+constructing a stateful callback</dd><dt><a class="attr" href="attr.datatype.html" title="attr iris_compiler::datatype">datatype</a></dt><dd>Indicate that a struct or type is an Iris data type.</dd><dt><a class="attr" href="attr.datatype_fn.html" title="attr iris_compiler::datatype_fn">datatype_<wbr>fn</a></dt><dd>Indicate that a struct method should be invoked by Iris as part of
+constructing a data type.
+These functions can take in any “built-in” data types[fn@BUILTIN_TYPES]
+(except <code>FilterStr</code>, which applies only to callbacks):
+<code>L4Pdu</code>, <code>StateTxData</code>, <code>StateTransition</code>, <code>StateTxData</code>, <code>Session</code>,
+<code>SessionProto</code>, <code>CoreId</code>, or <code>StateTransition</code>.</dd><dt><a class="attr" href="attr.filter.html" title="attr iris_compiler::filter">filter</a></dt><dd>Indicate that a struct or function is a filter.</dd><dt><a class="attr" href="attr.filter_fn.html" title="attr iris_compiler::filter_fn">filter_<wbr>fn</a></dt><dd>Indicate that a struct method should be invoked by Iris as part of
+constructing a stateful filter.</dd><dt><a class="attr" href="attr.input_files.html" title="attr iris_compiler::input_files">input_<wbr>files</a></dt><dd>See <a href="attr.cache_file.html" title="attr iris_compiler::cache_file">cache_file</a>.</dd><dt><a class="attr" href="attr.iris_end_macros.html" title="attr iris_compiler::iris_end_macros">iris_<wbr>end_<wbr>macros</a></dt><dd>In practice, Rust processes procedural macros in the order they appear in imports and
+in files (though technically this behavior is not guaranteed).
+Iris use <code>iris_end_macros</code> to infer that it has read all macro inputs and
+can begin generating code.
+This must go in the main file of every binary target. Generally,
+putting it on the <code>main</code> function makes sense.</dd></dl></section></div></main></body></html>
