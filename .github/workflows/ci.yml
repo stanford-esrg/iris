@@ -17,7 +17,7 @@ jobs:
       matrix:
         dpdk_version:
           - "20.11"
-          - "23.11"
+          # - "23.11"
           - "24.11"
     env:
       DPDK_VERSION: ${{ matrix.dpdk_version }}
