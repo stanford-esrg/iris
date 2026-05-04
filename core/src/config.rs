@@ -271,7 +271,7 @@ fn default_cache_size() -> usize {
 /// Live traffic analysis options.
 ///
 /// Online mode performs traffic analysis on a live network interface. Either
-/// [OnlineConfig](OnlineConfig) or [OfflineConfig](OfflineConfig) must be specified, but not both.
+/// [OnlineConfig] or [OfflineConfig] must be specified, but not both.
 ///
 /// ## Example
 /// ```toml
@@ -608,7 +608,7 @@ fn default_log_port_stats() -> Vec<String> {
 /// Offline traffic analysis options.
 ///
 /// Offline mode runs using a single core and performs offline analysis of already captured pcap
-/// files. Either [OnlineConfig](OnlineConfig) or [OfflineConfig](OfflineConfig) must be specified,
+/// files. Either [OnlineConfig] or [OfflineConfig] must be specified,
 /// but not both. This mode is primarily intended for functional testing.
 ///
 /// ## Example

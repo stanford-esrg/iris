@@ -1,8 +1,8 @@
 //! QUIC protocol parser.
 //!
 //! ## Remarks
-//! [QUIC-INVARIANTS] https://datatracker.ietf.org/doc/rfc8999/
-//! [QUIC-RFC9000] https://datatracker.ietf.org/doc/rfc9000/ (Quic V1)
+//! - [QUIC-INVARIANTS](https://datatracker.ietf.org/doc/rfc8999/)
+//! - [QUIC-RFC9000](https://datatracker.ietf.org/doc/rfc9000/) (Quic V1)
 //! Iris currently only parses Quic Long and Short Headers and does not attempt to parse TLS or HTTP/3 out of
 //! Quic packets. The Quic protocol parser makes several assumptions about the way that quic
 //! packets will behave:

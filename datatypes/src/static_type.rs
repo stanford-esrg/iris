@@ -1,7 +1,7 @@
 //! Static-level datatypes.
 //! A data type is considered "static" if it can be inferred at or before
 //! the first packet in a connection and it stays constant throughout a connection.
-//! See datatypes, including foreign types, that implement [StaticData](trait.StaticData.html).
+//! See datatypes, including foreign types, that implement [`StaticData`].
 
 use super::StaticData;
 #[allow(unused_imports)]
