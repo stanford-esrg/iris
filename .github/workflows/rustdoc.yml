@@ -65,10 +65,12 @@ jobs:
             fi
 
     - name: Build Documentation
-      run: git checkout main && cargo doc --lib --no-deps
+      run: |
+        git checkout main && cargo doc --lib --no-deps --workspace $(find examples tests -name Cargo.toml -exec dirname {} \; | xargs -I {} basename {} | sed 's/^/--exclude /')
 
     - name: Move Documentation
       run: |
+        mkdir -p docs
         cp -r target/doc/* docs/
 
     - name: Deploy Documentation
