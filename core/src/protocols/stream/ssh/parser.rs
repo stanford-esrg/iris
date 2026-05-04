@@ -1,7 +1,6 @@
 //! SSH parser.
 //!
-//! Uses parsing functions from [the Rusticata SSH
-//! parser] (https://github.com/rusticata/ssh-parser/blob/master/src/ssh.rs)
+//! Uses parsing functions from the [Rusticata SSH parser](https://github.com/rusticata/ssh-parser/blob/master/src/ssh.rs).
 
 use super::handshake::*;
 use super::Ssh;
