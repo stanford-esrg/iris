@@ -97,13 +97,11 @@ The compiler will throw an error if a StateTransition is required and missing.
 
 #### Built-In Data Type Wrappers
 
-Iris' ["built-in" data types](compiler/src/subscription.rs:#L16) are: `L4Pdu`, `StateTxData`, `StateTransition`, `StateTxData`, `Session`, `SessionProto`, `CoreId`, and `StateTransition`.
-
-These are
+Iris' ["built-in" data types](compiler/src/subscription.rs:#L16) are: `L4Pdu`, `StateTxData`, `StateTransition`, `StateTxData`, `Session`, `SessionProto`, `CoreId`, and `StateTransition`. 
 
 ### Filters
 
-Iris supports a Wireshark-like filter syntax that builds on that introduced by [Retina](https://stanford-esrg.github.io/retina/retina_filtergen/index.html) for filtering on protocols and protocol fields.
+Iris supports a Wireshark-like filter syntax similar to [Retina](https://stanford-esrg.github.io/retina/retina_filtergen/index.html) for filtering on protocols and protocol fields.
 
 Iris also supports defining custom (stateful or stateless) filters, similar to data types. Custom filter functions must return a `FilterResult` (Accept, Drop, or Continue). Stateful filters (i.e., those associated with a struct) must implement the [StatefulFilter](./core/src/subscription/filter.rs) trait.
 
