@@ -265,4 +265,4 @@ This tells Iris that it has read all macro inputs and can begin generating code.
 ## Contributing
 
 Contributions welcome! Please run cargo fmt and cargo clippy before making a pull request.
-If you're not sure where to start, please check out open [issues and feature requests](https://github.com/stanford-esrg/iris/issues).
+If you're not sure where to start, we appreciate contributions to documentation, testing, and open [issues and feature requests](https://github.com/stanford-esrg/iris/issues).
