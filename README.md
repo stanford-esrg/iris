@@ -5,7 +5,7 @@
 
 Iris is an open-source development framework for traffic analysis research.
 
-Iris provides high-level abstractions, like [Zeek](https://zeek.org), alongside low-level, performant access to connection data. Iris absorbs the common, tedious tasks associated with traffic analysis, leaving researchers to focus on what is relevant to their use-cases. In experiments on the Stanford University network, we find that Iris can execute multiple concurrent, complex analsysis tasks at 100Gbps+ on a single commodity server.
+Iris provides high-level abstractions, like [Zeek](https://zeek.org), alongside low-level, performant access to connection data. Iris absorbs the common, tedious tasks associated with traffic analysis, leaving researchers to focus on what is relevant to their use-cases. In experiments on the Stanford University network, we find that Iris can execute multiple concurrent, complex analysis tasks at 100Gbps+ using just a few cores on a single commodity server.
 
 ## Documentation
 
