@@ -274,30 +274,36 @@ impl Port {
     /// Sets RSS redirection table to full RSS_RETA_SIZE entries
     fn configure_rss_reta(&self) {
         log::info!("Configuring RSS redirection table...");
+
+        let mut dev_info: dpdk::rte_eth_dev_info = unsafe { std::mem::zeroed() };
+        unsafe { dpdk::rte_eth_dev_info_get(self.id.raw(), &mut dev_info) };
+
+        let actual_reta_size = if dev_info.reta_size > 0 { dev_info.reta_size as usize } else { RSS_RETA_SIZE };
+        let actual_reta_size = std::cmp::min(actual_reta_size, RSS_RETA_SIZE);
+
         const GROUP_SIZE: usize = dpdk::RTE_RETA_GROUP_SIZE as usize;
-        let capacity = RSS_RETA_SIZE / GROUP_SIZE;
-        let mut reta_conf: Vec<dpdk::rte_eth_rss_reta_entry64> = Vec::with_capacity(capacity);
+        let mut reta_conf: [dpdk::rte_eth_rss_reta_entry64; RSS_RETA_SIZE / GROUP_SIZE] = unsafe { std::mem::zeroed() };
+        let capacity = (actual_reta_size + GROUP_SIZE - 1) / GROUP_SIZE;
 
         for i in 0..capacity {
-            let mut reta_entry64: dpdk::rte_eth_rss_reta_entry64 = unsafe { mem::zeroed() };
-            reta_entry64.mask = u64::MAX;
+            reta_conf[i].mask = u64::MAX;
             let start = i * GROUP_SIZE;
-            let end = (i + 1) * GROUP_SIZE;
+            let end = std::cmp::min((i + 1) * GROUP_SIZE, RSS_RETA_SIZE);
             let entry64 = self.reta[start..end]
                 .iter()
                 .map(|q| q.raw())
                 .collect::<Vec<_>>();
 
-            //reta_slice.copy_from_slice(&self.reta[start..end]);
-            reta_entry64.reta = entry64.try_into().unwrap();
-            reta_conf.push(reta_entry64);
+            for j in 0..entry64.len() {
+                reta_conf[i].reta[j] = entry64[j];
+            }
         }
 
         let ret = unsafe {
             dpdk::rte_eth_dev_rss_reta_update(
                 self.id.raw(),
                 reta_conf.as_mut_ptr(),
-                RSS_RETA_SIZE as u16,
+                actual_reta_size as u16,
             )
         };
         if ret != 0 {
@@ -307,7 +313,7 @@ impl Port {
                 panic!("Failed to set RSS redirection table for Port {}.", self.id);
             }
         } else {
-            log::info!("Configured RSS redirection table.");
+            log::info!("Configured RSS redirection table (size {}).", actual_reta_size);
         }
     }
 
