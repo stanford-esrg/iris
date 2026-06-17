@@ -70,6 +70,16 @@ where
     /// - InL4Conn (pre-reassembly, if applicable) by `conn`
     /// - InL4Stream (post-reassembly, if applicable) by `consume_stream`
     pub(crate) fn new_packet(&mut self, pdu: &L4Pdu, subscription: &Subscription<T::Subscribed>) {
+        #[cfg(debug_assertions)]
+        {
+            log::debug!(
+                "New packet for conn {:?}, state: {:?}, L4 actions: {:?}",
+                self.cdata.five_tuple,
+                self.linfo.state,
+                self.linfo.actions.active
+            );
+        }
+
         let mut needs_update = self.linfo.actions.needs_update();
         let tx = if pdu.ctxt.reassembled {
             needs_update = self.linfo.actions.needs_parse();
@@ -137,6 +147,11 @@ where
     /// Update subscription data and current state, including actions,
     /// upon state transition.
     fn exec_state_tx(&mut self, tx: StateTransition, subscription: &Subscription<T::Subscribed>) {
+        #[cfg(debug_assertions)]
+        {
+            log::debug!("State transition {:?} for conn {:?}, state: {:?}, L4 actions: {:?}, L7 actions: {:?}",
+                         tx, self.cdata.five_tuple, self.linfo.state, self.linfo.actions.active, self.layers[0].layer_info().actions.active);
+        }
         // Packet is "no-op"; FirstPacket is handled separately
         if matches!(tx, StateTransition::Packet | StateTransition::L4FirstPacket) {
             return;
