@@ -299,6 +299,7 @@ impl TrackableLayer for L7Session {
                     ProbeRegistryResult::None => {
                         // All relevant parsers have failed to match
                         self.linfo.state = LayerState::None;
+                        self.linfo.actions.clear(&Actions::Parse);
                         return StateTransition::L7OnDisc;
                     }
                     ProbeRegistryResult::Unsure => { /* skip */ }
