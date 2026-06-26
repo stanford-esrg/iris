@@ -1039,6 +1039,23 @@ impl PTree {
         self.size = count_nodes(&mut self.root, &mut id);
     }
 
+    // This is a bit subtle. We want to make sure that if a callback needs to be marked as `active`,
+    // that doesn't happen in a node with a predicate that is itself the callback (`is_active()` condition).
+    // Doing so can lead to a circular condition -- the callback is only set as active if the callback is active.
+    // The fix is to move `set_active` to the parent node.
+    fn check_callback_preds(&mut self) {
+        fn move_matched(node: &mut PNode) {
+            for child in &mut node.children {
+                if child.pred.is_callback() && !child.matched.is_empty() {
+                    let matched = std::mem::take(&mut child.matched);
+                    node.matched.extend(matched);
+                }
+                move_matched(child);
+            }
+        }
+        move_matched(&mut self.root);
+    }
+
     // Update tree actions, filtered datatypes, callbacks, and size based on children
     fn update_metadata(&mut self) {
         fn update_metadata(
@@ -1095,6 +1112,7 @@ impl PTree {
             }
         }
         self.prune_redundant_branches();
+        self.check_callback_preds();
         self.prune_packet_conditions();
         self.prune_branches();
         self.sort();
@@ -1601,5 +1619,38 @@ mod tests {
             "Actual refresh_at: {:?}",
             value.refresh_at
         );
+    }
+
+    lazy_static! {
+        static ref CONN_DATATYPE: StateTransitionSpec = StateTransitionSpec {
+            updates: vec![StateTransition::InL4Conn],
+            name: "Conn".into(),
+        };
+        static ref STREAM_DISC_SUB: Vec<CallbackSpec> = vec![CallbackSpec {
+            expl_level: Some(StateTransition::InL4Conn),
+            datatypes: vec![
+                TLS_DATATYPE.clone(),
+                CONN_DATATYPE.clone(),
+                FIVETUPLE_DATATYPE.clone()
+            ],
+            must_deliver: false,
+            invoke_once: false,
+            as_str: "disc_streaming".into(),
+            subscription_id: "disc_streaming".into(),
+            filtered_data: vec![],
+        }];
+    }
+
+    #[test]
+    fn test_ptree_multi_dts() {
+        // Test for `check_callback_pred` addition in `collapse`
+        let filter = Filter::new("tls", &CUSTOM_FILTERS_GROUPED_TERM).unwrap();
+        let patterns = filter.get_patterns_flat();
+        let mut tree = PTree::new_empty(StateTransition::L7OnDisc);
+        tree.add_subscription(&patterns, &STREAM_DISC_SUB, &STREAM_DISC_SUB[0].as_str);
+        tree.collapse();
+        let node = tree.get_subtree(1).unwrap();
+        assert!(!node.matched.is_empty());
+        println!("Matched: {:?}", node.matched);
     }
 }
