@@ -233,6 +233,14 @@ impl Default for L7Session {
 
 impl TrackableLayer for L7Session {
     fn end_state_tx(&mut self) {
+        #[cfg(debug_assertions)]
+        {
+            log::debug!(
+                "End state transition, state: {:?}, L7 actions: {:?}",
+                self.linfo.state,
+                self.linfo.actions.active
+            );
+        }
         // Nothing to parse if in payload and no more sessions expected
         if self.linfo.actions.needs_parse()
             && matches!(self.linfo.state, LayerState::Payload)
@@ -266,14 +274,16 @@ impl TrackableLayer for L7Session {
     /// Move these sessions one-by-one to `self.sessions` until
     /// none are left. This should be invoked until it returns None.
     fn handle_terminate(&mut self) -> Option<StateTransition> {
+        let state = self.linfo.state;
+        self.linfo.state = LayerState::None;
         if !self.linfo.actions.needs_parse() {
             return None;
         }
-        if matches!(self.linfo.state, LayerState::None) {
+        if matches!(state, LayerState::None) {
             return None;
         }
         // Discovery failed
-        if matches!(self.linfo.state, LayerState::Discovery) {
+        if matches!(state, LayerState::Discovery) {
             return Some(StateTransition::L7OnDisc);
         }
         self.pending_sessions.extend(self.parser.drain_sessions());
@@ -283,6 +293,10 @@ impl TrackableLayer for L7Session {
         }
         // New session ready
         self.sessions.push(self.pending_sessions.pop().unwrap());
+        if !self.sessions.is_empty() {
+            // Handle multiple sessions
+            self.linfo.state = state;
+        }
         Some(StateTransition::L7EndHdrs)
     }
 
@@ -299,6 +313,7 @@ impl TrackableLayer for L7Session {
                     ProbeRegistryResult::None => {
                         // All relevant parsers have failed to match
                         self.linfo.state = LayerState::None;
+                        self.linfo.actions.clear(&Actions::Parse);
                         return StateTransition::L7OnDisc;
                     }
                     ProbeRegistryResult::Unsure => { /* skip */ }
