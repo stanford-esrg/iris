@@ -9,6 +9,12 @@ use itertools::Itertools;
 use serde::Serialize;
 use tls_parser::{TlsCipherSuite, TlsState};
 
+/// Serializes [`TlsState`] using its `Debug` representation, since the upstream `tls-parser`
+/// crate does not implement `Serialize` for it.
+fn serialize_state<S: serde::Serializer>(state: &TlsState, s: S) -> Result<S::Ok, S::Error> {
+    s.serialize_str(&format!("{:?}", state))
+}
+
 /// GREASE values. See [RFC 8701](https://datatracker.ietf.org/doc/html/rfc8701).
 const GREASE_TABLE: &[u16] = &[
     0x0a0a, 0x1a1a, 0x2a2a, 0x3a3a, 0x4a4a, 0x5a5a, 0x6a6a, 0x7a7a, 0x8a8a, 0x9a9a, 0xaaaa, 0xbaba,
@@ -34,7 +40,7 @@ pub struct Tls {
     pub client_key_exchange: Option<ClientKeyExchange>,
 
     /// TLS state.
-    #[serde(skip)]
+    #[serde(serialize_with = "serialize_state")]
     state: TlsState,
     /// TCP chunks defragmentation buffer. Defragments TCP segments that arrive over multiple
     /// packets.
@@ -137,6 +143,17 @@ impl Tls {
                 .collect(),
             None => vec![],
         }
+    }
+
+    /// Returns `true` if the handshake state machine encountered an invalid or out-of-order
+    /// message sequence.
+    ///
+    /// ## Remarks
+    /// A handshake can still be fully parsed (e.g. a valid ClientHello/SNI) even if a later
+    /// message renders the overall state invalid, so this should be checked in addition to
+    /// inspecting the parsed handshake contents.
+    pub fn is_invalid(&self) -> bool {
+        self.state == TlsState::Invalid
     }
 
     /// Returns the name of the server the client is trying to connect to.
