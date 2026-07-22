@@ -1200,7 +1200,7 @@ impl PTree {
 
 impl fmt::Display for PTree {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Tree {:?}\n,{}", &self.filter_layer, self.pprint())?;
+        write!(f, "Tree {:?}\n,{}", self.filter_layer, self.pprint())?;
         Ok(())
     }
 }

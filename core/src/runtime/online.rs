@@ -74,7 +74,7 @@ where
         log::info!("Initializing RX Cores...");
         let mut rx_cores: BTreeMap<CoreId, RxCore<S>> = BTreeMap::new();
         let mut core_map: BTreeMap<CoreId, Vec<RxQueue>> = BTreeMap::new();
-        for (_port_id, port) in ports.iter() {
+        for port in ports.values() {
             for (rxqueue, core_id) in port.queue_map.iter() {
                 core_map.entry(*core_id).or_default().push(*rxqueue);
             }
@@ -107,7 +107,7 @@ where
         self.start_ports();
 
         log::info!("Launching RX cores...");
-        for (core_id, _rx_core) in self.rx_cores.iter() {
+        for core_id in self.rx_cores.keys() {
             let role = unsafe { dpdk::rte_eal_lcore_role(core_id.raw()) };
             if role != dpdk::rte_lcore_role_t_ROLE_RTE {
                 log::error!("Attempted to launch non-DPDK core");
