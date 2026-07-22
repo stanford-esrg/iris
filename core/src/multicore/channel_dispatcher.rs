@@ -143,7 +143,7 @@ impl<T: Send + 'static> ChannelDispatcher<T> {
 
         match &mut *channels {
             Channels::PerCore(map) => {
-                for (_, (sender_result, _)) in map.iter_mut() {
+                for (sender_result, _) in map.values_mut() {
                     *sender_result = None;
                 }
             }
