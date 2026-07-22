@@ -22,7 +22,7 @@ NICE-TO-HAVE: support HTTP/3
 */
 pub(crate) mod parser;
 
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 
 pub use self::header::{QuicLongHeader, QuicShortHeader};
 use crypto::Open;
@@ -50,7 +50,6 @@ pub enum QuicError {
     FailedHeaderProtection,
     UnknownFrameType,
     TlsParseFail,
-    MissingCryptoFrames,
 }
 
 /// Parsed Quic connections
@@ -71,13 +70,23 @@ pub struct QuicConn {
     // Crypto needed to decrypt initial packets sent by server
     pub server_opener: Option<Open>,
 
-    // Client buffer for multi-packet TLS messages
+    // Sparse cryptostream chunks (offset -> bytes) reassembled across
+    // packets. CRYPTO frames within a single packet can arrive at
+    // non-contiguous offsets and interleaved with PING/PADDING (e.g. Chrome
+    // QUIC), so a flat Vec doesn't work — we have to wait until [0..N] is
+    // contiguous before feeding it to the TLS parser.
     #[serde(skip_serializing)]
-    pub client_buffer: Vec<u8>,
+    pub client_crypto: BTreeMap<u64, Vec<u8>>,
 
-    // Server buffer for multi-packet TLS messages
     #[serde(skip_serializing)]
-    pub server_buffer: Vec<u8>,
+    pub server_crypto: BTreeMap<u64, Vec<u8>>,
+
+    // Number of bytes already fed into the TLS parser from each direction.
+    #[serde(skip_serializing)]
+    pub client_consumed: u64,
+
+    #[serde(skip_serializing)]
+    pub server_consumed: u64,
 }
 
 /// Parsed Quic Packet contents
