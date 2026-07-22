@@ -372,13 +372,12 @@ impl Tls {
         // Note: `tls_state_transition` from the `tls-parser` crate
         // doesn't handle the TLS 1.3 middlebox-compatibility ChangeCipherSpec
         // transition (RFC 8446).
-        let transition = if self.state == TlsState::ServerHello
-            && matches!(msg, TlsMessage::ChangeCipherSpec)
-        {
-            Ok(TlsState::ClientChangeCipherSpec)
-        } else {
-            tls_state_transition(self.state, msg, direction)
-        };
+        let transition =
+            if self.state == TlsState::ServerHello && matches!(msg, TlsMessage::ChangeCipherSpec) {
+                Ok(TlsState::ClientChangeCipherSpec)
+            } else {
+                tls_state_transition(self.state, msg, direction)
+            };
         match transition {
             Ok(s) => self.state = s,
             Err(_) => {
