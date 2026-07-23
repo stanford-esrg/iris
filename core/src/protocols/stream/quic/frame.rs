@@ -48,9 +48,7 @@ impl QuicFrame {
     // returning each CRYPTO chunk paired with its absolute cryptostream offset.
     // Multiple CRYPTO frames in a single packet may sit at non-contiguous offsets
     // (e.g. Chrome QUIC), so reassembly is the caller's job.
-    pub fn parse_frames(
-        data: &[u8],
-    ) -> Result<(Vec<QuicFrame>, Vec<(u64, Vec<u8>)>), QuicError> {
+    pub fn parse_frames(data: &[u8]) -> Result<(Vec<QuicFrame>, Vec<(u64, Vec<u8>)>), QuicError> {
         let mut frames: Vec<QuicFrame> = Vec::new();
         let mut crypto_chunks: Vec<(u64, Vec<u8>)> = Vec::new();
         let mut offset = 0;
