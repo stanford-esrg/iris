@@ -4,7 +4,6 @@ use crate::memory::mbuf::Mbuf;
 use crate::protocols::packet::{Packet, PacketHeader, PacketParseError};
 use crate::utils::types::*;
 
-use anyhow::{bail, Result};
 use pnet::datalink::MacAddr;
 
 const VLAN_802_1Q: u16 = 0x8100;
@@ -99,7 +98,7 @@ impl<'a> Packet<'a> for Ethernet<'a> {
         }
     }
 
-    fn parse_from(outer: &'a impl Packet<'a>) -> Result<Self>
+    fn parse_from(outer: &'a impl Packet<'a>) -> Result<Self, PacketParseError>
     where
         Self: Sized,
     {
@@ -110,7 +109,7 @@ impl<'a> Packet<'a> for Ethernet<'a> {
                 mbuf: outer.mbuf(),
             })
         } else {
-            bail!(PacketParseError::InvalidRead)
+            Err(PacketParseError::InvalidRead)
         }
     }
 }

@@ -4,8 +4,6 @@ use crate::memory::mbuf::Mbuf;
 use crate::protocols::packet::{Packet, PacketHeader, PacketParseError};
 use crate::utils::types::*;
 
-use anyhow::{bail, Result};
-
 /// UDP assigned protocol number.
 pub const UDP_PROTOCOL: usize = 17;
 const UDP_HEADER_LEN: usize = 8;
@@ -64,7 +62,7 @@ impl<'a> Packet<'a> for Udp<'a> {
         None
     }
 
-    fn parse_from(outer: &'a impl Packet<'a>) -> Result<Self>
+    fn parse_from(outer: &'a impl Packet<'a>) -> Result<Self, PacketParseError>
     where
         Self: Sized,
     {
@@ -76,10 +74,10 @@ impl<'a> Packet<'a> for Udp<'a> {
                     offset,
                     mbuf: outer.mbuf(),
                 }),
-                _ => bail!(PacketParseError::InvalidProtocol),
+                _ => Err(PacketParseError::InvalidProtocol),
             }
         } else {
-            bail!(PacketParseError::InvalidRead)
+            Err(PacketParseError::InvalidRead)
         }
     }
 }

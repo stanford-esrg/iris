@@ -122,15 +122,18 @@ impl Mbuf {
     /// Reads the data at `offset` as `T` and returns it as a raw pointer. Errors if `offset` is
     /// greater than or equal to the buffer length or the size of `T` exceeds the size of the data
     /// stored at `offset`.
-    pub(crate) fn get_data<T: PacketHeader>(&self, offset: usize) -> Result<*const T> {
+    pub(crate) fn get_data<T: PacketHeader>(
+        &self,
+        offset: usize,
+    ) -> Result<*const T, PacketParseError> {
         if offset < self.data_len() {
             if offset + T::size_of() <= self.data_len() {
                 Ok(self.get_data_address(offset) as *const T)
             } else {
-                bail!(MbufError::ReadPastBuffer)
+                Err(PacketParseError::InvalidRead)
             }
         } else {
-            bail!(MbufError::BadOffset)
+            Err(PacketParseError::InvalidRead)
         }
     }
 
@@ -182,12 +185,12 @@ impl<'a> Packet<'a> for Mbuf {
         None
     }
 
-    fn parse_from(_outer: &'a impl Packet<'a>) -> Result<Self>
+    fn parse_from(_outer: &'a impl Packet<'a>) -> Result<Self, PacketParseError>
     where
         Self: Sized,
     {
         // parse_from should never be called for Mbuf.
-        bail!(PacketParseError::InvalidProtocol)
+        Err(PacketParseError::InvalidProtocol)
     }
 }
 

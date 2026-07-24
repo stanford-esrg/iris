@@ -6,8 +6,6 @@ use crate::utils::types::*;
 
 use std::net::Ipv6Addr;
 
-use anyhow::{bail, Result};
-
 const IPV6_PROTOCOL: usize = 0x86DD;
 const IPV6_HEADER_LEN: usize = 40;
 
@@ -113,7 +111,7 @@ impl<'a> Packet<'a> for Ipv6<'a> {
         Some(self.next_header().into())
     }
 
-    fn parse_from(outer: &'a impl Packet<'a>) -> Result<Self>
+    fn parse_from(outer: &'a impl Packet<'a>) -> Result<Self, PacketParseError>
     where
         Self: Sized,
     {
@@ -125,10 +123,10 @@ impl<'a> Packet<'a> for Ipv6<'a> {
                     offset,
                     mbuf: outer.mbuf(),
                 }),
-                _ => bail!(PacketParseError::InvalidProtocol),
+                _ => Err(PacketParseError::InvalidProtocol),
             }
         } else {
-            bail!(PacketParseError::InvalidRead)
+            Err(PacketParseError::InvalidRead)
         }
     }
 }
