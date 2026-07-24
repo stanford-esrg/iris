@@ -2,10 +2,12 @@
 // Implemented per RFC 9000: https://datatracker.ietf.org/doc/html/rfc9000#name-frame-types-and-formats
 
 use serde::Serialize;
-use std::collections::BTreeMap;
 
 use crate::protocols::stream::quic::QuicError;
 use crate::protocols::stream::quic::QuicPacket;
+
+/// A CRYPTO frame chunk: its absolute cryptostream offset paired with its bytes.
+pub type CryptoChunk = (u64, Vec<u8>);
 
 // Types of supported QUIC frames
 // Currently only includes those seen in the Init and Handshake packets
@@ -45,14 +47,13 @@ pub struct EcnCounts {
 }
 
 impl QuicFrame {
-    // parse_frames takes the plaintext QUIC packet payload and parses the frame list
-    // it also returns the reassembled CRYPTO frame bytes as a Vec<u8>
-    pub fn parse_frames(
-        data: &[u8],
-        mut expected_offset: usize,
-    ) -> Result<(Vec<QuicFrame>, Vec<u8>), QuicError> {
+    // parse_frames takes the plaintext QUIC packet payload and parses the frame list,
+    // returning each CRYPTO chunk paired with its absolute cryptostream offset.
+    // Multiple CRYPTO frames in a single packet may sit at non-contiguous offsets
+    // (e.g. Chrome QUIC), so reassembly is the caller's job.
+    pub fn parse_frames(data: &[u8]) -> Result<(Vec<QuicFrame>, Vec<CryptoChunk>), QuicError> {
         let mut frames: Vec<QuicFrame> = Vec::new();
-        let mut crypto_map: BTreeMap<usize, Vec<u8>> = BTreeMap::new();
+        let mut crypto_chunks: Vec<CryptoChunk> = Vec::new();
         let mut offset = 0;
         // Iterate over plaintext payload bytes, this is a list of frames
         while offset < data.len() {
@@ -217,9 +218,7 @@ impl QuicFrame {
                     // Parse data
                     let crypto_data =
                         QuicPacket::access_data(data, offset, offset + crypto_len)?.to_vec();
-                    crypto_map
-                        .entry(crypto_offset as usize)
-                        .or_insert(crypto_data);
+                    crypto_chunks.push((crypto_offset, crypto_data));
                     frames.push(QuicFrame::Crypto {
                         offset: crypto_offset,
                     });
@@ -228,14 +227,6 @@ impl QuicFrame {
                 _ => return Err(QuicError::UnknownFrameType),
             }
         }
-        let mut reassembled_crypto: Vec<u8> = Vec::new();
-        for (crypto_offset, crypto_data) in crypto_map {
-            if crypto_offset != expected_offset {
-                return Err(QuicError::MissingCryptoFrames);
-            }
-            expected_offset += crypto_data.len();
-            reassembled_crypto.extend(crypto_data);
-        }
-        Ok((frames, reassembled_crypto))
+        Ok((frames, crypto_chunks))
     }
 }

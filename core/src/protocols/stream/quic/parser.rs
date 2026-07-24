@@ -13,6 +13,7 @@ use crate::protocols::stream::{
     ConnParsable, L4Pdu, ParseResult, ParsingState, ProbeResult, Session, SessionData,
 };
 use byteorder::{BigEndian, ByteOrder};
+use nom::Err as NomErr;
 use std::collections::HashSet;
 use tls_parser::parse_tls_message_handshake;
 
@@ -390,31 +391,62 @@ impl QuicPacket {
             }
 
             let mut frames: Option<Vec<QuicFrame>> = None;
-            // Grab the proper buffer for CRYPTO frame data
-            let crypto_buffer: &mut Vec<u8> = if dir {
-                conn.client_buffer.as_mut()
-            } else {
-                conn.server_buffer.as_mut()
-            };
             // If decrypted payload is not None, parse the frames
             if let Some(frame_bytes) = decrypted_payload {
-                // Get frames and reassembled CRYPTO data
-                // Pass the buffer's current length as starting offset for CRYPTO frames
-                let (q_frames, mut crypto_bytes) =
-                    QuicFrame::parse_frames(&frame_bytes, crypto_buffer.len())?;
+                let (q_frames, crypto_chunks) = QuicFrame::parse_frames(&frame_bytes)?;
                 frames = Some(q_frames);
-                if !crypto_bytes.is_empty() {
-                    crypto_buffer.append(&mut crypto_bytes);
-                    // Attempt to parse CRYPTO buffer
-                    // clear on success
-                    // NICE-TO-HAVE: This naive buffer will not work for out of order frames
-                    // across packets or multiple messages in the same buffer
-                    match parse_tls_message_handshake(crypto_buffer) {
-                        Ok((_, msg)) => {
+
+                // Drop CRYPTO chunks at their absolute cryptostream offsets
+                // into the per-direction sparse map. Multiple CRYPTO frames
+                // at non-contiguous offsets within a single packet are
+                // common (Chrome QUIC interleaves PING/PADDING with split
+                // ClientHello CRYPTO frames).
+                let crypto_map: &mut std::collections::BTreeMap<u64, Vec<u8>> = if dir {
+                    &mut conn.client_crypto
+                } else {
+                    &mut conn.server_crypto
+                };
+                for (off, data) in crypto_chunks {
+                    crypto_map.entry(off).or_insert(data);
+                }
+
+                // Walk the map from `consumed` onward, building the longest
+                // contiguous buffer. Feed it to the TLS parser; on Ok,
+                // advance `consumed` past the bytes it consumed.
+                let consumed_ref = if dir {
+                    &mut conn.client_consumed
+                } else {
+                    &mut conn.server_consumed
+                };
+                let mut contiguous: Vec<u8> = Vec::new();
+                let mut next = *consumed_ref;
+                for (&off, data) in crypto_map.iter() {
+                    let chunk_end = off + data.len() as u64;
+                    if chunk_end <= next {
+                        continue;
+                    }
+                    if off > next {
+                        break;
+                    }
+                    let skip = (next - off) as usize;
+                    contiguous.extend_from_slice(&data[skip..]);
+                    next = chunk_end;
+                }
+                if !contiguous.is_empty() {
+                    match parse_tls_message_handshake(&contiguous) {
+                        Ok((rest, msg)) => {
                             conn.tls.parse_message_level(&msg, dir);
-                            crypto_buffer.clear();
+                            let used = (contiguous.len() - rest.len()) as u64;
+                            *consumed_ref += used;
                         }
-                        Err(_) => return Err(QuicError::TlsParseFail),
+                        Err(NomErr::Incomplete(_)) => {
+                            // Wait for more bytes from later packets.
+                        }
+                        Err(_) => {
+                            // Skip this message rather than block the
+                            // connection.
+                            *consumed_ref = next;
+                        }
                     }
                 }
             }
@@ -483,8 +515,10 @@ impl QuicConn {
             tls: Tls::new(),
             client_opener: None,
             server_opener: None,
-            client_buffer: Vec::new(),
-            server_buffer: Vec::new(),
+            client_crypto: std::collections::BTreeMap::new(),
+            server_crypto: std::collections::BTreeMap::new(),
+            client_consumed: 0,
+            server_consumed: 0,
         }
     }
 
