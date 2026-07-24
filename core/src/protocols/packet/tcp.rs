@@ -4,8 +4,6 @@ use crate::memory::mbuf::Mbuf;
 use crate::protocols::packet::{Packet, PacketHeader, PacketParseError};
 use crate::utils::types::*;
 
-use anyhow::{bail, Result};
-
 /// TCP assigned protocol number.
 pub const TCP_PROTOCOL: usize = 6;
 
@@ -179,7 +177,7 @@ impl<'a> Packet<'a> for Tcp<'a> {
         None
     }
 
-    fn parse_from(outer: &'a impl Packet<'a>) -> Result<Self>
+    fn parse_from(outer: &'a impl Packet<'a>) -> Result<Self, PacketParseError>
     where
         Self: Sized,
     {
@@ -191,10 +189,10 @@ impl<'a> Packet<'a> for Tcp<'a> {
                     offset,
                     mbuf: outer.mbuf(),
                 }),
-                _ => bail!(PacketParseError::InvalidProtocol),
+                _ => Err(PacketParseError::InvalidProtocol),
             }
         } else {
-            bail!(PacketParseError::InvalidRead)
+            Err(PacketParseError::InvalidRead)
         }
     }
 }

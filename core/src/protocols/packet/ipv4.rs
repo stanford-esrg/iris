@@ -6,8 +6,6 @@ use crate::utils::types::*;
 
 use std::net::Ipv4Addr;
 
-use anyhow::{bail, Result};
-
 /// IPv4 EtherType
 const IPV4_PROTOCOL: usize = 0x0800;
 /// Flag: "Reserved bit"
@@ -171,7 +169,7 @@ impl<'a> Packet<'a> for Ipv4<'a> {
         Some(self.protocol().into())
     }
 
-    fn parse_from(outer: &'a impl Packet<'a>) -> Result<Self>
+    fn parse_from(outer: &'a impl Packet<'a>) -> Result<Self, PacketParseError>
     where
         Self: Sized,
     {
@@ -183,10 +181,10 @@ impl<'a> Packet<'a> for Ipv4<'a> {
                     offset,
                     mbuf: outer.mbuf(),
                 }),
-                _ => bail!(PacketParseError::InvalidProtocol),
+                _ => Err(PacketParseError::InvalidProtocol),
             }
         } else {
-            bail!(PacketParseError::InvalidRead)
+            Err(PacketParseError::InvalidRead)
         }
     }
 }

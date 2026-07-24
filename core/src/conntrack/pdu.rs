@@ -7,11 +7,9 @@ use crate::protocols::packet::ipv4::Ipv4;
 use crate::protocols::packet::ipv6::Ipv6;
 use crate::protocols::packet::tcp::{Tcp, TCP_PROTOCOL};
 use crate::protocols::packet::udp::{Udp, UDP_PROTOCOL};
-use crate::protocols::packet::Packet;
+use crate::protocols::packet::{Packet, PacketParseError};
 
 use std::time::Instant;
-
-use anyhow::{bail, Result};
 
 use std::net::{IpAddr, SocketAddr};
 
@@ -119,7 +117,7 @@ pub struct L4Context {
 }
 
 impl L4Context {
-    pub fn new(mbuf: &Mbuf) -> Result<Self> {
+    pub fn new(mbuf: &Mbuf) -> Result<Self, PacketParseError> {
         if let Ok(eth) = mbuf.parse_to::<Ethernet>() {
             if let Ok(ipv4) = eth.parse_to::<Ipv4>() {
                 if let Ok(tcp) = ipv4.parse_to::<Tcp>() {
@@ -139,7 +137,7 @@ impl L4Context {
                             app_offset: None,
                         })
                     } else {
-                        bail!("Malformed Packet");
+                        Err(PacketParseError::InvalidRead)
                     }
                 } else if let Ok(udp) = ipv4.parse_to::<Udp>() {
                     if let Some(payload_size) = (ipv4.total_length() as usize)
@@ -158,10 +156,10 @@ impl L4Context {
                             app_offset: None,
                         })
                     } else {
-                        bail!("Malformed Packet");
+                        Err(PacketParseError::InvalidRead)
                     }
                 } else {
-                    bail!("Not TCP or UDP");
+                    Err(PacketParseError::InvalidProtocol)
                 }
             } else if let Ok(ipv6) = eth.parse_to::<Ipv6>() {
                 if let Ok(tcp) = ipv6.parse_to::<Tcp>() {
@@ -181,7 +179,7 @@ impl L4Context {
                             app_offset: None,
                         })
                     } else {
-                        bail!("Malformed Packet");
+                        Err(PacketParseError::InvalidRead)
                     }
                 } else if let Ok(udp) = ipv6.parse_to::<Udp>() {
                     if let Some(payload_size) =
@@ -200,16 +198,16 @@ impl L4Context {
                             app_offset: None,
                         })
                     } else {
-                        bail!("Malformed Packet");
+                        Err(PacketParseError::InvalidRead)
                     }
                 } else {
-                    bail!("Not TCP or UDP");
+                    Err(PacketParseError::InvalidProtocol)
                 }
             } else {
-                bail!("Not IP");
+                Err(PacketParseError::InvalidProtocol)
             }
         } else {
-            bail!("Not Ethernet");
+            Err(PacketParseError::InvalidProtocol)
         }
     }
 }

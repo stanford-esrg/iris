@@ -12,7 +12,6 @@ pub mod tcp;
 pub mod udp;
 use crate::memory::mbuf::Mbuf;
 
-use anyhow::Result;
 use thiserror::Error;
 
 /// Represents a single packet.
@@ -30,7 +29,9 @@ pub trait Packet<'a> {
     fn next_header(&self) -> Option<usize>;
 
     /// Parses the `Packet`'s payload as a new `Packet` of type `T`.
-    fn parse_to<T: Packet<'a>>(&'a self) -> Result<T>
+    ///
+    /// Returns the concrete [`PacketParseError`] if parsing fails.
+    fn parse_to<T: Packet<'a>>(&'a self) -> Result<T, PacketParseError>
     where
         Self: Sized,
     {
@@ -38,7 +39,7 @@ pub trait Packet<'a> {
     }
 
     /// Parses a `Packet` from the outer encapsulating `Packet`'s payload.
-    fn parse_from(outer: &'a impl Packet<'a>) -> Result<Self>
+    fn parse_from(outer: &'a impl Packet<'a>) -> Result<Self, PacketParseError>
     where
         Self: Sized;
 }
@@ -59,7 +60,7 @@ pub trait PacketHeader {
 }
 
 #[derive(Error, Debug)]
-pub(crate) enum PacketParseError {
+pub enum PacketParseError {
     #[error("Invalid protocol")]
     InvalidProtocol,
 
