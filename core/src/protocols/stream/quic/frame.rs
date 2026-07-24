@@ -6,6 +6,9 @@ use serde::Serialize;
 use crate::protocols::stream::quic::QuicError;
 use crate::protocols::stream::quic::QuicPacket;
 
+/// A CRYPTO frame chunk: its absolute cryptostream offset paired with its bytes.
+pub type CryptoChunk = (u64, Vec<u8>);
+
 // Types of supported QUIC frames
 // Currently only includes those seen in the Init and Handshake packets
 #[derive(Debug, Serialize, Clone)]
@@ -48,9 +51,9 @@ impl QuicFrame {
     // returning each CRYPTO chunk paired with its absolute cryptostream offset.
     // Multiple CRYPTO frames in a single packet may sit at non-contiguous offsets
     // (e.g. Chrome QUIC), so reassembly is the caller's job.
-    pub fn parse_frames(data: &[u8]) -> Result<(Vec<QuicFrame>, Vec<(u64, Vec<u8>)>), QuicError> {
+    pub fn parse_frames(data: &[u8]) -> Result<(Vec<QuicFrame>, Vec<CryptoChunk>), QuicError> {
         let mut frames: Vec<QuicFrame> = Vec::new();
-        let mut crypto_chunks: Vec<(u64, Vec<u8>)> = Vec::new();
+        let mut crypto_chunks: Vec<CryptoChunk> = Vec::new();
         let mut offset = 0;
         // Iterate over plaintext payload bytes, this is a list of frames
         while offset < data.len() {
