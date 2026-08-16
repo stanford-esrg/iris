@@ -50,7 +50,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: dpdk-${{ matrix.dpdk_version }}
-        key: ${{ runner.os }}-dpdk-${{ matrix.dpdk_version }}
+        key: ${{ runner.os }}-dpdk-${{ matrix.dpdk_version }}-generic
     - name: Export enviroment variables
       run: |
           echo "PKG_CONFIG_PATH=$(pwd)/dpdk-$DPDK_VERSION/install/lib/x86_64-linux-gnu/pkgconfig/" >> $GITHUB_ENV
@@ -65,7 +65,12 @@ jobs:
                 tar -zxf dpdk-$DPDK_VERSION.tar.gz &&
                 cd dpdk-$DPDK_VERSION &&
                 pip3 install meson ninja &&
-                meson -Dprefix=$(pwd)/install/ build &&
+                if [ "$DPDK_VERSION" = "20.11" ]; then
+                    DPDK_MESON_PLATFORM_ARG="-Dmachine=default" ;
+                else
+                    DPDK_MESON_PLATFORM_ARG="-Dplatform=generic" ;
+                fi &&
+                meson $DPDK_MESON_PLATFORM_ARG -Dprefix=$(pwd)/install/ build &&
                 cd build &&
                 ninja &&
                 ninja install &&
@@ -88,8 +93,6 @@ jobs:
       uses: actions/checkout@v3
     - name: cargo fmt
       run: cargo fmt --all -- --check
-
-
 
 
 
