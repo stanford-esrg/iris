@@ -1,0 +1,31 @@
+# Offline (pcap) mode that runs WITHOUT root.
+#
+# The standard offline.toml needs hugepages, which are typically root-owned, so running
+# it means `sudo`. This config instead asks DPDK for regular heap memory (`--no-huge`)
+# and skips NIC probing (`--no-pci`) -- neither of which offline mode needs -- so a trace
+# can be replayed as an unprivileged user.
+#
+# Trade-off: no-huge memory is slower and the mempool here is small, so this is for
+# correctness testing and debugging, NOT for performance measurement. Use offline.toml
+# (with sudo) for anything timing-related.
+
+main_core = 0
+nb_memory_channels = 6
+suppress_dpdk_output = true
+
+[mempool]
+    capacity = 16_384
+    cache_size = 128
+
+[offline]
+    pcap = "./traces/small_flows.pcap"
+    mtu = 9702
+    dpdk_supl_args = ["--no-huge", "--no-pci", "-m", "6144"]
+
+[conntrack]
+    max_connections = 100_000
+    max_out_of_order = 500
+    timeout_resolution = 100
+    udp_inactivity_timeout = 60_000
+    tcp_inactivity_timeout = 300_000
+    tcp_establish_timeout = 5000
