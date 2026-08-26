@@ -47,6 +47,15 @@ where
         matches!(self.state, CallbackState::Active)
     }
 
+    /// Returns true while the callback may still match, i.e. it has not unsubscribed.
+    /// Actions that keep a connection alive *so that* the callback can eventually match
+    /// must be gated on this rather than on `is_active`: a callback only becomes `Active`
+    /// once its filter pattern matches, which for an L7 subscription is at `L7OnDisc` --
+    /// after the parsing those actions are what enable.
+    pub fn is_subscribed(&self) -> bool {
+        !matches!(self.state, CallbackState::Unsubscribed)
+    }
+
     /// Invoked when a filter pattern for callback has matched.
     pub fn try_set_active(&mut self) {
         if !matches!(self.state, CallbackState::Unsubscribed) {
@@ -85,6 +94,11 @@ impl StatelessCallbackWrapper {
 
     pub fn is_active(&self) -> bool {
         matches!(self.state, CallbackState::Active)
+    }
+
+    /// See `StreamCallbackWrapper::is_subscribed`.
+    pub fn is_subscribed(&self) -> bool {
+        !matches!(self.state, CallbackState::Unsubscribed)
     }
 
     pub fn try_set_active(&mut self) {
