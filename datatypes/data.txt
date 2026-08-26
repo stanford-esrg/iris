@@ -17,6 +17,9 @@
 {"FilterGroup":{"level":null,"name":"MaybeQuic","expl_parsers":[]}}
 {"FilterGroupFn":{"level":["InL4Conn"],"group_name":"MaybeQuic","func":{"name":"update","datatypes":["L4Pdu"],"returns":"FilterResult"}}}
 {"FilterGroupFn":{"level":["L4Terminated"],"group_name":"MaybeQuic","func":{"name":"terminated","datatypes":[],"returns":"FilterResult"}}}
+{"FilterGroup":{"level":null,"name":"MaybeZoom","expl_parsers":[]}}
+{"FilterGroupFn":{"level":["InL4Conn"],"group_name":"MaybeZoom","func":{"name":"update","datatypes":["L4Pdu"],"returns":"FilterResult"}}}
+{"FilterGroupFn":{"level":["L4Terminated"],"group_name":"MaybeZoom","func":{"name":"terminated","datatypes":[],"returns":"FilterResult"}}}
 {"Datatype":{"name":"BidirPktStream","level":null,"expl_parsers":[],"filtered":false}}
 {"DatatypeFn":{"group_name":"BidirPktStream","func":{"name":"update","datatypes":["L4Pdu"],"returns":"None"},"level":["InL4Conn"]}}
 {"Datatype":{"name":"OrigPktStream","level":null,"expl_parsers":[],"filtered":false}}
