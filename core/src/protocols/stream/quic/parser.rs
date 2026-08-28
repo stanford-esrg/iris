@@ -134,6 +134,18 @@ pub enum QuicVersion {
     Unknown,
 }
 
+/// True if `version` is a QUIC version number Iris recognizes.
+///
+/// Per RFC 8999 Section 5.1 the 32-bit version field is the only part of a long
+/// header whose position is invariant across versions, so an exact match on it
+/// is much stronger evidence that a datagram is QUIC than the header-form bit
+/// on its own. Used by the `quic` probe and by heuristic filters that need to
+/// tell a QUIC long header from any other protocol that happens to set the high
+/// bit of its first byte.
+pub fn is_quic_version(version: u32) -> bool {
+    QuicVersion::from_u32(version) != QuicVersion::Unknown
+}
+
 impl QuicVersion {
     pub fn from_u32(version: u32) -> Self {
         match version {

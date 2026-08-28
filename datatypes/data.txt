@@ -16,6 +16,7 @@
 {"DatatypeFn":{"group_name":"HttpTransaction","func":{"name":"from_session","datatypes":["Session"],"returns":{"Constructor":"OptRef"}},"level":["L7EndHdrs"]}}
 {"FilterGroup":{"level":null,"name":"MaybeQuic","expl_parsers":[]}}
 {"FilterGroupFn":{"level":["InL4Conn"],"group_name":"MaybeQuic","func":{"name":"update","datatypes":["L4Pdu"],"returns":"FilterResult"}}}
+{"FilterGroupFn":{"level":["L7OnDisc"],"group_name":"MaybeQuic","func":{"name":"unclaimed","datatypes":["SessionProto"],"returns":"FilterResult"}}}
 {"FilterGroupFn":{"level":["L4Terminated"],"group_name":"MaybeQuic","func":{"name":"terminated","datatypes":[],"returns":"FilterResult"}}}
 {"FilterGroup":{"level":null,"name":"MaybeZoom","expl_parsers":[]}}
 {"FilterGroupFn":{"level":["InL4Conn"],"group_name":"MaybeZoom","func":{"name":"update","datatypes":["L4Pdu"],"returns":"FilterResult"}}}
