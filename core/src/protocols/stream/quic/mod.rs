@@ -25,6 +25,7 @@ pub(crate) mod parser;
 use std::collections::{BTreeMap, HashSet};
 
 pub use self::header::{QuicLongHeader, QuicShortHeader};
+pub use self::parser::{is_quic_version, QuicVersion};
 use crypto::Open;
 use frame::QuicFrame;
 use header::LongHeaderPacketType;
