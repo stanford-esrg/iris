@@ -1,25 +1,47 @@
 //! A streaming filter that heuristically accepts connections that look like
-//! QUIC: on an expected port, not clearly another protocol, and initial packets
-//! with (potential) QUIC short headers.
+//! QUIC: on an expected port, not clearly another protocol, and initial
+//! packets with (potential) QUIC short headers.
 //!
 //! Per RFC 9000, the first byte of a QUIC short header starts with bits
-//! `01`. Long-header packets (Initial, Handshake, 0-RTT, Retry) have both
-//! bits set and do not match, but the Iris `quic` parser should pick those up.
+//! `01`: header form 0, fixed bit 1. Header protection (Section 5.4.1) masks
+//! only the low five bits of that byte, so the top two are directly
+//! observable and the low five are pseudorandom per packet -- a genuine
+//! 32-value uniform source, which the entropy check below relies on.
 //!
 //! Three shapes count as evidence of QUIC (see [`Shape`]):
 //!
 //! - **Short header** -- `01` in the top two bits.
-//! - **Long header** -- high bit set *and* a version Iris recognizes.
-//!   This is meant to capture QUIC connections observed mid-handshake
-//!   and coalesced datagrams.
+//! - **Long header** -- high bit set, a version Iris recognizes, and not
+//!   Version Negotiation (`0x00000000`, which is no evidence the connection
+//!   will carry a 1-RTT packet, and a shape length- and ID-prefixed binary
+//!   formats hit by accident). Meant to capture connections observed
+//!   mid-handshake and coalesced datagrams.
 //! - **Greased short header** -- an endpoint whose peer advertised
-//!   `grease_quic_bit` may set the fixed bit to any value on its 1-RTT packets.
-//!   Credited only once the connection has shown at least one QUIC packet
-//!   and only when the datagram is large enough to hold a 1-RTT packet.
+//!   `grease_quic_bit` may set the fixed bit to any value on its 1-RTT
+//!   packets (RFC 9287), so roughly half of a greasing endpoint's packets
+//!   have it clear. Credited only once the connection has shown at least one
+//!   unambiguous QUIC packet, and only when the datagram is large enough to
+//!   hold a 1-RTT packet.
 //!
-//! This filter requires at least two distinct first-byte values before accepting.
-//! This avoids false positives from other protocols that pin their first byte
-//! in the same range.
+//! For a datagram at least [`MIN_1RTT_DATAGRAM_LEN`] bytes, the short-header
+//! and greased shapes together cover every value with the high bit clear --
+//! the fixed bit only sorts a packet into one bucket or the other, and both
+//! count toward acceptance. What actually filters non-QUIC traffic is:
+//! requiring at least one unambiguous packet before anything is credited;
+//! requiring [`MAYBE_QUIC_MIN_DISTINCT_LOW5`] distinct low-5-bit values
+//! across the matched packets -- or one recognized long header in place of
+//! that, since a 32-bit version match is stronger on its own -- which is
+//! nearly free against traffic with a uniformly random first byte and
+//! rejects protocols that pin their low bits (TURN ChannelData, uTP,
+//! OpenVPN); and the window, fraction, and packet floor below, which set the
+//! false-positive rate against that random-looking traffic directly.
+//!
+//! Greased packets are counted toward the entropy check: RFC 9287 greasing
+//! flips only the fixed bit, never the low five, so a greased packet carries
+//! the same per-packet entropy as any other 1-RTT packet. Masking to five
+//! bits is what keeps that safe -- a TURN relay mixing `0x40`/`0x41`
+//! ChannelData with `0x00`/`0x01` STUN collapses to two distinct low-5
+//! values either way, still short of the gate.
 
 #[allow(unused_imports)]
 use iris_compiler::{filter, filter_fn};
@@ -39,10 +61,13 @@ pub const MAYBE_QUIC_MIN_FRACTION: f64 = 0.9;
 /// Minimum payload-bearing packets needed to judge a connection that ended
 /// before [`MAYBE_QUIC_WINDOW`] was reached. Shorter connections carry too
 /// little evidence to classify and are dropped.
-pub const MAYBE_QUIC_MIN_PKTS: usize = 6;
-/// UDP ports QUIC traffic is expected on: 443 (HTTP/3), 853 (DNS-over-QUIC,
-/// RFC 9250), 4433 (the de-facto QUIC interop/test port), and 8443 (alternate
-/// HTTPS/HTTP-3). A connection on any other port is dropped without inspection.
+///
+/// This is somewhat arbitrarily chosen, and it will drop some genuine
+/// QUIC traffic. This has a 1/170 chance of matching random-looking traffic,
+/// but will miss some short QUIC connections.
+pub const MAYBE_QUIC_MIN_PKTS: usize = 11;
+/// 443 (HTTP/3), 853 (DNS-over-QUIC, RFC 9250), 4433 (QUIC interop/test port), 8
+/// 443 (alt HTTPS/HTTP-3). A connection on any other port is dropped without inspection.
 pub const QUIC_PORTS: [u16; 4] = [443, 853, 4433, 8443];
 /// Smallest datagram that can carry a 1-RTT packet: one header byte, a
 /// zero-length destination connection ID, and the four packet-number bytes plus
@@ -50,6 +75,13 @@ pub const QUIC_PORTS: [u16; 4] = [443, 853, 4433, 8443];
 /// able to sample. Used to keep short non-QUIC datagrams out of the greased
 /// [`Shape::GreasedShortHeader`] bucket, where the fixed bit is no help.
 pub const MIN_1RTT_DATAGRAM_LEN: usize = 21;
+/// Distinct values of a matched packet's low five header bits (`first &
+/// 0x1f`) required before those packets are credited -- see
+/// [`MaybeQuic::header_entropy_ok`]. Header protection (RFC 9000 Section
+/// 5.4.1) makes those bits pseudorandom per packet.
+/// This exists to reject protocols that pin their low bits.
+/// Five is the minimum to avoid matching on OpenVPN and TURN.
+pub const MAYBE_QUIC_MIN_DISTINCT_LOW5: usize = 5;
 
 /// Number of matching packets required within a full window of
 /// [`MAYBE_QUIC_WINDOW`] packets to meet [`MAYBE_QUIC_MIN_FRACTION`], i.e.
@@ -94,7 +126,9 @@ fn classify(payload: &[u8]) -> Shape {
             return Shape::Other;
         }
         let version = u32::from_be_bytes([payload[1], payload[2], payload[3], payload[4]]);
-        if is_quic_version(version) {
+        // Version 0 is Version Negotiation, but "high bit set
+        // followed by four zero bytes" is a pattern that can easily be hit accidentally.
+        if version != 0 && is_quic_version(version) {
             Shape::LongHeader
         } else {
             Shape::Other
@@ -111,9 +145,9 @@ fn classify(payload: &[u8]) -> Shape {
 
 /// Accepts a connection once at least [`MAYBE_QUIC_MIN_FRACTION`] of its
 /// first [`MAYBE_QUIC_WINDOW`] payload-bearing packets (UDP, on one of
-/// [`QUIC_PORTS`]) look like QUIC packet headers, and those matches don't all
-/// share a single first-byte value. Non-UDP or non-QUIC-port connections are
-/// dropped immediately.
+/// [`QUIC_PORTS`]) look like QUIC packet headers, and those matches carry
+/// enough header entropy -- see [`MaybeQuic::header_entropy_ok`]. Non-UDP or
+/// non-QUIC-port connections are dropped immediately.
 #[cfg_attr(not(feature = "skip_expand"), filter)]
 #[derive(Debug)]
 pub struct MaybeQuic {
@@ -125,10 +159,15 @@ pub struct MaybeQuic {
     /// Of those, how many were fixed-bit-clear short-form datagrams big enough
     /// to be greased 1-RTT packets. Credited only if `quic_like` is nonzero.
     greased: usize,
-    /// First byte of the first `quic_like` packet, to detect a constant value.
-    first_byte: Option<u8>,
-    /// True once a `quic_like` packet's first byte differs from `first_byte`.
-    distinct_seen: bool,
+    /// Bit `v` is set once some short-form matched packet (`ShortHeader` or
+    /// `GreasedShortHeader`) had `first & 0x1f == v`. RFC 9287 greasing never
+    /// touches these bits, so greased packets contribute here even before
+    /// `quic_like` is nonzero -- see [`MaybeQuic::header_entropy_ok`].
+    low5_seen: u32,
+    /// True once a `LongHeader` packet has been seen. A 32-bit version match
+    /// is stronger evidence than the entropy check, so it satisfies that
+    /// check outright.
+    saw_long_header: bool,
 }
 
 impl StreamingFilter for MaybeQuic {
@@ -137,8 +176,8 @@ impl StreamingFilter for MaybeQuic {
             seen: 0,
             quic_like: 0,
             greased: 0,
-            first_byte: None,
-            distinct_seen: false,
+            low5_seen: 0,
+            saw_long_header: false,
         }
     }
 
@@ -146,8 +185,8 @@ impl StreamingFilter for MaybeQuic {
         self.seen = 0;
         self.quic_like = 0;
         self.greased = 0;
-        self.first_byte = None;
-        self.distinct_seen = false;
+        self.low5_seen = 0;
+        self.saw_long_header = false;
     }
 }
 
@@ -156,15 +195,18 @@ impl MaybeQuic {
     fn record(&mut self, data: &[u8]) {
         self.seen += 1;
         match classify(data) {
-            Shape::ShortHeader | Shape::LongHeader => {
+            Shape::ShortHeader => {
                 self.quic_like += 1;
-                match self.first_byte {
-                    None => self.first_byte = Some(data[0]),
-                    Some(b) if b != data[0] => self.distinct_seen = true,
-                    _ => {}
-                }
+                self.low5_seen |= 1 << (data[0] & 0x1f);
             }
-            Shape::GreasedShortHeader => self.greased += 1,
+            Shape::LongHeader => {
+                self.quic_like += 1;
+                self.saw_long_header = true;
+            }
+            Shape::GreasedShortHeader => {
+                self.greased += 1;
+                self.low5_seen |= 1 << (data[0] & 0x1f);
+            }
             Shape::Other => {}
         }
     }
@@ -188,9 +230,17 @@ impl MaybeQuic {
         self.quic_like + self.greased
     }
 
+    /// True once the matched packets carry enough header entropy to trust:
+    /// [`MAYBE_QUIC_MIN_DISTINCT_LOW5`] distinct low-5-bit values, or a
+    /// recognized long header on its own.
+    #[inline]
+    fn header_entropy_ok(&self) -> bool {
+        self.saw_long_header || self.low5_seen.count_ones() as usize >= MAYBE_QUIC_MIN_DISTINCT_LOW5
+    }
+
     /// Resolves the current counts to a `FilterResult`
     fn decide(&self) -> FilterResult {
-        if self.matches() >= MAYBE_QUIC_REQUIRED_MATCHES && self.distinct_seen {
+        if self.matches() >= MAYBE_QUIC_REQUIRED_MATCHES && self.header_entropy_ok() {
             return FilterResult::Accept;
         }
         if self.seen >= MAYBE_QUIC_WINDOW {
@@ -276,7 +326,7 @@ impl MaybeQuic {
     )]
     pub fn terminated(&self) -> FilterResult {
         if self.seen >= MAYBE_QUIC_MIN_PKTS
-            && self.distinct_seen
+            && self.header_entropy_ok()
             && self.matches() as f64 >= self.seen as f64 * MAYBE_QUIC_MIN_FRACTION
         {
             FilterResult::Accept
@@ -330,6 +380,16 @@ mod tests {
     }
 
     #[test]
+    fn version_zero_is_not_evidence_of_quic() {
+        // Version Negotiation (RFC 9000 Section 6). `is_quic_version` accepts
+        // it for the parser's sake, but a datagram shaped `0x?? 00 00 00 00`
+        // is also a pattern length- and ID-prefixed binary formats hit by
+        // accident, and it isn't evidence of a 1-RTT-bearing connection.
+        assert_eq!(classify(&[0xc0, 0x00, 0x00, 0x00, 0x00]), Shape::Other);
+        assert_eq!(classify(&[0x80, 0x00, 0x00, 0x00, 0x00]), Shape::Other);
+    }
+
+    #[test]
     fn greased_short_header_needs_room_for_a_1rtt_packet() {
         assert_eq!(classify(&greased(0x08)), Shape::GreasedShortHeader);
         // One byte short of the header-protection sampling minimum.
@@ -346,11 +406,19 @@ mod tests {
     }
 
     #[test]
-    fn terminated_drops_flows_below_the_evidence_floor() {
-        // Every packet matched, and two distinct bytes -- but too few
-        // packets to classify.
+    fn distinct_low5_masks_out_the_header_bits() {
+        // 0x40 and 0x60 are different first bytes but the same low-5 value.
         let mut f = MaybeQuic::new_for_test();
-        for b in [0x41, 0x42]
+        f.record(&[0x40]);
+        f.record(&[0x60]);
+        assert_eq!(f.low5_seen.count_ones(), 1);
+    }
+
+    #[test]
+    fn terminated_drops_flows_below_the_evidence_floor() {
+        // Five distinct low-5 values, but too few packets to clear the floor.
+        let mut f = MaybeQuic::new_for_test();
+        for b in [0x41, 0x42, 0x43, 0x44, 0x45]
             .into_iter()
             .cycle()
             .take(MAYBE_QUIC_MIN_PKTS - 1)
@@ -360,7 +428,11 @@ mod tests {
         assert!(matches!(f.terminated(), FilterResult::Drop));
 
         let mut f = MaybeQuic::new_for_test();
-        for b in [0x41, 0x42].into_iter().cycle().take(MAYBE_QUIC_MIN_PKTS) {
+        for b in [0x41, 0x42, 0x43, 0x44, 0x45]
+            .into_iter()
+            .cycle()
+            .take(MAYBE_QUIC_MIN_PKTS)
+        {
             f.record(&[b]);
         }
         assert!(matches!(f.terminated(), FilterResult::Accept));
@@ -369,31 +441,33 @@ mod tests {
     #[test]
     fn terminated_applies_fraction_to_observed_packets() {
         let mut f = MaybeQuic::new_for_test();
-        for _ in 0..10 {
+        for b in [0x41, 0x42, 0x43, 0x44, 0x45] {
+            f.record(&[b]);
+        }
+        for _ in 0..5 {
             f.record(&[0x41]);
         }
-        f.record(&[0x42]); // second distinct byte
-        for _ in 0..1 {
-            f.record(&[0x00]); // not a short header
-        }
-        // 12 seen, 11 matched across two distinct bytes -- 92% >= 90%
-        assert_eq!(f.seen, 12);
+        f.record(&[0x00]); // not a short header
+                           // 11 seen, 10 matched across five distinct low-5 values -- 91% >= 90%
+        assert_eq!(f.seen, 11);
         assert!(matches!(f.terminated(), FilterResult::Accept));
 
         let mut f = MaybeQuic::new_for_test();
-        for _ in 0..9 {
+        for b in [0x41, 0x42, 0x43, 0x44, 0x45] {
+            f.record(&[b]);
+        }
+        for _ in 0..4 {
             f.record(&[0x41]);
         }
-        f.record(&[0x42]);
         for _ in 0..2 {
             f.record(&[0x00]);
         }
-        // 12 seen, 10 matched -- 83% < 90%
+        // 11 seen, 9 matched -- 82% < 90%
         assert!(matches!(f.terminated(), FilterResult::Drop));
     }
 
     #[test]
-    fn terminated_rejects_a_constant_first_byte() {
+    fn terminated_rejects_a_low_entropy_first_byte() {
         // Every packet matches and the fraction is 100%, but it's the same
         // byte throughout -- the OpenVPN/TURN/bencode/GTP false-positive
         // shape this check exists to catch.
@@ -416,21 +490,81 @@ mod tests {
     }
 
     #[test]
-    fn decide_accepts_once_a_second_distinct_byte_appears() {
+    fn decide_accepts_once_header_entropy_is_reached() {
         let mut f = MaybeQuic::new_for_test();
-        for _ in 0..(MAYBE_QUIC_REQUIRED_MATCHES - 1) {
+        for b in [0x41, 0x42, 0x43, 0x44] {
+            for _ in 0..2 {
+                f.record(&[b]);
+            }
+        }
+        for _ in 0..2 {
             f.record(&[0x41]);
         }
+        // 10 seen, all matched, but only four distinct low-5 values.
         assert!(matches!(f.decide(), FilterResult::Continue));
-        f.record(&[0x52]);
+        f.record(&[0x45]);
+        // 11 seen, 11 matched, five distinct low-5 values.
         assert!(matches!(f.decide(), FilterResult::Accept));
+    }
+
+    #[test]
+    fn pinned_first_byte_protocols_are_rejected() {
+        // uTP: ST_SYN (0x41) sets the fixed bit; ST_DATA (0x01) and ST_STATE
+        // (0x21) don't, but their datagrams are large enough for the greased
+        // bucket. All three share the same low-5 value (0x01), so the
+        // entropy gate rejects the mix even though matches() alone clears
+        // the bar.
+        let mut f = MaybeQuic::new_for_test();
+        for i in 0..MAYBE_QUIC_WINDOW {
+            match i % 3 {
+                0 => f.record(&[0x41]),
+                1 => f.record(&greased(0x01)),
+                _ => f.record(&greased(0x21)),
+            }
+        }
+        assert_eq!(f.low5_seen.count_ones(), 1);
+        assert!(matches!(f.decide(), FilterResult::Drop));
+
+        // OpenVPN P_DATA_V2 across four key IDs: more distinct low-5 values,
+        // but still one short of the threshold.
+        let mut f = MaybeQuic::new_for_test();
+        for b in [0x48, 0x49, 0x4a, 0x4b]
+            .into_iter()
+            .cycle()
+            .take(MAYBE_QUIC_WINDOW)
+        {
+            f.record(&[b]);
+        }
+        assert_eq!(f.low5_seen.count_ones(), 4);
+        assert!(matches!(f.decide(), FilterResult::Drop));
+    }
+
+    #[test]
+    fn turn_channeldata_mixed_with_stun_is_rejected() {
+        // TURN ChannelData (0x40, fixed bit set) interleaved with STUN
+        // (0x01, top two bits clear, well over the 1-RTT minimum size).
+        // Low-5 values collapse to {0x00, 0x01} -- far short of the gate.
+        let mut f = MaybeQuic::new_for_test();
+        let mut result = FilterResult::Continue;
+        for i in 0..MAYBE_QUIC_WINDOW {
+            if i % 2 == 0 {
+                f.record(&[0x40]);
+            } else {
+                f.record(&greased(0x01));
+            }
+            result = f.decide();
+        }
+        assert_eq!(f.low5_seen.count_ones(), 2);
+        assert!(matches!(result, FilterResult::Drop));
     }
 
     #[test]
     fn long_headers_count_toward_the_threshold() {
         // A capture that starts mid-handshake: the first datagrams are long
-        // headers. These used to be scored against the connection, dropping it
-        // at the second one.
+        // headers. These used to be scored against the connection, dropping
+        // it at the second one. A recognized long header also satisfies the
+        // entropy gate outright, so the short headers here don't need to be
+        // individually diverse.
         let mut f = MaybeQuic::new_for_test();
         for _ in 0..4 {
             f.record(&LONG_HDR_V1);
@@ -439,7 +573,21 @@ mod tests {
         for b in [0x41, 0x52, 0x4a, 0x5c, 0x43, 0x50, 0x4f] {
             f.record(&[b]);
         }
-        // 11 of 11 matched, several distinct first bytes.
+        // 11 of 11 matched.
+        assert!(matches!(f.decide(), FilterResult::Accept));
+    }
+
+    #[test]
+    fn a_long_header_satisfies_the_entropy_gate_on_its_own() {
+        // Only one distinct low-5 value among the short-form packets, but a
+        // recognized long header is independently strong enough evidence.
+        let mut f = MaybeQuic::new_for_test();
+        f.record(&LONG_HDR_V1);
+        for _ in 0..10 {
+            f.record(&[0x41]);
+        }
+        // 11 seen, 11 matched (1 long header + 10 identical short headers).
+        assert_eq!(f.matches(), 11);
         assert!(matches!(f.decide(), FilterResult::Accept));
     }
 
@@ -477,10 +625,45 @@ mod tests {
     }
 
     #[test]
+    fn greased_packets_contribute_header_entropy() {
+        // A single fixed-bit-set packet, then several distinct greased ones
+        // that clear the entropy gate largely on their own.
+        let mut f = MaybeQuic::new_for_test();
+        f.record(&[0x41]);
+        for b in [0x02, 0x03, 0x04, 0x05] {
+            f.record(&greased(b));
+        }
+        for _ in 0..6 {
+            f.record(&[0x41]);
+        }
+        // 11 seen: 7 unambiguous, 4 greased -- 11 matched, five distinct
+        // low-5 values contributed mostly by the greased packets.
+        assert_eq!(f.seen, 11);
+        assert_eq!(f.matches(), 11);
+        assert!(matches!(f.decide(), FilterResult::Accept));
+    }
+
+    #[test]
+    fn a_genuine_two_way_greasing_connection_is_accepted() {
+        // Both endpoints grease per-packet: roughly half the datagrams clear
+        // the fixed bit, but their low-5 bits still vary like real header
+        // protection.
+        let mut f = MaybeQuic::new_for_test();
+        for k in 0..6u8 {
+            f.record(&[0x40 | k]);
+            f.record(&greased(k));
+        }
+        // 12 seen: 6 unambiguous, 6 greased, all credited.
+        assert_eq!(f.seen, 12);
+        assert_eq!(f.matches(), 12);
+        assert!(matches!(f.decide(), FilterResult::Accept));
+    }
+
+    #[test]
     fn greased_packets_alone_are_not_evidence_of_quic() {
         // STUN pins its top two bits to `00`, and its messages are well over
         // the 1-RTT minimum. Without a real QUIC packet these earn nothing --
-        // and they must not satisfy the distinct-byte test either.
+        // and they must not satisfy the entropy gate either.
         let mut f = MaybeQuic::new_for_test();
         let mut result = FilterResult::Continue;
         for b in [0x00, 0x01].into_iter().cycle().take(MAYBE_QUIC_WINDOW) {
@@ -489,7 +672,7 @@ mod tests {
         }
         assert_eq!(f.greased, MAYBE_QUIC_WINDOW);
         assert_eq!(f.matches(), 0);
-        assert!(!f.distinct_seen);
+        assert!(!f.header_entropy_ok());
         assert!(matches!(result, FilterResult::Drop));
         assert!(matches!(f.terminated(), FilterResult::Drop));
     }
@@ -544,14 +727,19 @@ mod tests {
         // The veto is a `Continue`/`Drop` decision only: it never accepts, and
         // an unclaimed connection carries on accumulating evidence.
         let mut f = MaybeQuic::new_for_test();
-        for _ in 0..(MAYBE_QUIC_REQUIRED_MATCHES - 1) {
+        for b in [0x41, 0x42, 0x43, 0x44] {
+            for _ in 0..2 {
+                f.record(&[b]);
+            }
+        }
+        for _ in 0..2 {
             f.record(&[0x41]);
         }
         assert!(matches!(
             f.unclaimed(&SessionProto::Null),
             FilterResult::Continue
         ));
-        f.record(&[0x52]);
+        f.record(&[0x45]);
         assert!(matches!(f.decide(), FilterResult::Accept));
     }
 
@@ -570,8 +758,8 @@ mod tests {
                 seen: 0,
                 quic_like: 0,
                 greased: 0,
-                first_byte: None,
-                distinct_seen: false,
+                low5_seen: 0,
+                saw_long_header: false,
             }
         }
     }
