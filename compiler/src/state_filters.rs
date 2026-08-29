@@ -217,7 +217,7 @@ fn gen_state_filter_util(
                         .collect::<Vec<_>>()
                         .join("\n")
                 );
-                add_callback_pred(code, &name.0, child, sub);
+                add_callback_pred(code, &name.0, child, tree, statics, sub, extract_sessions);
             }
         }
     }
@@ -321,11 +321,15 @@ fn add_pred(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn add_callback_pred(
     code: &mut Vec<proc_macro2::TokenStream>,
     name: &String,
     node: &PNode,
+    tree: &PTree,
+    statics: &mut HashMap<String, (String, proc_macro2::TokenStream)>,
     sub: &SubscriptionDecoder,
+    extract_sessions: bool,
 ) {
     // If we're at the callback predicate, then the CB is ready to
     // be invoked or set as active (if it hasn't already unsubscribed).
@@ -347,6 +351,9 @@ fn add_callback_pred(
         let actions = data_actions_to_tokens(&node.actions);
         body.push(quote! { #actions });
     }
+    // A callback node can carry LayerState children if the callback filter matched but
+    // the function(s) are still waiting on a datatype.
+    gen_state_filter_util(&mut body, node, tree, statics, sub, extract_sessions);
     code.push(quote! {
         if #pred_tokenstream {
             #( #body )*

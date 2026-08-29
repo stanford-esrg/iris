@@ -14,6 +14,13 @@
 {"DatatypeFn":{"group_name":"DnsTransaction","func":{"name":"from_session","datatypes":["Session"],"returns":{"Constructor":"OptRef"}},"level":["L7EndHdrs"]}}
 {"Datatype":{"name":"HttpTransaction","level":"L7EndHdrs","expl_parsers":["http"],"filtered":false}}
 {"DatatypeFn":{"group_name":"HttpTransaction","func":{"name":"from_session","datatypes":["Session"],"returns":{"Constructor":"OptRef"}},"level":["L7EndHdrs"]}}
+{"FilterGroup":{"level":null,"name":"MaybeQuic","expl_parsers":[]}}
+{"FilterGroupFn":{"level":["InL4Conn"],"group_name":"MaybeQuic","func":{"name":"update","datatypes":["L4Pdu"],"returns":"FilterResult"}}}
+{"FilterGroupFn":{"level":["L7OnDisc"],"group_name":"MaybeQuic","func":{"name":"unclaimed","datatypes":["SessionProto"],"returns":"FilterResult"}}}
+{"FilterGroupFn":{"level":["L4Terminated"],"group_name":"MaybeQuic","func":{"name":"terminated","datatypes":[],"returns":"FilterResult"}}}
+{"FilterGroup":{"level":null,"name":"MaybeZoom","expl_parsers":[]}}
+{"FilterGroupFn":{"level":["InL4Conn"],"group_name":"MaybeZoom","func":{"name":"update","datatypes":["L4Pdu"],"returns":"FilterResult"}}}
+{"FilterGroupFn":{"level":["L4Terminated"],"group_name":"MaybeZoom","func":{"name":"terminated","datatypes":[],"returns":"FilterResult"}}}
 {"Datatype":{"name":"BidirPktStream","level":null,"expl_parsers":[],"filtered":false}}
 {"DatatypeFn":{"group_name":"BidirPktStream","func":{"name":"update","datatypes":["L4Pdu"],"returns":"None"},"level":["InL4Conn"]}}
 {"Datatype":{"name":"OrigPktStream","level":null,"expl_parsers":[],"filtered":false}}

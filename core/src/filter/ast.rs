@@ -420,6 +420,14 @@ impl Predicate {
             return false;
         }
 
+        // Custom filters, callbacks, and layer states carry no protocol
+        // and are never mutually exclusive with one.
+        if (self.get_protocol() == ProtocolName::none())
+            != (pred.get_protocol() == ProtocolName::none())
+        {
+            return false;
+        }
+
         // Different protocols are mutually exclusive if a connection, by our definitions,
         // can't have both at the same time.
         if self.get_protocol() != pred.get_protocol() {
@@ -1565,5 +1573,30 @@ mod tests {
         };
         assert!(ssh_eq_byte2.is_excl(&ssh_contains_byte));
         assert!(ssh_contains_byte.is_excl(&ssh_eq_byte2));
+
+        // A custom filter carries no protocol, so it can co-occur with any protocol
+        // predicate and must never be reported as mutually exclusive with one.
+        let custom = Predicate::Custom {
+            name: filterfunc!("MaybeQuic"),
+            levels: vec![vec![StateTransition::InL4Conn]],
+            matched: true,
+            filtered_data: vec![],
+        };
+        let ipv4 = Predicate::Unary {
+            protocol: protocol!("ipv4"),
+        };
+        let ipv6 = Predicate::Unary {
+            protocol: protocol!("ipv6"),
+        };
+        assert!(!custom.is_excl(&ipv4));
+        assert!(!ipv4.is_excl(&custom));
+        assert!(!custom.is_excl(&ipv6));
+        assert!(!ipv6.is_excl(&custom));
+        assert!(!custom.is_excl(&tcp_80));
+        assert!(!tcp_80.is_excl(&custom));
+
+        // ipv4/ipv6 remain mutually exclusive with each other.
+        assert!(ipv4.is_excl(&ipv6));
+        assert!(ipv6.is_excl(&ipv4));
     }
 }

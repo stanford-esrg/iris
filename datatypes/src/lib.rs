@@ -14,6 +14,12 @@ pub use dns_transaction::DnsTransaction;
 pub mod http_transaction;
 pub use http_transaction::HttpTransaction;
 
+pub mod maybe_quic;
+pub use maybe_quic::*;
+
+pub mod maybe_zoom;
+pub use maybe_zoom::*;
+
 pub mod packet_list;
 pub use packet_list::*;
 
