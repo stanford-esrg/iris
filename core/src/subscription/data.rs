@@ -132,9 +132,10 @@ where
     }
 }
 
+#[cfg(test)]
 mod tests {
     #[test]
-    fn test_num_state_tx() {
+    fn core_num_state_tx() {
         assert!(crate::conntrack::conn::conn_state::NUM_STATE_TRANSITIONS <= u8::BITS as usize);
     }
 }
