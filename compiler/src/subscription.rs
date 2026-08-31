@@ -9,7 +9,7 @@ use iris_core::filter::{
     subscription::{CallbackSpec, StateTransitionSpec, SubscriptionLevel},
 };
 use lazy_static::lazy_static;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 lazy_static! {
     // Update documentation if also updating this!
@@ -86,8 +86,8 @@ impl SubscriptionSpec {
         }
     }
 
-    fn get_filter_parsers(&self) -> HashSet<String> {
-        let mut ret = HashSet::new();
+    fn get_filter_parsers(&self) -> BTreeSet<String> {
+        let mut ret = BTreeSet::new();
         for pat in self.patterns.as_ref().unwrap() {
             for pred in &pat.predicates {
                 if pred.on_proto() {
@@ -131,47 +131,53 @@ impl SubscriptionSpec {
 /// Iris requires.
 pub(crate) struct SubscriptionDecoder {
     /// Filter group (or function name) --> Parsed Input(s)
-    pub(crate) filters_raw: HashMap<String, Vec<ParsedInput>>,
+    ///
+    /// These are `BTreeMap`s/`BTreeSet`s rather than hash collections because
+    /// they are iterated to build `custom_preds`, `subscriptions`, and `updates`,
+    /// all of which determine the shape of the generated filter trees and the
+    /// order of the emitted code. Hash iteration order would make the compiler's
+    /// output differ from build to build.
+    pub(crate) filters_raw: BTreeMap<String, Vec<ParsedInput>>,
     /// Map datatype group (or name) -> Parsed Input(s)
-    pub(crate) datatypes_raw: HashMap<String, Vec<ParsedInput>>,
+    pub(crate) datatypes_raw: BTreeMap<String, Vec<ParsedInput>>,
     /// Map cb group (or name) -> Parsed Input(s)
-    pub(crate) cbs_raw: HashMap<String, Vec<ParsedInput>>,
+    pub(crate) cbs_raw: BTreeMap<String, Vec<ParsedInput>>,
 
     /// Required stream protocol parsers
-    pub(crate) parsers: HashSet<String>,
+    pub(crate) parsers: BTreeSet<String>,
 
     /// Valid custom predicates passed into Filter::new()
     pub(crate) custom_preds: Vec<Predicate>,
     /// Datatype name -> Datatype Spec with all updates
     /// Used to derive levels for callbacks and custom filters
-    pub(crate) datatypes: HashMap<String, StateTransitionSpec>,
+    pub(crate) datatypes: BTreeMap<String, StateTransitionSpec>,
     /// Datatypes marked explicitly as `tracked`; these are wrapped at runtime
     /// to discard if the associated subscriptions go out of scope, under the assumption
     /// that they are computationally and/or memory intensive.
-    pub(crate) filtered_datatypes: HashSet<String>,
+    pub(crate) filtered_datatypes: BTreeSet<String>,
     /// Full subscriptions
     pub(crate) subscriptions: Vec<SubscriptionSpec>,
 
     /// Required `updates`: Level of required update -->
     /// datatype update, filter method, or streaming callback.
-    pub(crate) updates: HashMap<StateTransition, Vec<ParsedInput>>,
+    pub(crate) updates: BTreeMap<StateTransition, Vec<ParsedInput>>,
     /// Tracked datatypes (stored as fields in Tracked struct)
-    pub(crate) tracked: HashSet<TrackedType>,
+    pub(crate) tracked: BTreeSet<TrackedType>,
 }
 
 impl SubscriptionDecoder {
     pub(crate) fn new(inputs: &Vec<ParsedInput>) -> Self {
         let mut ret = Self {
-            filters_raw: HashMap::new(),
-            datatypes_raw: HashMap::new(),
-            cbs_raw: HashMap::new(),
-            parsers: HashSet::new(),
+            filters_raw: BTreeMap::new(),
+            datatypes_raw: BTreeMap::new(),
+            cbs_raw: BTreeMap::new(),
+            parsers: BTreeSet::new(),
             custom_preds: Vec::new(),
-            datatypes: HashMap::new(),
-            filtered_datatypes: HashSet::new(),
+            datatypes: BTreeMap::new(),
+            filtered_datatypes: BTreeSet::new(),
             subscriptions: Vec::new(),
-            updates: HashMap::new(),
-            tracked: HashSet::new(),
+            updates: BTreeMap::new(),
+            tracked: BTreeSet::new(),
         };
         ret.parse_raw(inputs);
         ret.decode_datatypes();
@@ -571,7 +577,7 @@ impl SubscriptionDecoder {
     }
 
     fn decode_updates(&mut self) {
-        let mut updates = HashMap::new();
+        let mut updates = BTreeMap::new();
         for v in self.filters_raw.values() {
             Self::push_update(&mut updates, v);
             if let Some(tracked) = Self::is_tracked_type(v) {
@@ -630,7 +636,7 @@ impl SubscriptionDecoder {
     }
 
     fn push_update(
-        updates: &mut HashMap<StateTransition, Vec<ParsedInput>>,
+        updates: &mut BTreeMap<StateTransition, Vec<ParsedInput>>,
         inps: &Vec<ParsedInput>,
     ) {
         for inp in inps {
@@ -798,7 +804,7 @@ impl SubscriptionDecoder {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum TrackedKind {
     StreamCallback,
     StatelessCallback,
@@ -825,10 +831,25 @@ impl Hash for TrackedType {
     }
 }
 
+/// Ordered by name first so that the generated `TrackedWrapper` fields appear
+/// in a stable, alphabetical order.
+impl Ord for TrackedType {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        (&self.name, &self.kind).cmp(&(&other.name, &other.kind))
+    }
+}
+
+impl PartialOrd for TrackedType {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use iris_core::conntrack::StateTransition;
     use iris_core::filter::{Filter, ptree::*};
+    use strum::IntoEnumIterator;
 
     use super::*;
 
@@ -978,5 +999,170 @@ mod tests {
         }
         ptree.collapse();
         assert!(!ptree.deliver.is_empty());
+    }
+
+    // Callbacks, filters, and datatypes whose names deliberately do not sort in
+    // declaration order, so that any dependence on map iteration order shows up.
+    fn determinism_inputs() -> Vec<ParsedInput> {
+        vec![
+            ParsedInput::Datatype(DatatypeSpec {
+                level: Some(StateTransition::Packet),
+                name: "L4Pdu".into(),
+                expl_parsers: vec![],
+                filtered: false,
+            }),
+            ParsedInput::Datatype(DatatypeSpec {
+                level: Some(StateTransition::L7EndHdrs),
+                name: "TlsHandshake".into(),
+                expl_parsers: vec![],
+                filtered: false,
+            }),
+            ParsedInput::Datatype(DatatypeSpec {
+                level: Some(StateTransition::L7EndHdrs),
+                name: "DnsTransaction".into(),
+                expl_parsers: vec![],
+                filtered: false,
+            }),
+            ParsedInput::Datatype(DatatypeSpec {
+                level: None,
+                name: "ConnRecord".into(),
+                expl_parsers: vec![],
+                filtered: true,
+            }),
+            ParsedInput::DatatypeFn(DatatypeFnSpec {
+                group_name: "ConnRecord".into(),
+                func: FnSpec {
+                    name: "update".into(),
+                    datatypes: vec!["L4Pdu".into()],
+                    returns: FnReturn::None,
+                },
+                level: vec![StateTransition::InL4Conn],
+            }),
+            // Two stateful custom filters at different levels
+            ParsedInput::FilterGroup(FilterGroupSpec {
+                level: None,
+                name: "DropHighVolSess".into(),
+                expl_parsers: vec![],
+            }),
+            ParsedInput::FilterGroupFn(FilterGroupFnSpec {
+                level: vec![StateTransition::L7EndHdrs],
+                group_name: "DropHighVolSess".into(),
+                func: FnSpec {
+                    name: "on_session".into(),
+                    returns: FnReturn::FilterResult,
+                    datatypes: vec!["TlsHandshake".into()],
+                },
+            }),
+            ParsedInput::FilterGroupFn(FilterGroupFnSpec {
+                level: vec![StateTransition::L7EndHdrs],
+                group_name: "DropHighVolSess".into(),
+                func: FnSpec {
+                    name: "on_dns".into(),
+                    returns: FnReturn::FilterResult,
+                    datatypes: vec!["DnsTransaction".into()],
+                },
+            }),
+            ParsedInput::FilterGroup(FilterGroupSpec {
+                level: None,
+                name: "AConnFilter".into(),
+                expl_parsers: vec![],
+            }),
+            ParsedInput::FilterGroupFn(FilterGroupFnSpec {
+                level: vec![StateTransition::InL4Conn],
+                group_name: "AConnFilter".into(),
+                func: FnSpec {
+                    name: "update".into(),
+                    returns: FnReturn::FilterResult,
+                    datatypes: vec!["L4Pdu".into()],
+                },
+            }),
+            ParsedInput::FilterGroupFn(FilterGroupFnSpec {
+                level: vec![],
+                group_name: "AConnFilter".into(),
+                func: FnSpec {
+                    name: "on_conn".into(),
+                    returns: FnReturn::FilterResult,
+                    datatypes: vec!["L4Pdu".into()],
+                },
+            }),
+            // Several callbacks, declared out of alphabetical order
+            ParsedInput::Callback(CallbackFnSpec {
+                filter: "tls and AConnFilter and DropHighVolSess".into(),
+                level: vec![],
+                func: FnSpec {
+                    name: "z_tls_cb".into(),
+                    datatypes: vec!["TlsHandshake".into()],
+                    returns: FnReturn::None,
+                },
+                expl_parsers: vec![],
+            }),
+            ParsedInput::Callback(CallbackFnSpec {
+                filter: "dns and DropHighVolSess".into(),
+                level: vec![],
+                func: FnSpec {
+                    name: "m_dns_cb".into(),
+                    datatypes: vec!["DnsTransaction".into()],
+                    returns: FnReturn::None,
+                },
+                expl_parsers: vec![],
+            }),
+            ParsedInput::Callback(CallbackFnSpec {
+                filter: "ipv4 and tcp.port = 443 and AConnFilter".into(),
+                level: vec![StateTransition::L4Terminated],
+                func: FnSpec {
+                    name: "a_conn_cb".into(),
+                    datatypes: vec!["ConnRecord".into()],
+                    returns: FnReturn::None,
+                },
+                expl_parsers: vec![],
+            }),
+        ]
+    }
+
+    // Everything the code generator derives from the decoder, in the order it
+    // would be emitted.
+    fn decoder_fingerprint(inputs: &Vec<ParsedInput>) -> String {
+        let decoder = SubscriptionDecoder::new(inputs);
+        let mut out = String::new();
+        out.push_str(&format!("parsers: {:?}\n", decoder.parsers));
+        out.push_str(&format!("filtered: {:?}\n", decoder.filtered_datatypes));
+        out.push_str(&format!("tracked: {:?}\n", decoder.tracked));
+        for pred in &decoder.custom_preds {
+            out.push_str(&format!("custom_pred: {}\n", pred));
+        }
+        for spec in &decoder.subscriptions {
+            out.push_str(&format!("sub: {} [{}]\n", spec.as_str, spec.filter));
+            for cb in &spec.callbacks {
+                out.push_str(&format!("  cb: {} {:?}\n", cb.as_str, cb.expl_level));
+            }
+        }
+        for (level, inps) in &decoder.updates {
+            let names: Vec<String> = inps.iter().map(|i| i.name().clone()).collect();
+            out.push_str(&format!("update {:?}: {:?}\n", level, names));
+        }
+        out.push_str(&format!("{}\n", decoder.get_packet_filter_tree()));
+        for tx in StateTransition::iter() {
+            if tx == StateTransition::Packet || !decoder.requires_filter(&tx) {
+                continue;
+            }
+            out.push_str(&format!("{}\n", decoder.build_ptree(tx)));
+        }
+        out
+    }
+
+    // Decoding the same inputs twice must produce identical trees and identical
+    // orderings for everything the code generator iterates over.
+    #[test]
+    fn test_decoder_deterministic() {
+        let inputs = determinism_inputs();
+        let expected = decoder_fingerprint(&inputs);
+        for i in 1..5 {
+            let actual = decoder_fingerprint(&inputs);
+            assert_eq!(
+                expected, actual,
+                "Decoder output is not deterministic (iteration {})",
+                i
+            );
+        }
     }
 }

@@ -8,7 +8,7 @@ use super::pattern::{FlatPattern, LayeredPattern};
 use super::subscription::CallbackSpec;
 use crate::conntrack::StateTransition;
 
-use std::collections::HashSet;
+use std::collections::BTreeSet;
 use std::fmt;
 
 // A node representing a predicate in the tree
@@ -28,7 +28,7 @@ pub struct PredPNode {
 
     // Packet-level subscriptions that may need to be invoked
     // NOT SUPPORTED
-    pub deliver: HashSet<CallbackSpec>,
+    pub deliver: BTreeSet<CallbackSpec>,
 }
 
 impl PredPNode {
@@ -38,7 +38,7 @@ impl PredPNode {
             pred,
             is_terminal: false,
             children: vec![],
-            deliver: HashSet::new(),
+            deliver: BTreeSet::new(),
         }
     }
 
@@ -87,7 +87,7 @@ pub struct PredPTree {
     pub size: usize,
 
     // Deliver
-    pub deliver: HashSet<CallbackSpec>,
+    pub deliver: BTreeSet<CallbackSpec>,
 
     // Skip adding non-packet-level predicates
     pub packet_only: bool,
@@ -109,12 +109,12 @@ impl PredPTree {
             },
             is_terminal: false,
             children: vec![],
-            deliver: HashSet::new(),
+            deliver: BTreeSet::new(),
         };
         PredPTree {
             root,
             size: 1,
-            deliver: HashSet::new(),
+            deliver: BTreeSet::new(),
             packet_only,
         }
     }

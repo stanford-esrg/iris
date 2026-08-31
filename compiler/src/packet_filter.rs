@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 /// Generate code for the filter applied to every packet that hits an RX core.
 /// This returns `true` if a packet should continue to the connection tracker
@@ -120,7 +120,7 @@ fn add_binary_pred(
     let mut body: Vec<proc_macro2::TokenStream> = vec![];
     gen_packet_filter_util(&mut body, node, tree);
     update_body(&mut body, node);
-    let mut statics = HashMap::new();
+    let mut statics = BTreeMap::new();
     let pred_tokenstream = binary_to_tokens(protocol, field, op, value, &mut statics);
     assert!(statics.is_empty());
     code.push(quote! {

@@ -22,7 +22,7 @@ use self::tls::{parser::TlsParser, Tls};
 use crate::conntrack::conn_id::FiveTuple;
 use crate::conntrack::pdu::L4Pdu;
 
-use std::collections::HashSet;
+use std::collections::BTreeSet;
 use std::str::FromStr;
 
 use anyhow::Result;
@@ -79,8 +79,8 @@ pub struct ParserRegistry(Vec<ConnParser>);
 impl ParserRegistry {
     // Assumes that `input` is deduplicated
     pub fn from_strings(input: Vec<&'static str>) -> ParserRegistry {
-        // Deduplicate
-        let stream_protocols: HashSet<&'static str> = input.into_iter().collect();
+        // Deduplicate. Ordered, so that probe order does not vary run to run.
+        let stream_protocols: BTreeSet<&'static str> = input.into_iter().collect();
         let mut parsers = vec![];
         for stream_protocol in stream_protocols {
             let parser = ConnParser::from_str(stream_protocol)
@@ -377,8 +377,8 @@ impl ConnParser {
         }
     }
 
-    pub fn requires_parsing(filter_str: &str) -> HashSet<&'static str> {
-        let mut out = hashset! {};
+    pub fn requires_parsing(filter_str: &str) -> BTreeSet<&'static str> {
+        let mut out = BTreeSet::new();
 
         for s in IMPLEMENTED_PROTOCOLS {
             if filter_str.contains(s) {

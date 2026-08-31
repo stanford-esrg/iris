@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use crate::codegen::*;
 use crate::subscription::SubscriptionDecoder;
@@ -15,7 +15,7 @@ use strum::IntoEnumIterator;
 
 pub(crate) fn gen_state_filters(
     sub: &SubscriptionDecoder,
-    statics: &mut HashMap<String, (String, proc_macro2::TokenStream)>,
+    statics: &mut BTreeMap<String, (String, proc_macro2::TokenStream)>,
 ) -> (proc_macro2::TokenStream, proc_macro2::TokenStream) {
     let mut fns = vec![];
     let mut main = vec![];
@@ -120,7 +120,7 @@ fn gen_state_filter_util(
     code: &mut Vec<proc_macro2::TokenStream>,
     node: &PNode,
     tree: &PTree,
-    statics: &mut HashMap<String, (String, proc_macro2::TokenStream)>,
+    statics: &mut BTreeMap<String, (String, proc_macro2::TokenStream)>,
     sub: &SubscriptionDecoder,
     extract_sessions: bool,
 ) {
@@ -229,7 +229,7 @@ fn add_unary_pred(
     node: &PNode,
     tree: &PTree,
     protocol: &ProtocolName,
-    statics: &mut HashMap<String, (String, proc_macro2::TokenStream)>,
+    statics: &mut BTreeMap<String, (String, proc_macro2::TokenStream)>,
     first_unary: bool,
     sub: &SubscriptionDecoder,
     extract_sessions: bool,
@@ -268,7 +268,7 @@ fn add_service_pred(
     node: &PNode,
     tree: &PTree,
     protocol: &ProtocolName,
-    statics: &mut HashMap<String, (String, proc_macro2::TokenStream)>,
+    statics: &mut BTreeMap<String, (String, proc_macro2::TokenStream)>,
     sub: &SubscriptionDecoder,
     extract_sessions: bool,
 ) {
@@ -315,7 +315,7 @@ fn add_pred(
     node: &PNode,
     tree: &PTree,
     pred_tokenstream: proc_macro2::TokenStream,
-    statics: &mut HashMap<String, (String, proc_macro2::TokenStream)>,
+    statics: &mut BTreeMap<String, (String, proc_macro2::TokenStream)>,
     sub: &SubscriptionDecoder,
     extract_sessions: bool,
 ) {
@@ -343,7 +343,7 @@ fn add_callback_pred(
     name: &String,
     node: &PNode,
     tree: &PTree,
-    statics: &mut HashMap<String, (String, proc_macro2::TokenStream)>,
+    statics: &mut BTreeMap<String, (String, proc_macro2::TokenStream)>,
     sub: &SubscriptionDecoder,
     extract_sessions: bool,
 ) {

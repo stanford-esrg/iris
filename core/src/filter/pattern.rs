@@ -3,7 +3,7 @@ use super::subscription::StateTransitionSpec;
 
 use core::panic;
 use std::cmp::Ordering;
-use std::collections::HashSet;
+use std::collections::BTreeSet;
 use std::fmt;
 
 use hashlink::LinkedHashMap;
@@ -69,20 +69,23 @@ impl FlatPattern {
 
         let (layers, labels) = (&*LAYERS, &*NODE_BIMAP);
 
-        let mut node_paths: HashSet<Vec<NodeIndex>> = HashSet::new();
+        // Ordered collections throughout: the order in which patterns are
+        // generated determines the shape of the filter trees built from them,
+        // so it must not depend on hash iteration order.
+        let mut node_paths: BTreeSet<Vec<NodeIndex>> = BTreeSet::new();
         let headers = self
             .predicates
             .iter()
             .filter(|c| c.get_protocol() != ProtocolName::none())
             .map(|c| c.get_protocol())
-            .collect::<HashSet<_>>();
+            .collect::<BTreeSet<_>>();
         for header in headers.iter() {
             match labels.get_by_right(header) {
                 Some(node) => {
                     let ethernet = labels
                         .get_by_right(&protocol!("ethernet"))
                         .expect("Ethernet not defined.");
-                    let node_path: HashSet<Vec<NodeIndex>> =
+                    let node_path: BTreeSet<Vec<NodeIndex>> =
                         algo::all_simple_paths(&layers, *node, *ethernet, 0, None).collect();
                     node_paths.extend(node_path.iter().map(|p| p.to_vec()));
                 }
@@ -91,7 +94,7 @@ impl FlatPattern {
         }
 
         // all possible fully qualified paths from predicated headers
-        let mut fq_paths = HashSet::new();
+        let mut fq_paths = BTreeSet::new();
         for node_path in node_paths {
             let mut fq_path = node_path
                 .iter()
@@ -105,19 +108,19 @@ impl FlatPattern {
         // build fully qualified patterns (could have multiple per non-fully-qualified pattern)
         let mut fq_patterns = vec![];
         for fq_path in fq_paths {
-            let fq_headers: HashSet<&ProtocolName> = fq_path.iter().clone().collect();
+            let fq_headers: BTreeSet<&ProtocolName> = fq_path.iter().clone().collect();
             if headers.is_subset(&fq_headers) {
                 let mut fq_pattern = LayeredPattern::new();
                 for protocol in fq_path.iter() {
+                    // `BTreeSet` both dedups and sorts the predicates.
                     let proto_predicates = self
                         .predicates
                         .iter()
                         .filter(|c| c.get_protocol() == protocol && c.is_binary())
                         .map(|c| c.to_owned())
-                        .collect::<HashSet<_>>();
-
-                    let mut proto_predicates = proto_predicates.into_iter().collect::<Vec<_>>();
-                    proto_predicates.sort();
+                        .collect::<BTreeSet<_>>()
+                        .into_iter()
+                        .collect::<Vec<_>>();
 
                     assert!(fq_pattern.add_protocol(protocol.to_owned(), proto_predicates));
                 }
@@ -133,7 +136,7 @@ impl FlatPattern {
             .iter()
             .filter(|c| c.is_custom())
             .map(|c| c.to_owned())
-            .collect::<HashSet<_>>();
+            .collect::<BTreeSet<_>>();
         if !custom_preds.is_empty() {
             // Add custom filter predicate to end of all patterns
             for pattern in fq_patterns.iter_mut() {
@@ -399,7 +402,7 @@ impl FlatPattern {
             .iter()
             .flat_map(|p| p.levels())
             .filter(|l| matches!(l.compare(&curr), StateTxOrd::Unknown | StateTxOrd::Greater))
-            .collect::<HashSet<_>>() // dedup
+            .collect::<BTreeSet<_>>() // dedup (and sort, for determinism)
             .into_iter()
             .collect();
         // For `matching` streaming filters that are applied at this state,
@@ -464,7 +467,7 @@ impl LayeredPattern {
     }
 
     // Add `predicates` to the _end_ of the pattern.
-    fn extend_patterns(&mut self, predicates: &HashSet<Predicate>) {
+    fn extend_patterns(&mut self, predicates: &BTreeSet<Predicate>) {
         if self.0.is_empty() {
             self.0.insert(
                 ProtocolName::none().clone(),
