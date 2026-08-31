@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ChannelMode","Channels"],"fn":["pin_thread_to_core"],"struct":["ChannelDispatcher","DedicatedWorkerThreadSpawner","SharedWorkerThreadSpawner","SubscriptionStats"]};

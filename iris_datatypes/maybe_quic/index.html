@@ -1,0 +1,62 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="A streaming filter that heuristically accepts connections that look like QUIC: on an expected port, not clearly another protocol, and initial packets with (potential) QUIC short headers."><title>iris_datatypes::maybe_quic - Rust</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2"href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-1ed95124.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="iris_datatypes" data-themes="" data-resource-suffix="" data-rustdoc-version="1.98.0 (88d9e12ae 2026-08-18)" data-channel="1.98.0" data-search-js="search-9944d736.js" data-stringdex-js="stringdex-2da4960a.js" data-settings-js="settings-170eb4bf.js" ><script src="../../static.files/storage-41dd4d93.js"></script><script defer src="../sidebar-items.js"></script><script defer src="../../static.files/main-417ebf0a.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-f7c3ffd8.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-eab170b8.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc mod"><a class="skip-main-content" href="#main-content">Skip to main content</a><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><rustdoc-topbar><h2><a href="#">Module maybe_quic</a></h2></rustdoc-topbar><nav class="sidebar"><div class="sidebar-crate"><h2><a href="../../iris_datatypes/index.html">iris_<wbr>datatypes</a><span class="version">1.0.0</span></h2></div><div class="sidebar-elems"><section id="rustdoc-toc"><h2 class="location"><a href="#">Module maybe_<wbr>quic</a></h2><h3><a href="#structs">Module Items</a></h3><ul class="block"><li><a href="#structs" title="Structs">Structs</a></li><li><a href="#constants" title="Constants">Constants</a></li></ul></section><div id="rustdoc-modnav"><h2 class="in-crate"><a href="../index.html">In crate iris_<wbr>datatypes</a></h2></div></div></nav><div class="sidebar-resizer" title="Drag to resize sidebar"></div><main><div class="width-limiter"><section id="main-content" class="content" tabindex="-1"><div class="main-heading"><div class="rustdoc-breadcrumbs"><a href="../index.html">iris_datatypes</a></div><h1>Module <span>maybe_<wbr>quic</span>&nbsp;<button id="copy-path" title="Copy item path to clipboard">Copy item path</button></h1><rustdoc-toolbar></rustdoc-toolbar><span class="sub-heading"><a class="src" href="../../src/iris_datatypes/maybe_quic.rs.html#1-766">Source</a> </span></div><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>A streaming filter that heuristically accepts connections that look like
+QUIC: on an expected port, not clearly another protocol, and initial
+packets with (potential) QUIC short headers.</p>
+<p>Per RFC 9000, the first byte of a QUIC short header starts with bits
+<code>01</code>: header form 0, fixed bit 1. Header protection (Section 5.4.1) masks
+only the low five bits of that byte, so the top two are directly
+observable and the low five are pseudorandom per packet – a genuine
+32-value uniform source, which the entropy check below relies on.</p>
+<p>Three shapes count as evidence of QUIC (see [<code>Shape</code>]):</p>
+<ul>
+<li><strong>Short header</strong> – <code>01</code> in the top two bits.</li>
+<li><strong>Long header</strong> – high bit set, a version Iris recognizes, and not
+Version Negotiation (<code>0x00000000</code>, which is no evidence the connection
+will carry a 1-RTT packet, and a shape length- and ID-prefixed binary
+formats hit by accident). Meant to capture connections observed
+mid-handshake and coalesced datagrams.</li>
+<li><strong>Greased short header</strong> – an endpoint whose peer advertised
+<code>grease_quic_bit</code> may set the fixed bit to any value on its 1-RTT
+packets (RFC 9287), so roughly half of a greasing endpoint’s packets
+have it clear. Credited only once the connection has shown at least one
+unambiguous QUIC packet, and only when the datagram is large enough to
+hold a 1-RTT packet.</li>
+</ul>
+<p>For a datagram at least <a href="constant.MIN_1RTT_DATAGRAM_LEN.html" title="constant iris_datatypes::maybe_quic::MIN_1RTT_DATAGRAM_LEN"><code>MIN_1RTT_DATAGRAM_LEN</code></a> bytes, the short-header
+and greased shapes together cover every value with the high bit clear –
+the fixed bit only sorts a packet into one bucket or the other, and both
+count toward acceptance. What actually filters non-QUIC traffic is:
+requiring at least one unambiguous packet before anything is credited;
+requiring <a href="constant.MAYBE_QUIC_MIN_DISTINCT_LOW5.html" title="constant iris_datatypes::maybe_quic::MAYBE_QUIC_MIN_DISTINCT_LOW5"><code>MAYBE_QUIC_MIN_DISTINCT_LOW5</code></a> distinct low-5-bit values
+across the matched packets – or one recognized long header in place of
+that, since a 32-bit version match is stronger on its own – which is
+nearly free against traffic with a uniformly random first byte and
+rejects protocols that pin their low bits (TURN ChannelData, uTP,
+OpenVPN); and the window, fraction, and packet floor below, which set the
+false-positive rate against that random-looking traffic directly.</p>
+<p>Greased packets are counted toward the entropy check: RFC 9287 greasing
+flips only the fixed bit, never the low five, so a greased packet carries
+the same per-packet entropy as any other 1-RTT packet. Masking to five
+bits is what keeps that safe – a TURN relay mixing <code>0x40</code>/<code>0x41</code>
+ChannelData with <code>0x00</code>/<code>0x01</code> STUN collapses to two distinct low-5
+values either way, still short of the gate.</p>
+</div></details><h2 id="structs" class="section-header">Structs<a href="#structs" class="anchor">§</a></h2><dl class="item-table"><dt><a class="struct" href="struct.MaybeQuic.html" title="struct iris_datatypes::maybe_quic::MaybeQuic">Maybe<wbr>Quic</a></dt><dd>Accepts a connection once at least <a href="constant.MAYBE_QUIC_MIN_FRACTION.html" title="constant iris_datatypes::maybe_quic::MAYBE_QUIC_MIN_FRACTION"><code>MAYBE_QUIC_MIN_FRACTION</code></a> of its
+first <a href="constant.MAYBE_QUIC_WINDOW.html" title="constant iris_datatypes::maybe_quic::MAYBE_QUIC_WINDOW"><code>MAYBE_QUIC_WINDOW</code></a> payload-bearing packets (UDP, on one of
+<a href="constant.QUIC_PORTS.html" title="constant iris_datatypes::maybe_quic::QUIC_PORTS"><code>QUIC_PORTS</code></a>) look like QUIC packet headers, and those matches carry
+enough header entropy – see <a href="struct.MaybeQuic.html#method.header_entropy_ok" title="method iris_datatypes::maybe_quic::MaybeQuic::header_entropy_ok"><code>MaybeQuic::header_entropy_ok</code></a>. Non-UDP or
+non-QUIC-port connections are dropped immediately.</dd></dl><h2 id="constants" class="section-header">Constants<a href="#constants" class="anchor">§</a></h2><dl class="item-table"><dt><a class="constant" href="constant.MAYBE_QUIC_MIN_DISTINCT_LOW5.html" title="constant iris_datatypes::maybe_quic::MAYBE_QUIC_MIN_DISTINCT_LOW5">MAYBE_<wbr>QUIC_<wbr>MIN_<wbr>DISTINCT_<wbr>LOW5</a></dt><dd>Distinct values of a matched packet’s low five header bits (<code>first &amp; 0x1f</code>) required before those packets are credited – see
+<a href="struct.MaybeQuic.html#method.header_entropy_ok" title="method iris_datatypes::maybe_quic::MaybeQuic::header_entropy_ok"><code>MaybeQuic::header_entropy_ok</code></a>. Header protection (RFC 9000 Section
+5.4.1) makes those bits pseudorandom per packet.
+This exists to reject protocols that pin their low bits.
+Five is the minimum to avoid matching on OpenVPN and TURN.</dd><dt><a class="constant" href="constant.MAYBE_QUIC_MIN_FRACTION.html" title="constant iris_datatypes::maybe_quic::MAYBE_QUIC_MIN_FRACTION">MAYBE_<wbr>QUIC_<wbr>MIN_<wbr>FRACTION</a></dt><dd>Fraction of the first <a href="constant.MAYBE_QUIC_WINDOW.html" title="constant iris_datatypes::maybe_quic::MAYBE_QUIC_WINDOW"><code>MAYBE_QUIC_WINDOW</code></a> payload-bearing packets that
+must look like QUIC headers for the connection to be accepted.
+Mid-stream QUIC is very nearly all short headers, so this is set high.
+The slack tolerates one stray packet.</dd><dt><a class="constant" href="constant.MAYBE_QUIC_MIN_PKTS.html" title="constant iris_datatypes::maybe_quic::MAYBE_QUIC_MIN_PKTS">MAYBE_<wbr>QUIC_<wbr>MIN_<wbr>PKTS</a></dt><dd>Minimum payload-bearing packets needed to judge a connection that ended
+before <a href="constant.MAYBE_QUIC_WINDOW.html" title="constant iris_datatypes::maybe_quic::MAYBE_QUIC_WINDOW"><code>MAYBE_QUIC_WINDOW</code></a> was reached. Shorter connections carry too
+little evidence to classify and are dropped.</dd><dt><a class="constant" href="constant.MAYBE_QUIC_REQUIRED_MATCHES.html" title="constant iris_datatypes::maybe_quic::MAYBE_QUIC_REQUIRED_MATCHES">MAYBE_<wbr>QUIC_<wbr>REQUIRED_<wbr>MATCHES</a></dt><dd>Number of matching packets required within a full window of
+<a href="constant.MAYBE_QUIC_WINDOW.html" title="constant iris_datatypes::maybe_quic::MAYBE_QUIC_WINDOW"><code>MAYBE_QUIC_WINDOW</code></a> packets to meet <a href="constant.MAYBE_QUIC_MIN_FRACTION.html" title="constant iris_datatypes::maybe_quic::MAYBE_QUIC_MIN_FRACTION"><code>MAYBE_QUIC_MIN_FRACTION</code></a>, i.e.
+<code>ceil(MAYBE_QUIC_WINDOW * MAYBE_QUIC_MIN_FRACTION)</code>.</dd><dt><a class="constant" href="constant.MAYBE_QUIC_WINDOW.html" title="constant iris_datatypes::maybe_quic::MAYBE_QUIC_WINDOW">MAYBE_<wbr>QUIC_<wbr>WINDOW</a></dt><dd>Number of payload-bearing packets inspected before making a decision.</dd><dt><a class="constant" href="constant.MIN_1RTT_DATAGRAM_LEN.html" title="constant iris_datatypes::maybe_quic::MIN_1RTT_DATAGRAM_LEN">MIN_<wbr>1RTT_<wbr>DATAGRAM_<wbr>LEN</a></dt><dd>Smallest datagram that can carry a 1-RTT packet: one header byte, a
+zero-length destination connection ID, and the four packet-number bytes plus
+16-byte sample that RFC 9000 Section 5.4.2 requires header protection to be
+able to sample. Used to keep short non-QUIC datagrams out of the greased
+[<code>Shape::GreasedShortHeader</code>] bucket, where the fixed bit is no help.</dd><dt><a class="constant" href="constant.QUIC_PORTS.html" title="constant iris_datatypes::maybe_quic::QUIC_PORTS">QUIC_<wbr>PORTS</a></dt><dd>443 (HTTP/3), 853 (DNS-over-QUIC, RFC 9250), 4433 (QUIC interop/test port), 8
+443 (alt HTTPS/HTTP-3). A connection on any other port is dropped without inspection.</dd></dl></section></div></main></body></html>
