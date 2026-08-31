@@ -15,7 +15,7 @@ use iris_core::filter::ptree::PNode;
 
 use heck::CamelCase;
 use regex::{Regex, bytes::Regex as BytesRegex};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use syn::LitInt;
 use syn::LitStr;
 
@@ -691,7 +691,7 @@ pub(crate) fn binary_to_tokens(
     field: &FieldName,
     op: &BinOp,
     value: &Value,
-    statics: &mut HashMap<String, (String, proc_macro2::TokenStream)>,
+    statics: &mut BTreeMap<String, (String, proc_macro2::TokenStream)>,
 ) -> proc_macro2::TokenStream {
     assert!(!field.is_combined()); // should have been split when building tree
     let proto = Ident::new(protocol.name(), Span::call_site());
@@ -879,7 +879,7 @@ pub(crate) fn binary_to_tokens(
 }
 
 fn static_ident_re(
-    statics: &mut HashMap<String, (String, proc_macro2::TokenStream)>,
+    statics: &mut BTreeMap<String, (String, proc_macro2::TokenStream)>,
     text: &String,
     val_lit: syn::LitStr,
     kind: proc_macro2::TokenStream,
@@ -900,7 +900,7 @@ fn static_ident_re(
 }
 
 fn static_ident_memchr(
-    statics: &mut HashMap<String, (String, proc_macro2::TokenStream)>,
+    statics: &mut BTreeMap<String, (String, proc_macro2::TokenStream)>,
     text: &String,
     val_lit: proc_macro2::TokenStream,
 ) -> Ident {

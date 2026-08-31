@@ -61,7 +61,7 @@
 
 use proc_macro::TokenStream;
 use quote::quote;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use syn::{Item, parse_macro_input};
 
 mod parse;
@@ -314,7 +314,8 @@ pub fn iris_end_macros(_args: TokenStream, input: TokenStream) -> TokenStream {
     let packet_filter = packet_filter::gen_packet_filter(&packet_tree);
     let filter_str = packet_tree.to_filter_string();
 
-    let mut statics: HashMap<String, (String, proc_macro2::TokenStream)> = HashMap::new();
+    // Ordered so that the generated `lazy_static!` block is stable across builds.
+    let mut statics: BTreeMap<String, (String, proc_macro2::TokenStream)> = BTreeMap::new();
     let (state_tx_main, state_fns) = state_filters::gen_state_filters(&decoder, &mut statics);
     let lazy_statics = if statics.is_empty() {
         quote! {}

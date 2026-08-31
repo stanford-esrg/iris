@@ -1,6 +1,6 @@
 use core::fmt;
 use std::cmp::{Ordering, PartialOrd};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::conntrack::conn::conn_layers::SupportedLayer;
 use crate::conntrack::{LayerState, StateTransition};
@@ -31,14 +31,16 @@ pub struct PNode {
     // Subscriptions that can be invoked at this node.
     // That is, all for which `can_deliver` on its `SubscriptionLevel``
     // returned true.
-    pub deliver: HashSet<CallbackSpec>,
+    // Ordered so that the code generator emits delivery/match statements in a
+    // reproducible order.
+    pub deliver: BTreeSet<CallbackSpec>,
 
     // Callback groups that should be marked "active" (filter matched).
-    pub matched: HashSet<String>,
+    pub matched: BTreeSet<String>,
 
     // Datatypes that remain "in scope" at this node
     // Only tracked for "expensive" datatypes
-    pub filtered_datatypes: HashMap<String, FilteredDatatype>,
+    pub filtered_datatypes: BTreeMap<String, FilteredDatatype>,
 
     // Identifier
     pub id: usize,
@@ -54,9 +56,9 @@ impl PNode {
             children: vec![],
             if_else: false,
             actions: DataActions::new(),
-            deliver: HashSet::new(),
-            matched: HashSet::new(),
-            filtered_datatypes: HashMap::new(),
+            deliver: BTreeSet::new(),
+            matched: BTreeSet::new(),
+            filtered_datatypes: BTreeMap::new(),
             id,
             filter_str: None,
         }
@@ -408,9 +410,9 @@ pub struct PTree {
 
     // All actions, callbacks, tracked datatypes across all nodes in the tree
     pub actions: NodeActions,
-    pub deliver: HashSet<CallbackSpec>,
-    pub matched: HashSet<String>,
-    pub filtered_datatypes: HashSet<String>,
+    pub deliver: BTreeSet<CallbackSpec>,
+    pub matched: BTreeSet<String>,
+    pub filtered_datatypes: BTreeSet<String>,
 }
 
 impl PTree {
@@ -421,9 +423,9 @@ impl PTree {
             filter_layer,
             collapsed: false,
             actions: NodeActions::new(filter_layer),
-            deliver: HashSet::new(),
-            matched: HashSet::new(),
-            filtered_datatypes: HashSet::new(),
+            deliver: BTreeSet::new(),
+            matched: BTreeSet::new(),
+            filtered_datatypes: BTreeSet::new(),
         }
     }
 
@@ -819,13 +821,13 @@ impl PTree {
         fn prune(
             node: &mut PNode,
             on_path_actions: &DataActions,
-            on_path_deliver: &HashSet<String>,
-            on_path_matched: &HashSet<String>,
-            on_path_data: &HashMap<String, FilteredDatatype>,
+            on_path_deliver: &BTreeSet<String>,
+            on_path_matched: &BTreeSet<String>,
+            on_path_data: &BTreeMap<String, FilteredDatatype>,
         ) {
             // 1. Remove callbacks that would have already been invoked on this path
             let mut my_deliver = on_path_deliver.clone();
-            let mut new_ids = HashSet::new();
+            let mut new_ids = BTreeSet::new();
             for i in &node.deliver {
                 if !my_deliver.contains(&i.as_str) {
                     my_deliver.insert(i.as_str.clone());
@@ -845,7 +847,7 @@ impl PTree {
 
             // 3. Do the same for callbacks that need to be marked `matched`
             let mut my_matched = on_path_matched.clone();
-            let mut new_ids = HashSet::new();
+            let mut new_ids = BTreeSet::new();
             for i in &node.matched {
                 if !my_matched.contains(i) {
                     my_matched.insert(i.clone());
@@ -856,7 +858,7 @@ impl PTree {
 
             // 4. ...and for filtered data
             let mut my_filtered_data = on_path_data.clone();
-            let mut new_data = HashMap::new();
+            let mut new_data = BTreeMap::new();
             for dt in node.filtered_datatypes.values() {
                 match my_filtered_data.get(&dt.name) {
                     Some(on_path_dt) => {
@@ -895,9 +897,9 @@ impl PTree {
         }
 
         let on_path_actions = DataActions::new();
-        let on_path_deliver = HashSet::new();
-        let on_path_matched = HashSet::new();
-        let on_path_data = HashMap::new();
+        let on_path_deliver = BTreeSet::new();
+        let on_path_matched = BTreeSet::new();
+        let on_path_data = BTreeMap::new();
         prune(
             &mut self.root,
             &on_path_actions,
@@ -1061,9 +1063,9 @@ impl PTree {
         fn update_metadata(
             node: &PNode,
             actions: &mut NodeActions,
-            deliver: &mut HashSet<CallbackSpec>,
-            matched: &mut HashSet<String>,
-            filtered_datatypes: &mut HashSet<String>,
+            deliver: &mut BTreeSet<CallbackSpec>,
+            matched: &mut BTreeSet<String>,
+            filtered_datatypes: &mut BTreeSet<String>,
         ) {
             for child in &node.children {
                 update_metadata(child, actions, deliver, matched, filtered_datatypes);
@@ -1207,7 +1209,11 @@ impl fmt::Display for PTree {
 
 #[cfg(test)]
 mod tests {
-    use crate::{conntrack::Actions, filter::subscription::StateTransitionSpec, filter::Filter};
+    use crate::{
+        conntrack::Actions, filter::pred_ptree::PredPTree,
+        filter::subscription::StateTransitionSpec, filter::Filter,
+    };
+    use strum::IntoEnumIterator;
 
     use super::*;
 
@@ -1652,5 +1658,136 @@ mod tests {
         let node = tree.get_subtree(1).unwrap();
         assert!(!node.matched.is_empty());
         println!("Matched: {:?}", node.matched);
+    }
+
+    lazy_static! {
+        // Two custom filters that apply at different levels, as in
+        // `examples/measuring_sec`. Interleaving several of these across
+        // subscriptions is what exposed hash-iteration-order dependence in
+        // pattern generation and tree insertion.
+        static ref VOL_FILTERS: Vec<Predicate> = vec![
+            Predicate::Custom {
+                name: filterfunc!("drop_high_vol_conn"),
+                levels: vec![vec![StateTransition::InL4Conn]],
+                matched: true,
+                filtered_data: vec![],
+            },
+            Predicate::Custom {
+                name: filterfunc!("drop_high_vol_sess"),
+                levels: vec![vec![StateTransition::L7EndHdrs]],
+                matched: true,
+                filtered_data: vec![],
+            },
+        ];
+        static ref DNS_DATATYPE: StateTransitionSpec = StateTransitionSpec {
+            updates: vec![StateTransition::L7EndHdrs],
+            name: "DnsTransaction".into(),
+        };
+        static ref DNS_SUB: Vec<CallbackSpec> = vec![CallbackSpec {
+            expl_level: None,
+            datatypes: vec![DNS_DATATYPE.clone()],
+            must_deliver: false,
+            invoke_once: false,
+            as_str: "get_dns".into(),
+            subscription_id: "get_dns".into(),
+            filtered_data: vec![],
+        }];
+        static ref TLS_SUB_NAMED: Vec<CallbackSpec> = vec![CallbackSpec {
+            expl_level: None,
+            datatypes: vec![TLS_DATATYPE.clone()],
+            must_deliver: false,
+            invoke_once: false,
+            as_str: "get_tls".into(),
+            subscription_id: "get_tls".into(),
+            filtered_data: vec![],
+        }];
+    }
+
+    // (filter string, callbacks) for the subscriptions used by the
+    // determinism test below.
+    fn determinism_subscriptions() -> Vec<(&'static str, &'static Vec<CallbackSpec>)> {
+        vec![
+            (
+                "tls and drop_high_vol_conn and drop_high_vol_sess",
+                &TLS_SUB_NAMED,
+            ),
+            ("dns and drop_high_vol_sess", &DNS_SUB),
+            ("http and drop_high_vol_conn", &DNS_SUB),
+            ("ipv4 and tcp.port = 443", &FIVETUPLE_SUB),
+            ("quic and drop_high_vol_sess", &DNS_SUB),
+        ]
+    }
+
+    // Builds the packet tree plus one collapsed PTree per state transition from
+    // a fixed set of subscriptions, returning the printed form of each.
+    fn build_all_trees() -> Vec<(String, String)> {
+        let subscriptions = determinism_subscriptions();
+        let mut ret = vec![];
+
+        // Packet filter tree. Unlike `PTree`, this one is never sorted, so its
+        // shape follows pattern order directly.
+        let mut packet_tree = PredPTree::new_empty(true);
+        for (filter_str, _) in &subscriptions {
+            let filter = Filter::new(filter_str, &VOL_FILTERS).unwrap();
+            packet_tree.build_tree(&filter.get_patterns_flat(), &[]);
+        }
+        packet_tree.prune_branches();
+        ret.push((
+            "Packet".to_string(),
+            format!("{}\n{}", packet_tree, packet_tree.to_filter_string()),
+        ));
+
+        for filter_layer in StateTransition::iter() {
+            if matches!(
+                filter_layer,
+                StateTransition::Packet | StateTransition::L4Terminated
+            ) {
+                continue;
+            }
+            let mut tree = PTree::new_empty(filter_layer);
+            for (filter_str, callbacks) in &subscriptions {
+                let filter = Filter::new(filter_str, &VOL_FILTERS).unwrap();
+                tree.add_subscription(
+                    &filter.get_patterns_flat(),
+                    callbacks,
+                    &callbacks[0].subscription_id,
+                );
+            }
+            tree.collapse();
+            ret.push((format!("{:?}", filter_layer), tree.pprint()));
+        }
+        ret
+    }
+
+    // Building the same trees from identical inputs must produce byte-identical
+    // output. Independent `HashMap`/`HashSet` instances in one process do not
+    // share an iteration order, so repeating the build in-process catches any
+    // remaining dependence on hash ordering.
+    #[test]
+    fn core_ptree_deterministic() {
+        let expected = build_all_trees();
+        assert!(!expected.is_empty());
+        for i in 1..25 {
+            let actual = build_all_trees();
+            assert_eq!(
+                expected.len(),
+                actual.len(),
+                "Different number of trees on iteration {}",
+                i
+            );
+            for ((exp_layer, exp_tree), (act_layer, act_tree)) in expected.iter().zip(actual.iter())
+            {
+                assert_eq!(
+                    exp_layer, act_layer,
+                    "Tree order changed on iteration {}",
+                    i
+                );
+                assert_eq!(
+                    exp_tree, act_tree,
+                    "{} tree differs on iteration {}:\nEXPECTED:\n{}\nACTUAL:\n{}",
+                    exp_layer, i, exp_tree, act_tree
+                );
+            }
+        }
     }
 }

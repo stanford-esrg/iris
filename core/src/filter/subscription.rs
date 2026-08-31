@@ -1,5 +1,6 @@
 #![doc(hidden)]
-use std::collections::{HashMap, HashSet};
+use std::cmp::Ordering;
+use std::collections::{BTreeMap, HashSet};
 use std::hash::{Hash, Hasher};
 
 use crate::conntrack::conn::conn_layers::{SupportedLayer, NUM_LAYERS};
@@ -247,7 +248,7 @@ impl NodeActions {
 /// Compile-time struct for representing a datatype required for a callback
 /// or custom filter predicate.
 /// Might also be used to represent a stateful custom filter predicate.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct StateTransitionSpec {
     /// Updates: streaming updates and state transitions requested.
     pub updates: Vec<StateTransition>,
@@ -409,6 +410,38 @@ impl Hash for CallbackSpec {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.as_str.hash(state);
         self.subscription_id.hash(state);
+    }
+}
+
+/// Ordered by name first, so that generated code is grouped by subscription and
+/// stays readable, then by the remaining fields to stay consistent with `Eq`
+/// (a single callback can appear multiple times with different `expl_level`s).
+impl Ord for CallbackSpec {
+    fn cmp(&self, other: &Self) -> Ordering {
+        (
+            &self.subscription_id,
+            &self.as_str,
+            &self.expl_level,
+            &self.datatypes,
+            &self.must_deliver,
+            &self.invoke_once,
+            &self.filtered_data,
+        )
+            .cmp(&(
+                &other.subscription_id,
+                &other.as_str,
+                &other.expl_level,
+                &other.datatypes,
+                &other.must_deliver,
+                &other.invoke_once,
+                &other.filtered_data,
+            ))
+    }
+}
+
+impl PartialOrd for CallbackSpec {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 
@@ -590,10 +623,10 @@ impl FilteredDatatype {
     }
 
     pub fn concat(
-        l: &HashMap<String, FilteredDatatype>,
-        r: &HashMap<String, FilteredDatatype>,
-    ) -> HashMap<String, FilteredDatatype> {
-        let mut ret: HashMap<String, FilteredDatatype> = HashMap::new();
+        l: &BTreeMap<String, FilteredDatatype>,
+        r: &BTreeMap<String, FilteredDatatype>,
+    ) -> BTreeMap<String, FilteredDatatype> {
+        let mut ret: BTreeMap<String, FilteredDatatype> = BTreeMap::new();
         for (k, v) in l.iter().chain(r.iter()) {
             if let Some(existing) = ret.get_mut(k) {
                 existing.extend(v);
