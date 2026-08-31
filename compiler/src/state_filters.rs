@@ -455,7 +455,7 @@ mod tests {
             .map(|l| serde_json::from_str(l).unwrap_or_else(|e| panic!("{}: {}", e, l)))
             .collect();
         let sub = SubscriptionDecoder::new(&inputs);
-        let mut statics = HashMap::new();
+        let mut statics = BTreeMap::new();
         gen_state_filters(&sub, &mut statics).1.to_string()
     }
 
