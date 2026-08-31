@@ -530,6 +530,11 @@ impl PTree {
             }
         }
 
+        // State-guarded actions (actions with "if_matches.is_some()") are inserted on
+        // truncated subpatterns. Defensively make sure these subpatterns populate
+        // all actions unconditionally associated with the end-to-end pattern.
+        node_actions.propagate_to_state_guards();
+
         let contains_nonterminal = pattern.contains_nonterminal();
         let mut full_pattern_added = false;
 
@@ -1789,5 +1794,69 @@ mod tests {
                 );
             }
         }
+    }
+
+    fn find_node<'a>(node: &'a PNode, pred: &str) -> Option<&'a PNode> {
+        if node.pred.to_string() == pred {
+            return Some(node);
+        }
+        node.children.iter().find_map(|c| find_node(c, pred))
+    }
+
+    fn conn_tree() -> PTree {
+        let filter = Filter::new("tls", &[]).unwrap();
+        let patterns = filter.get_patterns_flat();
+        let mut tree = PTree::new_empty(StateTransition::InL4Conn);
+        tree.add_subscription(&patterns, &TERM_SUB_TRACKED, &TERM_SUB_TRACKED[0].as_str);
+        tree.collapse();
+        tree
+    }
+
+    /// A state transition that fires before the protocol is identified (e.g. an
+    /// `InL4Conn` transition forced by an unrelated streaming filter) clears the
+    /// actions this pattern's connection-level datatypes need. The only branch a
+    /// still-`Probing` connection can reach is the `L7 == Discovery` one, so it has
+    /// to re-grant them.
+    #[test]
+    fn core_ptree_discovery_branch_regrants_conn_actions() {
+        let tree = conn_tree();
+        let discovery = find_node(&tree.root, "L7=Discovery")
+            .unwrap_or_else(|| panic!("No L7=Discovery branch in\n{}", tree));
+        let actions = &discovery.actions.transport;
+        assert!(
+            actions.active.contains(Actions::Update) && actions.active.contains(Actions::Track),
+            "L7=Discovery grants {} in\n{}",
+            actions,
+            tree
+        );
+        // Still cleared and re-decided once the protocol is known.
+        assert!(
+            actions.refresh_at[StateTransition::L7OnDisc.as_usize()]
+                .contains(Actions::Update | Actions::Track),
+            "L7=Discovery actions are not refreshed at L7OnDisc: {}",
+            actions
+        );
+    }
+
+    /// The pre-discovery re-grant must not relax the post-discovery filter: once the
+    /// protocol is known, only the branch that matches it may grant.
+    #[test]
+    fn core_ptree_discovery_regrant_keeps_protocol_check() {
+        let tree = conn_tree();
+        let headers = find_node(&tree.root, "L7>=Headers").expect("No L7>=Headers branch");
+        assert!(
+            headers.actions.drop(),
+            "L7>=Headers grants {} without checking the protocol",
+            headers.actions
+        );
+        let tls = find_node(headers, "tls").expect("No tls branch");
+        assert!(
+            tls.actions
+                .transport
+                .active
+                .contains(Actions::Update | Actions::Track),
+            "tls grants {}",
+            tls.actions
+        );
     }
 }

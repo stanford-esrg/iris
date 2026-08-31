@@ -219,6 +219,29 @@ impl NodeActions {
         self.push_filter_pred(&level);
     }
 
+    /// Ensure that branches which are reachable before this pattern can be
+    /// fully checked set all actions that the pattern needs.
+    ///
+    /// Actions with an `if_matches` state condition are inserted into the tree on a
+    /// truncated subpattern (see `FlatPattern::get_subpattern`).
+    /// While the layer is still in that `if_matches` state, the truncated branch may be
+    /// the only branch of this pattern that can be reached.
+    /// If there are *unconditional* actions on the pattern, the truncated branch should
+    /// set those, too.
+    pub(crate) fn propagate_to_state_guards(&mut self) {
+        let Some(unconditional) = self
+            .actions
+            .iter()
+            .find(|a| a.if_matches.is_none())
+            .cloned()
+        else {
+            return;
+        };
+        for a in self.actions.iter_mut().filter(|a| a.if_matches.is_some()) {
+            a.merge(&unconditional);
+        }
+    }
+
     /// Merge two NodeActions together.
     /// This is typically needed when a Node already has actions
     /// accumulated and another subscription (sub-)pattern terminates
